@@ -1,0 +1,85 @@
+<ion-content [fullscreen]="true" class="budget-home">
+  <main class="home-shell">
+    <section class="greeting-section fade-in">
+      <div>
+        <p class="eyebrow">Good afternoon ☀️</p>
+        <h1>{{ username }}</h1>
+      </div>
+      <div class="month-pill">
+        <span>🌼</span>
+        {{ currentMonth }}
+      </div>
+    </section>
+
+    <section class="budget-card pop-in">
+      <div class="budget-card__top">
+        <div>
+          <p>Monthly Budget</p>
+          <h2>{{ amountLeft }}</h2>
+          <span>left of {{ monthlyBudget }}</span>
+        </div>
+        <div class="budget-badge">✨</div>
+      </div>
+
+      <div class="progress-wrap" aria-label="Monthly budget progress">
+        <div class="progress-bar" [style.width.%]="budgetProgress"></div>
+      </div>
+
+      <p class="motivation">You are glowing. Keep a little cushion for weekend treats.</p>
+    </section>
+
+    <section class="quick-stats">
+      <article
+        class="stat-card float-up"
+        *ngFor="let stat of quickStats; let i = index"
+        [ngClass]="'tone-' + stat.tone"
+        [style.animation-delay.ms]="90 * i"
+      >
+        <span class="stat-icon">{{ stat.icon }}</span>
+        <p>{{ stat.label }}</p>
+        <h3>{{ stat.value }}</h3>
+      </article>
+    </section>
+
+    <section class="transactions-section fade-in-delayed">
+      <div class="section-heading">
+        <h2>Recent transactions</h2>
+        <button type="button">See all</button>
+      </div>
+
+      <div class="transaction-list">
+        <article
+          class="transaction-item"
+          *ngFor="let transaction of transactions; let i = index"
+          [style.animation-delay.ms]="130 * i"
+        >
+          <div class="transaction-icon" [ngClass]="'tone-' + transaction.tone">
+            {{ transaction.icon }}
+          </div>
+          <div class="transaction-copy">
+            <div class="transaction-title-row">
+              <h3>{{ transaction.label }}</h3>
+              <span class="category-pill" [ngClass]="'tone-' + transaction.tone">
+                {{ transaction.tag }}
+              </span>
+            </div>
+            <p>{{ transaction.category }} · {{ transaction.date }}</p>
+          </div>
+          <strong>{{ transaction.amount }}</strong>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Budget navigation">
+    <button
+      type="button"
+      *ngFor="let item of navItems"
+      [class.active]="item.active"
+      [attr.aria-label]="item.label"
+    >
+      <ion-icon [name]="item.icon"></ion-icon>
+      <span>{{ item.label }}</span>
+    </button>
+  </nav>
+</ion-content>
