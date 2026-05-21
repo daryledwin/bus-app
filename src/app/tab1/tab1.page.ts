@@ -1,4 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, ElementRef, ViewChild } from '@angular/core';
+import { IonContent } from '@ionic/angular';
+import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
+import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 
 interface NearbyBus {
   service: string;
@@ -32,13 +35,46 @@ interface NavItem {
   styleUrls: ['tab1.page.scss']
 })
 export class Tab1Page {
-  readonly greeting = 'good morning';
+  @ViewChild(IonContent) private readonly content?: IonContent;
+  @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
 
-  readonly suggestedStops = [
-    'near me',
-    'bus 143',
-    'Tiong Bahru',
-    'Dhoby Ghaut'
+  readonly greeting = 'good morning';
+  searchTerm = '';
+  searchedBusStopCode = '';
+  liveBusServices: BusServiceArrival[] = [];
+  busStopResults: BusStop[] = [];
+  recentBusStops: BusStop[] = [];
+  selectedBusStop?: BusStop;
+  isLoadingArrivals = false;
+  isLoadingBusStops = false;
+  hasSearchedArrivals = false;
+  arrivalError = '';
+  stopSearchError = '';
+  private busStops: BusStop[] = [];
+  private searchTimer?: ReturnType<typeof setTimeout>;
+
+  readonly popularStops: BusStop[] = [
+    {
+      BusStopCode: '01012',
+      Description: 'Hotel Grand Pacific',
+      RoadName: 'Victoria St',
+      Latitude: 1.29685,
+      Longitude: 103.853
+    },
+    {
+      BusStopCode: '08057',
+      Description: 'Dhoby Ghaut Stn',
+      RoadName: 'Orchard Rd',
+      Latitude: 1.29947,
+      Longitude: 103.84594
+    },
+    {
+      BusStopCode: '01112',
+      Description: 'Opp Bugis Stn Exit C',
+      RoadName: 'Victoria St',
+      Latitude: 1.30009,
+      Longitude: 103.8552
+    }
   ];
 
   readonly nearbyBuses: NearbyBus[] = [
@@ -112,4 +148,211 @@ export class Tab1Page {
     { label: 'Nearby', icon: 'navigate-outline' },
     { label: 'Profile', icon: 'person-circle-outline' }
   ];
+
+  constructor(
+    private readonly ltaBusService: LtaBusService,
+    private readonly ltaBusStopsService: LtaBusStopsService
+  ) {
+    this.recentBusStops = this.loadRecentBusStops();
+  }
+
+  get isTextSearchActive(): boolean {
+    const query = this.searchTerm.trim();
+    return !!query && !this.selectedBusStop && !this.isBusStopCode(query);
+  }
+
+  submitSearch(): void {
+    const query = this.searchTerm.trim();
+
+    if (this.isBusStopCode(query)) {
+      this.searchArrivals(query);
+      return;
+    }
+
+    this.searchBusStops(query);
+  }
+
+  onSearchTermChange(value: string): void {
+    this.stopSearchError = '';
+    this.selectedBusStop = undefined;
+
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+    }
+
+    this.searchTimer = setTimeout(() => {
+      const query = value.trim();
+
+      if (!query) {
+        this.busStopResults = [];
+        this.isLoadingBusStops = false;
+        return;
+      }
+
+      if (this.isBusStopCode(query)) {
+        this.busStopResults = [];
+        this.searchArrivals(query);
+        return;
+      }
+
+      this.searchBusStops(query);
+    }, 220);
+  }
+
+  searchArrivals(busStopCode = this.searchedBusStopCode): void {
+    this.hasSearchedArrivals = true;
+    this.isLoadingArrivals = true;
+    this.arrivalError = '';
+    this.liveBusServices = [];
+
+    this.ltaBusService.getBusArrivals(busStopCode).subscribe({
+      next: (arrivalLookup) => {
+        this.searchedBusStopCode = arrivalLookup.busStopCode;
+        this.liveBusServices = arrivalLookup.services;
+        this.isLoadingArrivals = false;
+        this.scrollToArrivals();
+      },
+      error: (error) => {
+        this.searchedBusStopCode = busStopCode.trim();
+        this.arrivalError = this.errorMessage(error);
+        this.isLoadingArrivals = false;
+        this.scrollToArrivals();
+      }
+    });
+  }
+
+  selectBusStop(stop: BusStop): void {
+    this.selectedBusStop = stop;
+    this.searchTerm = `${stop.Description} (${stop.BusStopCode})`;
+    this.busStopResults = [];
+    this.rememberBusStop(stop);
+    this.searchArrivals(stop.BusStopCode);
+  }
+
+  trackBusStop(index: number, stop: BusStop): string {
+    return stop.BusStopCode;
+  }
+
+  private searchBusStops(query: string): void {
+    if (!query) {
+      this.busStopResults = [];
+      return;
+    }
+
+    if (this.busStops.length) {
+      this.busStopResults = this.rankBusStops(query);
+      return;
+    }
+
+    this.isLoadingBusStops = true;
+    this.ltaBusStopsService.getBusStops().subscribe({
+      next: (stops) => {
+        this.busStops = stops;
+        this.busStopResults = this.rankBusStops(this.searchTerm.trim());
+        this.isLoadingBusStops = false;
+      },
+      error: () => {
+        this.stopSearchError = 'Bus stop names are resting for a moment. A 5-digit stop code still works.';
+        this.busStopResults = [];
+        this.isLoadingBusStops = false;
+      }
+    });
+  }
+
+  private rankBusStops(query: string): BusStop[] {
+    const normalizedQuery = this.normalize(query);
+    const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+
+    return this.busStops
+      .map((stop) => ({
+        stop,
+        score: this.matchScore(stop, normalizedQuery, queryTokens)
+      }))
+      .filter((result) => result.score > 0)
+      .sort((a, b) => b.score - a.score || a.stop.Description.localeCompare(b.stop.Description))
+      .slice(0, 8)
+      .map((result) => result.stop);
+  }
+
+  private matchScore(stop: BusStop, query: string, tokens: string[]): number {
+    const description = this.normalize(stop.Description);
+    const road = this.normalize(stop.RoadName);
+    const code = this.normalize(stop.BusStopCode);
+    const searchableText = `${description} ${road} ${code}`;
+    let score = 0;
+
+    if (code === query) {
+      score += 120;
+    }
+
+    if (description.startsWith(query)) {
+      score += 70;
+    } else if (description.includes(query)) {
+      score += 48;
+    }
+
+    if (road.startsWith(query)) {
+      score += 42;
+    } else if (road.includes(query)) {
+      score += 30;
+    }
+
+    if (code.startsWith(query)) {
+      score += 36;
+    }
+
+    const matchingTokens = tokens.filter((token) => searchableText.includes(token)).length;
+
+    if (matchingTokens === tokens.length) {
+      score += matchingTokens * 16;
+    }
+
+    return score;
+  }
+
+  private normalize(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  private isBusStopCode(value: string): boolean {
+    return /^\d{5}$/.test(value);
+  }
+
+  private scrollToArrivals(): void {
+    setTimeout(() => {
+      const sectionTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
+      this.content?.scrollToPoint(0, Math.max(sectionTop - 18, 0), 520);
+    }, 80);
+  }
+
+  private rememberBusStop(stop: BusStop): void {
+    this.recentBusStops = [
+      stop,
+      ...this.recentBusStops.filter((recentStop) => recentStop.BusStopCode !== stop.BusStopCode)
+    ].slice(0, 3);
+
+    localStorage.setItem('recentBusStops', JSON.stringify(this.recentBusStops));
+  }
+
+  private loadRecentBusStops(): BusStop[] {
+    const storedStops = localStorage.getItem('recentBusStops');
+
+    if (!storedStops) {
+      return [];
+    }
+
+    try {
+      return JSON.parse(storedStops) as BusStop[];
+    } catch {
+      return [];
+    }
+  }
+
+  private errorMessage(error: unknown): string {
+    if (error instanceof Error && error.message.startsWith('Please enter')) {
+      return error.message;
+    }
+
+    return 'The live bus feed is taking a quiet pause. Try this bus stop code again in a moment.';
+  }
 }

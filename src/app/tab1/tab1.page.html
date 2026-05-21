@@ -29,34 +29,165 @@
     </header>
 
     <section class="search-card pop-in" aria-label="Find a bus">
-      <label for="bus-search">Search bus stop or service</label>
-      <div class="search-bar">
+      <label for="bus-search">Search by bus stop code, name, or road</label>
+      <form class="search-bar" (ngSubmit)="submitSearch()">
         <ion-icon name="search-outline"></ion-icon>
-        <input id="bus-search" type="search" placeholder="Blk 225 AMK, 36, Orchard..." />
-        <button type="button" aria-label="Use nearby stops">
-          <ion-icon name="locate-outline"></ion-icon>
+        <input
+          id="bus-search"
+          name="searchTerm"
+          type="search"
+          autocomplete="off"
+          placeholder="Try Opp NEX, Victoria St, or 59239"
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="onSearchTermChange($event)"
+        />
+        <button type="submit" aria-label="Search bus arrivals">
+          <ion-icon name="arrow-forward-outline"></ion-icon>
         </button>
+      </form>
+
+      <div class="search-shelves" *ngIf="!searchTerm.trim()">
+        <section class="stop-shelf" *ngIf="recentBusStops.length" aria-label="Recent searches">
+          <p>recent searches</p>
+          <div class="mini-stop-row">
+            <button type="button" *ngFor="let stop of recentBusStops; trackBy: trackBusStop" (click)="selectBusStop(stop)">
+              <strong>{{ stop.Description }}</strong>
+              <span>{{ stop.RoadName }} · {{ stop.BusStopCode }}</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="stop-shelf" aria-label="Popular nearby stops">
+          <p>popular nearby stops</p>
+          <div class="mini-stop-row">
+            <button type="button" *ngFor="let stop of popularStops; trackBy: trackBusStop" (click)="selectBusStop(stop)">
+              <strong>{{ stop.Description }}</strong>
+              <span>{{ stop.RoadName }} · {{ stop.BusStopCode }}</span>
+            </button>
+          </div>
+        </section>
       </div>
-      <div class="search-meta">
-        <button type="button" *ngFor="let stop of suggestedStops">
-          {{ stop }}
-        </button>
+
+      <div class="stop-search-panel" *ngIf="isTextSearchActive">
+        <div class="stop-skeletons" *ngIf="isLoadingBusStops" aria-live="polite">
+          <article *ngFor="let item of [1, 2, 3]">
+            <span></span>
+            <span></span>
+            <span></span>
+          </article>
+        </div>
+
+        <div class="stop-search-error" *ngIf="stopSearchError">
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <p>{{ stopSearchError }}</p>
+        </div>
+
+        <div class="stop-results" *ngIf="busStopResults.length">
+          <button
+            type="button"
+            class="stop-result-card"
+            *ngFor="let stop of busStopResults; let i = index; trackBy: trackBusStop"
+            [style.animation-delay.ms]="45 * i"
+            (click)="selectBusStop(stop)"
+          >
+            <div>
+              <h3>{{ stop.Description }}</h3>
+              <p>{{ stop.RoadName }}</p>
+            </div>
+            <strong>{{ stop.BusStopCode }}</strong>
+          </button>
+        </div>
+
+        <div
+          class="stop-empty"
+          *ngIf="!isLoadingBusStops && !stopSearchError && !busStopResults.length && searchTerm.trim()"
+          aria-live="polite"
+        >
+          <ion-icon name="search-circle-outline"></ion-icon>
+          <p>No stop matches yet. Try a road name, landmark, or a 5-digit bus stop code.</p>
+        </div>
       </div>
     </section>
 
-    <section class="arrivals-section fade-in-delayed" aria-labelledby="nearby-title">
+    <section #arrivalsSection class="arrivals-section fade-in-delayed" aria-labelledby="nearby-title">
       <div class="section-heading">
         <div>
-          <p>nearby buses</p>
-          <h2 id="nearby-title">Serangoon Central</h2>
+          <p>{{ hasSearchedArrivals ? 'live bus arrival' : 'dummy preview' }}</p>
+          <h2 id="nearby-title">
+            {{ hasSearchedArrivals ? (selectedBusStop?.Description || 'Stop ' + (searchedBusStopCode || 'search')) : 'Serangoon Central' }}
+          </h2>
         </div>
-        <button type="button">
+        <button type="button" (click)="searchArrivals()" [disabled]="isLoadingArrivals" *ngIf="hasSearchedArrivals">
           <ion-icon name="refresh-outline"></ion-icon>
           live
         </button>
       </div>
 
-      <div class="arrival-grid">
+      <div class="arrival-state" *ngIf="isLoadingArrivals" aria-live="polite">
+        <ion-spinner name="crescent"></ion-spinner>
+        <p>Checking the next buses for you.</p>
+      </div>
+
+      <div class="arrival-state arrival-state--error" *ngIf="arrivalError" aria-live="polite">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <p>{{ arrivalError }}</p>
+      </div>
+
+      <div
+        class="arrival-state"
+        *ngIf="hasSearchedArrivals && !isLoadingArrivals && !arrivalError && !liveBusServices.length"
+        aria-live="polite"
+      >
+        <ion-icon name="moon-outline"></ion-icon>
+        <p>No live buses are showing for this stop right now. Try another bus stop code.</p>
+      </div>
+
+      <div class="live-grid" *ngIf="liveBusServices.length">
+        <article
+          class="live-card float-up"
+          *ngFor="let service of liveBusServices; let i = index"
+          [style.animation-delay.ms]="70 * i"
+        >
+          <div class="live-card__top">
+            <div class="service-badge">{{ service.serviceNo }}</div>
+            <div class="arrival-time" [class.arriving]="service.nextBus.minutesAway !== null && service.nextBus.minutesAway <= 1">
+              <strong>{{ service.nextBus.timing }}</strong>
+              <span>{{ service.operator }}</span>
+            </div>
+          </div>
+
+          <div class="live-route">
+            <span>origin {{ service.nextBus.originCode || 'unavailable' }}</span>
+            <ion-icon name="arrow-forward-outline"></ion-icon>
+            <span>destination {{ service.nextBus.destinationCode || 'unavailable' }}</span>
+          </div>
+
+          <div class="timing-row">
+            <div>
+              <span>next</span>
+              <strong>{{ service.nextBus.timing }}</strong>
+            </div>
+            <div>
+              <span>subsequent</span>
+              <strong>{{ service.subsequentBus.timing }}</strong>
+            </div>
+          </div>
+
+          <div class="live-meta">
+            <span class="occupancy" [ngClass]="service.nextBus.load === 'Seats available' ? 'load-light' : service.nextBus.load === 'Standing available' ? 'load-steady' : 'load-cozy'">
+              <i></i>
+              {{ service.nextBus.load }}
+            </span>
+            <span class="deck">{{ service.nextBus.type }}</span>
+            <span class="accessibility" [class.available]="service.nextBus.wheelchairAccessible">
+              <ion-icon name="accessibility-outline"></ion-icon>
+              {{ service.nextBus.wheelchairAccessible ? 'Wheelchair accessible' : 'Accessibility unavailable' }}
+            </span>
+          </div>
+        </article>
+      </div>
+
+      <div class="arrival-grid" *ngIf="!hasSearchedArrivals">
         <article
           class="arrival-card float-up"
           *ngFor="let bus of nearbyBuses; let i = index"
