@@ -1,77 +1,125 @@
-<ion-content [fullscreen]="true" class="budget-home">
+<ion-content [fullscreen]="true" class="bus-home">
   <main class="home-shell">
-    <section class="greeting-section fade-in">
-      <div>
-        <p class="eyebrow">Good afternoon ☀️</p>
-        <h1>{{ username }}</h1>
+    <header class="commute-header fade-in">
+      <div class="header-glow" aria-hidden="true"></div>
+      <div class="skyline" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
       </div>
-      <div class="month-pill">
-        <span>🌼</span>
-        {{ currentMonth }}
-      </div>
-    </section>
 
-    <section class="budget-card pop-in">
-      <div class="budget-card__top">
-        <div>
-          <p>Monthly Budget</p>
-          <h2>{{ amountLeft }}</h2>
-          <span>left of {{ monthlyBudget }}</span>
+      <div class="header-copy">
+        <div class="morning-chip">
+          <ion-icon name="sunny-outline"></ion-icon>
+          golden hour commute
         </div>
-        <div class="budget-badge">✨</div>
+        <p>{{ greeting }}</p>
+        <h1>where are we heading today?</h1>
+        <span>Soft city movement from Serangoon to the next good stop.</span>
       </div>
 
-      <div class="progress-wrap" aria-label="Monthly budget progress">
-        <div class="progress-bar" [style.width.%]="budgetProgress"></div>
+      <div class="route-orbit" aria-label="Next saved commute">
+        <span>next usual ride</span>
+        <strong>Home to School</strong>
+        <p>Bus 156 is settling in at 4 min</p>
       </div>
+    </header>
 
-      <p class="motivation">You are glowing. Keep a little cushion for weekend treats.</p>
+    <section class="search-card pop-in" aria-label="Find a bus">
+      <label for="bus-search">Search bus stop or service</label>
+      <div class="search-bar">
+        <ion-icon name="search-outline"></ion-icon>
+        <input id="bus-search" type="search" placeholder="Blk 225 AMK, 36, Orchard..." />
+        <button type="button" aria-label="Use nearby stops">
+          <ion-icon name="locate-outline"></ion-icon>
+        </button>
+      </div>
+      <div class="search-meta">
+        <button type="button" *ngFor="let stop of suggestedStops">
+          {{ stop }}
+        </button>
+      </div>
     </section>
 
-    <section class="quick-stats">
-      <article
-        class="stat-card float-up"
-        *ngFor="let stat of quickStats; let i = index"
-        [ngClass]="'tone-' + stat.tone"
-        [style.animation-delay.ms]="90 * i"
-      >
-        <span class="stat-icon">{{ stat.icon }}</span>
-        <p>{{ stat.label }}</p>
-        <h3>{{ stat.value }}</h3>
-      </article>
-    </section>
-
-    <section class="transactions-section fade-in-delayed">
+    <section class="arrivals-section fade-in-delayed" aria-labelledby="nearby-title">
       <div class="section-heading">
-        <h2>Recent transactions</h2>
-        <button type="button">See all</button>
+        <div>
+          <p>nearby buses</p>
+          <h2 id="nearby-title">Serangoon Central</h2>
+        </div>
+        <button type="button">
+          <ion-icon name="refresh-outline"></ion-icon>
+          live
+        </button>
       </div>
 
-      <div class="transaction-list">
+      <div class="arrival-grid">
         <article
-          class="transaction-item"
-          *ngFor="let transaction of transactions; let i = index"
-          [style.animation-delay.ms]="130 * i"
+          class="arrival-card float-up"
+          *ngFor="let bus of nearbyBuses; let i = index"
+          [style.animation-delay.ms]="90 * i"
         >
-          <div class="transaction-icon" [ngClass]="'tone-' + transaction.tone">
-            {{ transaction.icon }}
-          </div>
-          <div class="transaction-copy">
-            <div class="transaction-title-row">
-              <h3>{{ transaction.label }}</h3>
-              <span class="category-pill" [ngClass]="'tone-' + transaction.tone">
-                {{ transaction.tag }}
-              </span>
+          <div class="arrival-card__top">
+            <div class="service-badge">{{ bus.service }}</div>
+            <div class="arrival-time" [class.arriving]="bus.arriving">
+              <strong>{{ bus.arrival }}</strong>
+              <span>{{ bus.arriving ? 'arriving' : 'away' }}</span>
             </div>
-            <p>{{ transaction.category }} · {{ transaction.date }}</p>
           </div>
-          <strong>{{ transaction.amount }}</strong>
+
+          <div class="arrival-copy">
+            <h3>{{ bus.destination }}</h3>
+            <p>{{ bus.stop }} · {{ bus.nextArrival }}</p>
+          </div>
+
+          <div class="arrival-card__bottom">
+            <span class="occupancy" [ngClass]="'load-' + bus.load">
+              <i></i>
+              {{ bus.occupancy }}
+            </span>
+            <span class="deck">{{ bus.deck }}</span>
+          </div>
         </article>
+      </div>
+    </section>
+
+    <section class="saved-section fade-in-delayed" aria-labelledby="saved-title">
+      <div class="section-heading">
+        <div>
+          <p>saved routes</p>
+          <h2 id="saved-title">Comfort shortcuts</h2>
+        </div>
+        <button type="button" class="quiet-button">Edit</button>
+      </div>
+
+      <div class="saved-grid">
+        <article
+          class="saved-card"
+          *ngFor="let route of savedRoutes"
+          [ngClass]="'tone-' + route.tone"
+        >
+          <div class="saved-icon">
+            <ion-icon [name]="route.icon"></ion-icon>
+          </div>
+          <h3>{{ route.label }}</h3>
+          <p>{{ route.route }}</p>
+          <span>{{ route.note }}</span>
+        </article>
+      </div>
+
+      <div class="recent-strip" aria-label="Recent places">
+        <span>recent</span>
+        <button type="button" *ngFor="let place of recentPlaces">
+          {{ place }}
+        </button>
       </div>
     </section>
   </main>
 
-  <nav class="bottom-nav" aria-label="Budget navigation">
+  <nav class="bottom-nav" aria-label="Bus navigation">
     <button
       type="button"
       *ngFor="let item of navItems"

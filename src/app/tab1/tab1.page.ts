@@ -1,20 +1,23 @@
 import { Component } from '@angular/core';
 
-interface QuickStat {
-  label: string;
-  value: string;
-  icon: string;
-  tone: 'sage' | 'pink' | 'yellow';
+interface NearbyBus {
+  service: string;
+  destination: string;
+  stop: string;
+  arrival: string;
+  nextArrival: string;
+  occupancy: string;
+  deck: string;
+  load: 'light' | 'steady' | 'cozy';
+  arriving?: boolean;
 }
 
-interface Transaction {
+interface SavedRoute {
   label: string;
-  category: string;
-  date: string;
-  amount: string;
+  route: string;
+  note: string;
   icon: string;
-  tag: string;
-  tone: 'sage' | 'pink' | 'yellow';
+  tone: 'sage' | 'sun' | 'clay';
 }
 
 interface NavItem {
@@ -29,77 +32,84 @@ interface NavItem {
   styleUrls: ['tab1.page.scss']
 })
 export class Tab1Page {
-  readonly username = 'Mia';
-  readonly currentMonth = 'May 2026';
-  readonly monthlyBudget = '$2,400';
-  readonly amountLeft = '$846';
-  readonly budgetProgress = 65;
+  readonly greeting = 'good morning';
 
-  readonly quickStats: QuickStat[] = [
+  readonly suggestedStops = [
+    'near me',
+    'bus 143',
+    'Tiong Bahru',
+    'Dhoby Ghaut'
+  ];
+
+  readonly nearbyBuses: NearbyBus[] = [
     {
-      label: 'Spent this month',
-      value: '$1,554',
-      icon: '🧾',
-      tone: 'pink'
+      service: '156',
+      destination: 'Clementi Interchange',
+      stop: 'Opp NEX',
+      arrival: '4 min',
+      nextArrival: 'next in 11 min',
+      occupancy: 'Seats likely',
+      deck: 'single deck',
+      load: 'light'
     },
     {
-      label: 'Savings',
-      value: '$620',
-      icon: '🌱',
-      tone: 'sage'
+      service: '53',
+      destination: 'Changi Airport Terminal 2',
+      stop: 'Serangoon Stn Exit C',
+      arrival: 'Now',
+      nextArrival: 'next in 9 min',
+      occupancy: 'Standing room',
+      deck: 'double deck',
+      load: 'steady',
+      arriving: true
     },
     {
-      label: 'Top category',
-      value: 'Cafe',
-      icon: '☕',
-      tone: 'yellow'
+      service: '147',
+      destination: 'Hougang Central',
+      stop: 'S\'goon Ctrl',
+      arrival: '7 min',
+      nextArrival: 'next in 14 min',
+      occupancy: 'Quite full',
+      deck: 'single deck',
+      load: 'cozy'
     }
   ];
 
-  readonly transactions: Transaction[] = [
+  readonly savedRoutes: SavedRoute[] = [
     {
-      label: 'little treat ☕',
-      category: 'Cafe run',
-      date: 'May 18',
-      amount: '-$12.80',
-      icon: '☕',
-      tag: 'soft spend',
-      tone: 'yellow'
-    },
-    {
-      label: 'late night snack 🍜',
-      category: 'Food mood',
-      date: 'May 17',
-      amount: '-$18.40',
-      icon: '🍜',
-      tag: 'worth it',
-      tone: 'pink'
-    },
-    {
-      label: 'impulse buy 🛍️',
-      category: 'Cute find',
-      date: 'May 16',
-      amount: '-$38.00',
-      icon: '🛍️',
-      tag: 'check-in',
-      tone: 'pink'
-    },
-    {
-      label: 'future me fund 🌱',
-      category: 'Savings',
-      date: 'May 15',
-      amount: '+$180.00',
-      icon: '🌱',
-      tag: 'glow up',
+      label: 'Home',
+      route: 'Serangoon to Toa Payoh',
+      note: 'Bus 73 · mellow morning',
+      icon: 'home-outline',
       tone: 'sage'
+    },
+    {
+      label: 'School',
+      route: 'NEX to Bukit Timah',
+      note: 'Bus 156 · 31 min',
+      icon: 'school-outline',
+      tone: 'sun'
+    },
+    {
+      label: 'Work',
+      route: 'Dhoby Ghaut to One-North',
+      note: 'Bus 95 · easy transfer',
+      icon: 'briefcase-outline',
+      tone: 'clay'
     }
+  ];
+
+  readonly recentPlaces = [
+    'Botanic Gardens',
+    'Joo Chiat',
+    'Marina South'
   ];
 
   readonly navItems: NavItem[] = [
-    { label: 'Home', icon: 'home', active: true },
-    { label: 'Analytics', icon: 'bar-chart' },
-    { label: 'Add Expense', icon: 'add-circle' },
-    { label: 'Goals', icon: 'heart' },
-    { label: 'Profile', icon: 'person' }
+    { label: 'Home', icon: 'home-outline', active: true },
+    { label: 'Explore', icon: 'map-outline' },
+    { label: 'Saved', icon: 'bookmark-outline' },
+    { label: 'Nearby', icon: 'navigate-outline' },
+    { label: 'Profile', icon: 'person-circle-outline' }
   ];
 }
