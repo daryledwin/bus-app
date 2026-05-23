@@ -5,7 +5,10 @@ const cors = require('cors');
 const express = require('express');
 
 const app = express();
+// Render provides PORT at runtime; local development falls back to 3000.
 const PORT = process.env.PORT || 3000;
+// Keep the LTA AccountKey on the backend only. Configure it as a Render environment variable.
+const accountKey = process.env.LTA_ACCOUNT_KEY;
 const ltaArrivalEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival';
 const ltaBusStopsEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/BusStops';
 const busStopsPageSize = 500;
@@ -14,6 +17,7 @@ let busStopsCache = null;
 let busStopsCacheTime = 0;
 let busStopsRequest = null;
 
+// CORS is enabled for local Ionic development while the frontend talks to this backend proxy.
 app.use(cors({
   origin(origin, callback) {
     const ionicDevOrigin = /^http:\/\/.+:8100$/;
@@ -27,7 +31,7 @@ app.use(cors({
 }));
 
 function hasAccountKey(res) {
-  if (process.env.LTA_ACCOUNT_KEY) {
+  if (accountKey) {
     return true;
   }
 
@@ -40,7 +44,7 @@ function hasAccountKey(res) {
 function ltaRequestOptions(params) {
   return {
     headers: {
-      AccountKey: process.env.LTA_ACCOUNT_KEY
+      AccountKey: accountKey
     },
     params,
     timeout: 10000
