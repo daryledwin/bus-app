@@ -17,18 +17,13 @@ let busStopsCache = null;
 let busStopsCacheTime = 0;
 let busStopsRequest = null;
 
-// CORS is enabled for local Ionic development while the frontend talks to this backend proxy.
-app.use(cors({
-  origin(origin, callback) {
-    const ionicDevOrigin = /^http:\/\/.+:8100$/;
+// CORS is enabled for Ionic dev, Capacitor iOS, and Render-hosted backend access.
+const corsOptions = {
+  origin: true
+};
 
-    if (!origin || ionicDevOrigin.test(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error('Origin not allowed by the local Ionic proxy.'));
-  }
-}));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 function hasAccountKey(res) {
   if (accountKey) {
@@ -69,6 +64,26 @@ function cleanBusStop(stop) {
     Latitude: stop.Latitude,
     Longitude: stop.Longitude
   };
+}
+
+function normalizeSearchText(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function filterBusStops(stops, search) {
+  const normalizedSearch = normalizeSearchText(search);
+
+  if (!normalizedSearch) {
+    return stops;
+  }
+
+  const tokens = normalizedSearch.split(' ').filter(Boolean);
+
+  return stops.filter((stop) => {
+    const searchableText = normalizeSearchText(`${stop.Description} ${stop.RoadName} ${stop.BusStopCode}`);
+
+    return tokens.every((token) => searchableText.includes(token));
+  });
 }
 
 async function fetchBusStops() {
@@ -147,7 +162,9 @@ app.get('/api/bus-stops', async (req, res) => {
   }
 
   try {
-    return res.json(await fetchBusStops());
+    const stops = await fetchBusStops();
+
+    return res.json(filterBusStops(stops, req.query.search));
   } catch (error) {
     return ltaFailure(res, error);
   }

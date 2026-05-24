@@ -24,16 +24,10 @@ The Ionic app calls a local proxy so the browser does not call LTA DataMall dire
    ionic serve
    ```
 
-For desktop browser testing, keep:
+For desktop browser, phone, and native iOS testing, keep the frontend pointed at the Render backend:
 
 ```ts
-apiBaseUrl: 'http://localhost:3000'
-```
-
-For phone testing on the same Wi-Fi network, change it to your Mac LAN IP before running Ionic externally:
-
-```ts
-apiBaseUrl: 'http://192.168.x.x:3000'
+apiBaseUrl: 'https://bus-app-vk72.onrender.com'
 ```
 
 Then start Ionic with:
@@ -42,7 +36,7 @@ Then start Ionic with:
 ionic serve --external
 ```
 
-Use the IP address shown by Ionic or your Mac network settings in place of `192.168.x.x`. The proxy accepts Ionic dev origins on port `8100`, so the external Ionic page can call the Mac-hosted API on port `3000`.
+Use the IP address shown by Ionic to open the app from another device. API calls should still go to Render, not a stale local backend.
 
 The proxy provides:
 

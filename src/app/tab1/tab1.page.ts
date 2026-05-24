@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { IonContent } from '@ionic/angular';
 import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
@@ -34,7 +34,7 @@ interface NavItem {
   templateUrl: 'tab1.page.html',
   styleUrls: ['tab1.page.scss']
 })
-export class Tab1Page {
+export class Tab1Page implements OnInit {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
 
@@ -51,6 +51,7 @@ export class Tab1Page {
   arrivalError = '';
   stopSearchError = '';
   private busStops: BusStop[] = [];
+  private busStopsLoadPromise?: Promise<BusStop[]>;
   private searchTimer?: ReturnType<typeof setTimeout>;
 
   readonly popularStops: BusStop[] = [
@@ -156,6 +157,16 @@ export class Tab1Page {
     this.recentBusStops = this.loadRecentBusStops();
   }
 
+  async ngOnInit(): Promise<void> {
+    console.log('IOS DEBUG 1 - home page initialized');
+
+    try {
+      await this.loadBusStops();
+    } catch {
+      this.logMatchesFound(0);
+    }
+  }
+
   get isTextSearchActive(): boolean {
     const query = this.searchTerm.trim();
     return !!query && !this.selectedBusStop && !this.isBusStopCode(query);
@@ -163,6 +174,7 @@ export class Tab1Page {
 
   submitSearch(): void {
     const query = this.searchTerm.trim();
+    this.logSearchQuery(query);
 
     if (this.isBusStopCode(query)) {
       this.searchArrivals(query);
@@ -182,15 +194,17 @@ export class Tab1Page {
 
     this.searchTimer = setTimeout(() => {
       const query = value.trim();
+      this.logSearchQuery(query);
 
       if (!query) {
         this.busStopResults = [];
-        this.isLoadingBusStops = false;
+        this.logMatchesFound(0);
         return;
       }
 
       if (this.isBusStopCode(query)) {
         this.busStopResults = [];
+        this.logMatchesFound(0);
         this.searchArrivals(query);
         return;
       }
@@ -233,43 +247,119 @@ export class Tab1Page {
     return stop.BusStopCode;
   }
 
-  private searchBusStops(query: string): void {
-    if (!query) {
-      this.busStopResults = [];
-      return;
-    }
+  private async searchBusStops(query: string): Promise<void> {
+    const trimmedQuery = query.trim();
+    this.logSearchQuery(trimmedQuery);
 
-    if (this.busStops.length) {
-      this.busStopResults = this.rankBusStops(query);
+    if (!trimmedQuery) {
+      this.busStopResults = [];
+      this.logMatchesFound(0);
       return;
     }
 
     this.isLoadingBusStops = true;
-    this.ltaBusStopsService.getBusStops().subscribe({
-      next: (stops) => {
-        this.busStops = stops;
-        this.busStopResults = this.rankBusStops(this.searchTerm.trim());
-        this.isLoadingBusStops = false;
-      },
-      error: () => {
-        this.stopSearchError = 'Bus stop names are resting for a moment. A 5-digit stop code still works.';
-        this.busStopResults = [];
-        this.isLoadingBusStops = false;
-      }
-    });
+    this.busStopResults = [];
+
+    try {
+      await this.ensureBusStopsLoaded();
+    } catch {
+      this.logMatchesFound(0);
+      this.isLoadingBusStops = false;
+      return;
+    }
+
+    console.log('Searching inside busStops count:', this.busStops.length);
+    console.log('IOS DEBUG 3 - searching inside busStops count:', this.busStops.length);
+
+    const latestQuery = this.searchTerm.trim();
+
+    if (!latestQuery || this.isBusStopCode(latestQuery)) {
+      this.busStopResults = [];
+      this.logMatchesFound(0);
+      this.isLoadingBusStops = false;
+      return;
+    }
+
+    this.busStopResults = this.rankBusStops(latestQuery);
+
+    if (!this.busStopResults.length) {
+      this.busStopResults = await this.searchBackendBusStops(latestQuery);
+    }
+
+    this.logMatchesFound(this.busStopResults.length);
+    this.isLoadingBusStops = false;
   }
 
-  private rankBusStops(query: string): BusStop[] {
+  private async ensureBusStopsLoaded(): Promise<BusStop[]> {
+    if (this.busStops.length) {
+      return this.busStops;
+    }
+
+    return this.loadBusStops(true);
+  }
+
+  private async loadBusStops(forceRefresh = false): Promise<BusStop[]> {
+    if (this.busStops.length && !forceRefresh) {
+      return this.busStops;
+    }
+
+    if (this.busStopsLoadPromise) {
+      return this.busStopsLoadPromise;
+    }
+
+    this.isLoadingBusStops = true;
+    console.log('Starting bus stops fetch...');
+
+    this.busStopsLoadPromise = this.ltaBusStopsService.getBusStops(forceRefresh).toPromise()
+      .then((stops = []) => {
+        this.busStops = Array.isArray(stops) ? stops : [];
+        console.log('Bus stops loaded count:', this.busStops.length);
+        console.log('IOS DEBUG 2 - bus stops loaded count:', this.busStops.length);
+        console.log('First bus stop sample:', this.busStops[0]);
+        return this.busStops;
+      })
+      .catch((error) => {
+        console.error('Bus stops fetch failed:', error);
+        this.stopSearchError = 'Bus stop names are resting for a moment. A 5-digit stop code still works.';
+        this.busStopResults = [];
+        throw error;
+      })
+      .finally(() => {
+        this.isLoadingBusStops = false;
+        this.busStopsLoadPromise = undefined;
+      });
+
+    return this.busStopsLoadPromise;
+  }
+
+  private async searchBackendBusStops(query: string): Promise<BusStop[]> {
+    try {
+      console.log('Starting bus stops fetch...');
+      const stops = await this.ltaBusStopsService.searchBusStops(query).toPromise();
+      const fallbackStops = Array.isArray(stops) ? stops : [];
+
+      if (!fallbackStops.length) {
+        return [];
+      }
+
+      return this.rankBusStops(query, fallbackStops);
+    } catch (error) {
+      console.error('Bus stops fetch failed:', error);
+      return [];
+    }
+  }
+
+  private rankBusStops(query: string, stops = this.busStops): BusStop[] {
     const normalizedQuery = this.normalize(query);
     const queryTokens = normalizedQuery.split(' ').filter(Boolean);
 
-    return this.busStops
+    return stops
       .map((stop) => ({
         stop,
         score: this.matchScore(stop, normalizedQuery, queryTokens)
       }))
       .filter((result) => result.score > 0)
-      .sort((a, b) => b.score - a.score || a.stop.Description.localeCompare(b.stop.Description))
+      .sort((a, b) => b.score - a.score || String(a.stop.Description || '').localeCompare(String(b.stop.Description || '')))
       .slice(0, 8)
       .map((result) => result.stop);
   }
@@ -310,12 +400,20 @@ export class Tab1Page {
     return score;
   }
 
-  private normalize(value: string): string {
-    return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  private normalize(value: string | undefined): string {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
 
   private isBusStopCode(value: string): boolean {
     return /^\d{5}$/.test(value);
+  }
+
+  private logSearchQuery(query: string): void {
+    console.log(`Current search query: ${query}`);
+  }
+
+  private logMatchesFound(count: number): void {
+    console.log(`Matches found: ${count}`);
   }
 
   private scrollToArrivals(): void {
