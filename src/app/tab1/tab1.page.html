@@ -14,7 +14,7 @@
       <div class="header-copy">
         <div class="morning-chip">
           <ion-icon name="sunny-outline"></ion-icon>
-          golden hour commute
+          ready to go?
         </div>
         <p>{{ greeting }}</p>
         <h1>where are we heading today?</h1>
@@ -37,7 +37,7 @@
           name="searchTerm"
           type="search"
           autocomplete="off"
-          placeholder="Try Opp NEX, Victoria St, or 59239"
+          placeholder="where you want to go sia?"
           [(ngModel)]="searchTerm"
           (ngModelChange)="onSearchTermChange($event)"
         />
@@ -112,10 +112,22 @@
     <section #arrivalsSection class="arrivals-section fade-in-delayed" aria-labelledby="nearby-title">
       <div class="section-heading">
         <div>
-          <p>{{ hasSearchedArrivals ? 'live bus arrival' : 'dummy preview' }}</p>
-          <h2 id="nearby-title">
-            {{ hasSearchedArrivals ? (selectedBusStop?.Description || 'Stop ' + (searchedBusStopCode || 'search')) : 'Serangoon Central' }}
-          </h2>
+          <p>live bus arrival</p>
+          <div class="arrival-title-row">
+            <h2 id="nearby-title">
+              {{ hasSearchedArrivals ? (selectedBusStop?.Description || 'Stop ' + (searchedBusStopCode || 'search')) : 'Ready when you are' }}
+            </h2>
+            <button
+              type="button"
+              class="favourite-stop-button"
+              *ngIf="hasSearchedArrivals && searchedBusStopCode"
+              [class.active]="isCurrentBusStopFavourite()"
+              [attr.aria-label]="isCurrentBusStopFavourite() ? 'Remove favourite bus stop' : 'Save favourite bus stop'"
+              (click)="toggleCurrentFavourite()"
+            >
+              <ion-icon [name]="isCurrentBusStopFavourite() ? 'bookmark' : 'bookmark-outline'"></ion-icon>
+            </button>
+          </div>
         </div>
         <button type="button" (click)="searchArrivals()" [disabled]="isLoadingArrivals" *ngIf="hasSearchedArrivals">
           <ion-icon name="refresh-outline"></ion-icon>
@@ -140,6 +152,15 @@
       >
         <ion-icon name="moon-outline"></ion-icon>
         <p>No live buses are showing for this stop right now. Try another bus stop code.</p>
+      </div>
+
+      <div
+        class="arrival-state"
+        *ngIf="!hasSearchedArrivals && !isLoadingArrivals && !arrivalError"
+        aria-live="polite"
+      >
+        <ion-icon name="bus-outline"></ion-icon>
+        <p>Pick a stop above to see what’s arriving.</p>
       </div>
 
       <div class="live-list" *ngIf="liveBusServices.length">
@@ -191,97 +212,140 @@
               </div>
             </div>
 
-            <div class="route-progress route-progress--loading" *ngIf="routeProgressLoading[service.serviceNo]">
-              <ion-spinner name="crescent"></ion-spinner>
-              <span>Loading route stops</span>
+            <div class="live-meta live-meta--compact">
+              <span class="accessibility">{{ service.nextBus.type }}</span>
+              <span class="accessibility" [class.available]="service.nextBus.wheelchairAccessible">
+                <ion-icon name="accessibility-outline"></ion-icon>
+                {{ service.nextBus.wheelchairAccessible ? 'Wheelchair' : 'Access unknown' }}
+              </span>
+              <span class="accessibility">{{ service.nextBus.load }}</span>
             </div>
 
-            <div class="route-progress route-progress--error" *ngIf="!routeProgressLoading[service.serviceNo] && routeProgressErrors[service.serviceNo]">
-              <span>{{ routeProgressErrors[service.serviceNo] }}</span>
-            </div>
-
-            <div
-              class="route-progress"
-              *ngIf="!routeProgressLoading[service.serviceNo] && routeProgressions[service.serviceNo] as progression"
+            <button
+              type="button"
+              class="view-route-button"
+              (click)="openRouteModal(service)"
             >
-              <div
-                class="route-progress__stop"
-                *ngFor="let stop of progression.stops"
-                [ngClass]="'route-progress__stop--' + stop.status"
-              >
-                <span class="route-progress__dot"></span>
-                <div>
-                  <strong>{{ stop.name }}</strong>
-                  <small>{{ stop.status === 'terminal' ? 'Terminal' : stop.status }} · {{ stop.roadName }} · {{ stop.code }}</small>
-                </div>
-              </div>
-            </div>
+              View Full Route
+              <ion-icon name="arrow-forward-outline"></ion-icon>
+            </button>
           </div>
         </article>
       </div>
 
-      <div class="arrival-grid" *ngIf="!hasSearchedArrivals">
-        <article
-          class="arrival-card float-up"
-          *ngFor="let bus of nearbyBuses; let i = index"
-          [style.animation-delay.ms]="90 * i"
-        >
-          <div class="arrival-card__top">
-            <div class="service-badge">{{ bus.service }}</div>
-            <div class="arrival-time" [class.arriving]="bus.arriving">
-              <strong>{{ bus.arrival }}</strong>
-              <span>{{ bus.arriving ? 'arriving' : 'away' }}</span>
-            </div>
-          </div>
-
-          <div class="arrival-copy">
-            <h3>{{ bus.destination }}</h3>
-            <p>{{ bus.stop }} · {{ bus.nextArrival }}</p>
-          </div>
-
-          <div class="arrival-card__bottom">
-            <span class="occupancy" [ngClass]="'load-' + bus.load">
-              <i></i>
-              {{ bus.occupancy }}
-            </span>
-            <span class="deck">{{ bus.deck }}</span>
-          </div>
-        </article>
-      </div>
     </section>
 
     <section class="saved-section fade-in-delayed" aria-labelledby="saved-title">
       <div class="section-heading">
         <div>
-          <p>saved routes</p>
-          <h2 id="saved-title">Comfort shortcuts</h2>
+          <p>saved stops</p>
+          <h2 id="saved-title">Quick shortcuts</h2>
         </div>
-        <button type="button" class="quiet-button">Edit</button>
       </div>
 
-      <div class="saved-grid">
+      <div class="saved-empty" *ngIf="!favouriteBusStops.length">
+        <ion-icon name="bookmark-outline"></ion-icon>
+        <p>Save a bus stop to keep its live arrivals close by.</p>
+      </div>
+
+      <div class="favourite-shortcuts" *ngIf="favouriteBusStops.length">
         <article
-          class="saved-card"
-          *ngFor="let route of savedRoutes"
-          [ngClass]="'tone-' + route.tone"
+          class="favourite-stop-card"
+          role="button"
+          tabindex="0"
+          *ngFor="let stop of favouriteBusStops; trackBy: trackFavouriteBusStop"
+          (click)="viewFavouriteStop(stop)"
+          (keydown.enter)="viewFavouriteStop(stop)"
         >
-          <div class="saved-icon">
-            <ion-icon [name]="route.icon"></ion-icon>
+          <div class="favourite-stop-icon">
+            <ion-icon name="bookmark"></ion-icon>
           </div>
-          <h3>{{ route.label }}</h3>
-          <p>{{ route.route }}</p>
-          <span>{{ route.note }}</span>
+          <div class="favourite-stop-copy">
+            <h3>{{ stop.nickname || stop.Description }}</h3>
+            <p>{{ stop.Description }} · {{ stop.RoadName }} · {{ stop.BusStopCode }}</p>
+          </div>
+          <div class="favourite-stop-actions">
+            <button
+              type="button"
+              class="rename-favourite-button"
+              aria-label="Rename favourite bus stop"
+              (click)="renameFavouriteStop(stop); $event.stopPropagation()"
+            >
+              <ion-icon name="create-outline"></ion-icon>
+            </button>
+            <button
+              type="button"
+              class="remove-favourite-button"
+              aria-label="Remove favourite bus stop"
+              (click)="removeFavouriteStop(stop.BusStopCode); $event.stopPropagation()"
+            >
+              <ion-icon name="close-outline"></ion-icon>
+            </button>
+          </div>
         </article>
       </div>
 
-      <div class="recent-strip" aria-label="Recent places">
-        <span>recent</span>
-        <button type="button" *ngFor="let place of recentPlaces">
-          {{ place }}
-        </button>
-      </div>
     </section>
   </main>
+
+  <ion-modal
+    class="route-modal"
+    [isOpen]="isRouteModalOpen"
+    (didDismiss)="routeModalDismissed()"
+  >
+    <ng-template>
+      <section class="route-sheet" *ngIf="selectedRouteService as routeService">
+        <div class="route-sheet__handle" aria-hidden="true"></div>
+
+        <header class="route-sheet__header">
+          <div class="service-badge service-badge--compact">{{ routeService.serviceNo }}</div>
+          <div class="route-sheet__title">
+            <p>full route</p>
+            <h2>{{ destinationLabel(routeService) }}</h2>
+            <span *ngIf="routeProgressions[selectedRouteServiceNo] as progression">
+              {{ progression.stopsRemaining }} stops remaining · Terminal {{ progression.terminalName }}
+            </span>
+          </div>
+          <button type="button" class="route-sheet__close" aria-label="Close route" (click)="closeRouteModal()">
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        </header>
+
+        <div class="route-sheet__state" *ngIf="routeProgressLoading[selectedRouteServiceNo]" aria-live="polite">
+          <ion-spinner name="crescent"></ion-spinner>
+          <p>Loading full route</p>
+        </div>
+
+        <div
+          class="route-sheet__state route-sheet__state--error"
+          *ngIf="!routeProgressLoading[selectedRouteServiceNo] && routeProgressErrors[selectedRouteServiceNo]"
+          aria-live="polite"
+        >
+          <ion-icon name="alert-circle-outline"></ion-icon>
+          <p>{{ routeProgressErrors[selectedRouteServiceNo] }}</p>
+        </div>
+
+        <div
+          class="route-sheet__body"
+          *ngIf="!routeProgressLoading[selectedRouteServiceNo] && routeProgressions[selectedRouteServiceNo] as progression"
+        >
+          <div class="route-progress route-progress--modal">
+            <div
+              class="route-progress__stop"
+              *ngFor="let stop of progression.stops"
+              [ngClass]="'route-progress__stop--' + stop.status"
+            >
+              <span class="route-progress__dot"></span>
+              <div>
+                <strong>{{ stop.name }}</strong>
+                <small>{{ stop.status === 'terminal' ? 'Terminal' : stop.status }} · {{ stop.roadName }} · {{ stop.code }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </ng-template>
+  </ion-modal>
 
   <nav class="bottom-nav" aria-label="Bus navigation">
     <button
@@ -289,6 +353,7 @@
       *ngFor="let item of navItems"
       [class.active]="item.active"
       [attr.aria-label]="item.label"
+      [routerLink]="item.route"
     >
       <ion-icon [name]="item.icon"></ion-icon>
       <span>{{ item.label }}</span>

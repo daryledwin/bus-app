@@ -1,19 +1,79 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title>Tab 2</ion-title>
-  </ion-toolbar>
-</ion-header>
+<ion-content [fullscreen]="true" class="nearby-page">
+  <main class="nearby-shell">
+    <header class="nearby-header">
+      <div>
+        <p>nearby stops</p>
+        <h1>closest places to catch your next ride</h1>
+      </div>
+      <div class="nearby-header__actions">
+        <button
+          type="button"
+          aria-label="Refresh nearby stops"
+          [disabled]="isLoadingLocation"
+          (click)="loadNearbyStops()"
+        >
+          <ion-icon name="refresh-outline"></ion-icon>
+        </button>
+        <button type="button" routerLink="/tabs/tab1" aria-label="Back to home">
+          <ion-icon name="home-outline"></ion-icon>
+        </button>
+      </div>
+    </header>
 
-<ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">Tab 2</ion-title>
-    </ion-toolbar>
-  </ion-header>
+    <section class="nearby-preview" aria-hidden="true">
+      <div class="nearby-preview__sun"></div>
+      <div class="nearby-preview__route">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </section>
 
-  <div class="starter-content">
-    <ion-icon name="ellipse-outline" aria-hidden="true"></ion-icon>
-    <h1>Tab 2</h1>
-    <p>This route is ready for your next feature.</p>
-  </div>
+    <section class="nearby-state" *ngIf="isLoadingLocation" aria-live="polite">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Finding the gentlest stops around you.</p>
+    </section>
+
+    <section class="nearby-state nearby-state--error" *ngIf="!isLoadingLocation && nearbyError" aria-live="polite">
+      <ion-icon name="location-outline"></ion-icon>
+      <div>
+        <p>{{ nearbyError }}</p>
+        <button type="button" (click)="loadNearbyStops()">Try again</button>
+      </div>
+    </section>
+
+    <section class="nearby-list" *ngIf="!isLoadingLocation && !nearbyError && nearbyStops.length">
+      <article
+        class="nearby-stop-card"
+        role="button"
+        tabindex="0"
+        *ngFor="let stop of nearbyStops; trackBy: trackNearbyStop"
+        (click)="viewBuses(stop)"
+        (keydown.enter)="viewBuses(stop)"
+      >
+        <div class="nearby-stop-card__marker">
+          <ion-icon name="bus-outline"></ion-icon>
+        </div>
+        <div class="nearby-stop-card__copy">
+          <h2>{{ stop.Description }}</h2>
+          <p>{{ stop.RoadName }} · {{ stop.BusStopCode }}</p>
+          <span>{{ distanceLabel(stop.distanceMeters) }}</span>
+        </div>
+        <button type="button" (click)="viewBuses(stop); $event.stopPropagation()">
+          View buses
+        </button>
+      </article>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Bus navigation">
+    <button type="button" routerLink="/tabs/tab1" aria-label="Home">
+      <ion-icon name="home-outline"></ion-icon>
+      <span>Home</span>
+    </button>
+    <button type="button" class="active" aria-label="Nearby stops">
+      <ion-icon name="navigate-outline"></ion-icon>
+      <span>Nearby</span>
+    </button>
+  </nav>
 </ion-content>

@@ -1,33 +1,23 @@
-import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { IonContent } from '@ionic/angular';
+import { Subscription } from 'rxjs';
 import { BusRoute, LtaBusRoutesService } from '../services/lta-bus-routes.service';
 import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
-
-interface NearbyBus {
-  service: string;
-  destination: string;
-  stop: string;
-  arrival: string;
-  nextArrival: string;
-  occupancy: string;
-  deck: string;
-  load: 'light' | 'steady' | 'cozy';
-  arriving?: boolean;
-}
-
-interface SavedRoute {
-  label: string;
-  route: string;
-  note: string;
-  icon: string;
-  tone: 'sage' | 'sun' | 'clay';
-}
+import { SelectedBusStopService } from '../services/selected-bus-stop.service';
 
 interface NavItem {
   label: string;
   icon: string;
+  route: string;
   active?: boolean;
+}
+
+interface FavouriteBusStop {
+  BusStopCode: string;
+  Description: string;
+  RoadName: string;
+  nickname?: string;
 }
 
 interface RouteProgressStop {
@@ -39,6 +29,8 @@ interface RouteProgressStop {
 
 interface RouteProgression {
   stops: RouteProgressStop[];
+  stopsRemaining: number;
+  terminalName: string;
 }
 
 @Component({
@@ -46,16 +38,17 @@ interface RouteProgression {
   templateUrl: 'tab1.page.html',
   styleUrls: ['tab1.page.scss']
 })
-export class Tab1Page implements OnInit {
+export class Tab1Page implements OnInit, OnDestroy {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
 
-  readonly greeting = 'good morning';
+  readonly greeting = this.currentGreeting();
   searchTerm = '';
   searchedBusStopCode = '';
   liveBusServices: BusServiceArrival[] = [];
   busStopResults: BusStop[] = [];
   recentBusStops: BusStop[] = [];
+  favouriteBusStops: FavouriteBusStop[] = [];
   selectedBusStop?: BusStop;
   isLoadingArrivals = false;
   isLoadingBusStops = false;
@@ -66,9 +59,14 @@ export class Tab1Page implements OnInit {
   routeProgressions: Record<string, RouteProgression> = {};
   routeProgressLoading: Record<string, boolean> = {};
   routeProgressErrors: Record<string, string> = {};
+  isRouteModalOpen = false;
+  selectedRouteServiceNo = '';
+  selectedRouteService?: BusServiceArrival;
   private busStops: BusStop[] = [];
   private busStopsLoadPromise?: Promise<BusStop[]>;
   private searchTimer?: ReturnType<typeof setTimeout>;
+  private selectedStopSubscription?: Subscription;
+  private readonly favouritesStorageKey = 'favouriteBusStops';
 
   readonly popularStops: BusStop[] = [
     {
@@ -94,94 +92,41 @@ export class Tab1Page implements OnInit {
     }
   ];
 
-  readonly nearbyBuses: NearbyBus[] = [
-    {
-      service: '156',
-      destination: 'Clementi Interchange',
-      stop: 'Opp NEX',
-      arrival: '4 min',
-      nextArrival: 'next in 11 min',
-      occupancy: 'Seats likely',
-      deck: 'single deck',
-      load: 'light'
-    },
-    {
-      service: '53',
-      destination: 'Changi Airport Terminal 2',
-      stop: 'Serangoon Stn Exit C',
-      arrival: 'Now',
-      nextArrival: 'next in 9 min',
-      occupancy: 'Standing room',
-      deck: 'double deck',
-      load: 'steady',
-      arriving: true
-    },
-    {
-      service: '147',
-      destination: 'Hougang Central',
-      stop: 'S\'goon Ctrl',
-      arrival: '7 min',
-      nextArrival: 'next in 14 min',
-      occupancy: 'Quite full',
-      deck: 'single deck',
-      load: 'cozy'
-    }
-  ];
-
-  readonly savedRoutes: SavedRoute[] = [
-    {
-      label: 'Home',
-      route: 'Serangoon to Toa Payoh',
-      note: 'Bus 73 · mellow morning',
-      icon: 'home-outline',
-      tone: 'sage'
-    },
-    {
-      label: 'School',
-      route: 'NEX to Bukit Timah',
-      note: 'Bus 156 · 31 min',
-      icon: 'school-outline',
-      tone: 'sun'
-    },
-    {
-      label: 'Work',
-      route: 'Dhoby Ghaut to One-North',
-      note: 'Bus 95 · easy transfer',
-      icon: 'briefcase-outline',
-      tone: 'clay'
-    }
-  ];
-
-  readonly recentPlaces = [
-    'Botanic Gardens',
-    'Joo Chiat',
-    'Marina South'
-  ];
-
   readonly navItems: NavItem[] = [
-    { label: 'Home', icon: 'home-outline', active: true },
-    { label: 'Explore', icon: 'map-outline' },
-    { label: 'Saved', icon: 'bookmark-outline' },
-    { label: 'Nearby', icon: 'navigate-outline' },
-    { label: 'Profile', icon: 'person-circle-outline' }
+    { label: 'Home', icon: 'home-outline', route: '/tabs/tab1', active: true },
+    { label: 'Nearby', icon: 'navigate-outline', route: '/tabs/tab2' }
   ];
 
   constructor(
     private readonly ltaBusService: LtaBusService,
     private readonly ltaBusRoutesService: LtaBusRoutesService,
-    private readonly ltaBusStopsService: LtaBusStopsService
+    private readonly ltaBusStopsService: LtaBusStopsService,
+    private readonly selectedBusStopService: SelectedBusStopService
   ) {
     this.recentBusStops = this.loadRecentBusStops();
+    this.favouriteBusStops = this.loadFavouriteBusStops();
   }
 
   async ngOnInit(): Promise<void> {
     console.log('IOS DEBUG 1 - home page initialized');
+    this.selectedStopSubscription = this.selectedBusStopService.selectedStop$.subscribe((stop) => {
+      if (!stop) {
+        return;
+      }
+
+      this.selectedBusStopService.clearSelection();
+      this.selectBusStop(stop);
+    });
 
     try {
       await this.loadBusStops();
     } catch {
       this.logMatchesFound(0);
     }
+  }
+
+  ngOnDestroy(): void {
+    this.selectedStopSubscription?.unsubscribe();
   }
 
   get isTextSearchActive(): boolean {
@@ -235,6 +180,7 @@ export class Tab1Page implements OnInit {
     this.isLoadingArrivals = true;
     this.arrivalError = '';
     this.liveBusServices = [];
+    this.resetRouteState();
 
     this.ltaBusService.getBusArrivals(busStopCode).subscribe({
       next: (arrivalLookup) => {
@@ -268,13 +214,96 @@ export class Tab1Page implements OnInit {
     return service.serviceNo;
   }
 
-  toggleLiveService(serviceNo: string): void {
-    const isExpanding = this.expandedLiveServiceNo !== serviceNo;
-    this.expandedLiveServiceNo = isExpanding ? serviceNo : '';
+  trackFavouriteBusStop(index: number, stop: FavouriteBusStop): string {
+    return stop.BusStopCode;
+  }
 
-    if (isExpanding) {
-      this.loadRouteProgression(serviceNo);
+  isCurrentBusStopFavourite(): boolean {
+    const currentStop = this.currentBusStopForFavourite();
+    return !!currentStop && this.favouriteBusStops.some((stop) => stop.BusStopCode === currentStop.BusStopCode);
+  }
+
+  toggleCurrentFavourite(): void {
+    const currentStop = this.currentBusStopForFavourite();
+
+    if (!currentStop) {
+      return;
     }
+
+    if (this.favouriteBusStops.some((stop) => stop.BusStopCode === currentStop.BusStopCode)) {
+      this.removeFavouriteStop(currentStop.BusStopCode);
+      return;
+    }
+
+    this.favouriteBusStops = [
+      currentStop,
+      ...this.favouriteBusStops.filter((stop) => stop.BusStopCode !== currentStop.BusStopCode)
+    ];
+    this.saveFavouriteBusStops();
+  }
+
+  viewFavouriteStop(stop: FavouriteBusStop): void {
+    this.selectedBusStop = {
+      BusStopCode: stop.BusStopCode,
+      Description: stop.Description,
+      RoadName: stop.RoadName,
+      Latitude: 0,
+      Longitude: 0
+    };
+    this.searchTerm = `${stop.Description} (${stop.BusStopCode})`;
+    this.busStopResults = [];
+    this.rememberBusStop(this.selectedBusStop);
+    this.searchArrivals(stop.BusStopCode);
+  }
+
+  removeFavouriteStop(busStopCode: string): void {
+    this.favouriteBusStops = this.favouriteBusStops.filter((stop) => stop.BusStopCode !== busStopCode);
+    this.saveFavouriteBusStops();
+  }
+
+  renameFavouriteStop(stop: FavouriteBusStop): void {
+    const nickname = window.prompt('Name this stop', stop.nickname || '');
+
+    if (nickname === null) {
+      return;
+    }
+
+    const trimmedNickname = nickname.trim();
+    this.favouriteBusStops = this.favouriteBusStops.map((favouriteStop) => {
+      if (favouriteStop.BusStopCode !== stop.BusStopCode) {
+        return favouriteStop;
+      }
+
+      const updatedStop = { ...favouriteStop };
+
+      if (trimmedNickname) {
+        updatedStop.nickname = trimmedNickname;
+      } else {
+        delete updatedStop.nickname;
+      }
+
+      return updatedStop;
+    });
+    this.saveFavouriteBusStops();
+  }
+
+  toggleLiveService(serviceNo: string): void {
+    this.expandedLiveServiceNo = this.expandedLiveServiceNo === serviceNo ? '' : serviceNo;
+  }
+
+  openRouteModal(service: BusServiceArrival): void {
+    this.selectedRouteService = service;
+    this.selectedRouteServiceNo = service.serviceNo;
+    this.isRouteModalOpen = true;
+    this.loadRouteProgression(service.serviceNo);
+  }
+
+  closeRouteModal(): void {
+    this.isRouteModalOpen = false;
+  }
+
+  routeModalDismissed(): void {
+    this.isRouteModalOpen = false;
   }
 
   destinationLabel(service: BusServiceArrival): string {
@@ -449,27 +478,22 @@ export class Tab1Page implements OnInit {
       return null;
     }
 
-    const visibleStartIndex = Math.max(0, currentStopIndex - 1);
-    const visibleEndIndex = Math.min(orderedRoute.length, currentStopIndex + 6);
-    const visibleStops = orderedRoute.slice(visibleStartIndex, visibleEndIndex);
     const terminalRoute = orderedRoute[orderedRoute.length - 1];
-    const terminalIsVisible = visibleStops.some((route) => route.BusStopCode === terminalRoute.BusStopCode);
-    const progressionStops = visibleStops.map((route, index) => {
-      const routeIndex = visibleStartIndex + index;
-
+    const progressionStops = orderedRoute.map((route, routeIndex) => {
       return this.routeProgressStop(route, routeIndex < currentStopIndex
         ? 'previous'
         : routeIndex === currentStopIndex
           ? 'current'
+          : route.BusStopCode === terminalRoute.BusStopCode
+            ? 'terminal'
           : 'next');
     });
-
-    if (!terminalIsVisible) {
-      progressionStops.push(this.routeProgressStop(terminalRoute, 'terminal'));
-    }
+    const terminalStop = this.routeProgressStop(terminalRoute, 'terminal');
 
     return {
-      stops: progressionStops
+      stops: progressionStops,
+      stopsRemaining: Math.max(0, orderedRoute.length - currentStopIndex - 1),
+      terminalName: terminalStop.name
     };
   }
 
@@ -482,6 +506,34 @@ export class Tab1Page implements OnInit {
       roadName: busStop?.RoadName || route.BusStopCode,
       status
     };
+  }
+
+  private currentBusStopForFavourite(): FavouriteBusStop | null {
+    const busStopCode = this.searchedBusStopCode.trim();
+
+    if (!busStopCode) {
+      return null;
+    }
+
+    const knownStop = this.selectedBusStop
+      || this.busStops.find((stop) => stop.BusStopCode === busStopCode)
+      || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
+
+    return {
+      BusStopCode: busStopCode,
+      Description: knownStop?.Description || `Stop ${busStopCode}`,
+      RoadName: knownStop?.RoadName || 'Road unavailable'
+    };
+  }
+
+  private resetRouteState(): void {
+    this.expandedLiveServiceNo = '';
+    this.routeProgressions = {};
+    this.routeProgressLoading = {};
+    this.routeProgressErrors = {};
+    this.isRouteModalOpen = false;
+    this.selectedRouteServiceNo = '';
+    this.selectedRouteService = undefined;
   }
 
   private rankBusStops(query: string, stops = this.busStops): BusStop[] {
@@ -551,6 +603,20 @@ export class Tab1Page implements OnInit {
     return /^\d{5}$/.test(value);
   }
 
+  private currentGreeting(): string {
+    const hour = new Date().getHours();
+
+    if (hour < 12) {
+      return 'good morning';
+    }
+
+    if (hour < 18) {
+      return 'good afternoon';
+    }
+
+    return 'good evening';
+  }
+
   private logSearchQuery(query: string): void {
     console.log(`Current search query: ${query}`);
   }
@@ -587,6 +653,30 @@ export class Tab1Page implements OnInit {
     } catch {
       return [];
     }
+  }
+
+  private loadFavouriteBusStops(): FavouriteBusStop[] {
+    const storedStops = localStorage.getItem(this.favouritesStorageKey);
+
+    if (!storedStops) {
+      return [];
+    }
+
+    try {
+      const parsedStops = JSON.parse(storedStops) as FavouriteBusStop[];
+
+      if (!Array.isArray(parsedStops)) {
+        return [];
+      }
+
+      return parsedStops.filter((stop) => stop?.BusStopCode && stop.Description && stop.RoadName);
+    } catch {
+      return [];
+    }
+  }
+
+  private saveFavouriteBusStops(): void {
+    localStorage.setItem(this.favouritesStorageKey, JSON.stringify(this.favouriteBusStops));
   }
 
   private errorMessage(error: unknown): string {

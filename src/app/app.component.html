@@ -1,3 +1,48 @@
 <ion-app>
   <ion-router-outlet></ion-router-outlet>
+
+  <section
+    class="skibidi-splash"
+    [class.skibidi-splash--leaving]="splashLeaving"
+    *ngIf="splashVisible"
+    aria-label="skibidi loading screen"
+  >
+    <div class="splash-glow splash-glow--sun" aria-hidden="true"></div>
+    <div class="splash-glow splash-glow--sage" aria-hidden="true"></div>
+
+    <div class="splash-clouds" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+
+    <div class="splash-skyline" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+
+    <div class="splash-greenery" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+
+    <div class="splash-content">
+      <div class="splash-logo-wrap">
+        <img src="assets/images/logo.png" alt="skibidi bus logo" />
+      </div>
+      <div class="splash-copy">
+        <h1>buslehlahlorliao</h1>
+        <p>{{ splashTagline }}</p>
+      </div>
+      <div class="splash-loader" aria-hidden="true">
+        <span></span>
+      </div>
+    </div>
+  </section>
 </ion-app>
