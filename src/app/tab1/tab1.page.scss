@@ -920,6 +920,104 @@ ion-content.bus-home {
   font-size: 15px;
 }
 
+.route-progress {
+  background: rgba(255, 250, 242, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 17px;
+  display: grid;
+  gap: 0;
+  padding: 8px 10px;
+}
+
+.route-progress__stop {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 13px minmax(0, 1fr);
+  min-height: 36px;
+  padding: 3px 0;
+  position: relative;
+}
+
+.route-progress__stop:not(:last-child)::after {
+  background: rgba(104, 125, 101, 0.24);
+  bottom: -5px;
+  content: "";
+  left: 6px;
+  position: absolute;
+  top: 17px;
+  width: 1px;
+}
+
+.route-progress__dot {
+  background: rgba(132, 115, 100, 0.32);
+  border: 2px solid rgba(255, 250, 242, 0.96);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(132, 115, 100, 0.12);
+  height: 9px;
+  margin-top: 5px;
+  width: 9px;
+  z-index: 1;
+}
+
+.route-progress__stop strong {
+  color: var(--ink);
+  display: block;
+  font-size: 12px;
+  font-weight: 790;
+  letter-spacing: 0;
+  line-height: 1.18;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-progress__stop small {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.route-progress__stop--current .route-progress__dot {
+  background: var(--sage-deep);
+  box-shadow: 0 0 0 4px rgba(168, 185, 158, 0.28);
+}
+
+.route-progress__stop--current strong {
+  color: var(--sage-deep);
+}
+
+.route-progress__stop--terminal .route-progress__dot {
+  background: #b1844a;
+}
+
+.route-progress--loading,
+.route-progress--error {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 11px;
+  font-weight: 760;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.route-progress--loading ion-spinner {
+  color: var(--sage-deep);
+  height: 16px;
+  width: 16px;
+}
+
+.route-progress--error {
+  color: #976148;
+}
+
 .live-meta {
   display: flex;
   flex-wrap: wrap;

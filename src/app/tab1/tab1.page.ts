@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { IonContent } from '@ionic/angular';
+import { BusRoute, LtaBusRoutesService } from '../services/lta-bus-routes.service';
 import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 
@@ -29,6 +30,17 @@ interface NavItem {
   active?: boolean;
 }
 
+interface RouteProgressStop {
+  code: string;
+  name: string;
+  roadName: string;
+  status: 'previous' | 'current' | 'next' | 'terminal';
+}
+
+interface RouteProgression {
+  stops: RouteProgressStop[];
+}
+
 @Component({
   selector: 'app-tab1',
   templateUrl: 'tab1.page.html',
@@ -51,6 +63,9 @@ export class Tab1Page implements OnInit {
   arrivalError = '';
   stopSearchError = '';
   expandedLiveServiceNo = '';
+  routeProgressions: Record<string, RouteProgression> = {};
+  routeProgressLoading: Record<string, boolean> = {};
+  routeProgressErrors: Record<string, string> = {};
   private busStops: BusStop[] = [];
   private busStopsLoadPromise?: Promise<BusStop[]>;
   private searchTimer?: ReturnType<typeof setTimeout>;
@@ -153,6 +168,7 @@ export class Tab1Page implements OnInit {
 
   constructor(
     private readonly ltaBusService: LtaBusService,
+    private readonly ltaBusRoutesService: LtaBusRoutesService,
     private readonly ltaBusStopsService: LtaBusStopsService
   ) {
     this.recentBusStops = this.loadRecentBusStops();
@@ -253,7 +269,12 @@ export class Tab1Page implements OnInit {
   }
 
   toggleLiveService(serviceNo: string): void {
-    this.expandedLiveServiceNo = this.expandedLiveServiceNo === serviceNo ? '' : serviceNo;
+    const isExpanding = this.expandedLiveServiceNo !== serviceNo;
+    this.expandedLiveServiceNo = isExpanding ? serviceNo : '';
+
+    if (isExpanding) {
+      this.loadRouteProgression(serviceNo);
+    }
   }
 
   destinationLabel(service: BusServiceArrival): string {
@@ -376,6 +397,91 @@ export class Tab1Page implements OnInit {
       console.error('Bus stops fetch failed:', error);
       return [];
     }
+  }
+
+  private async loadRouteProgression(serviceNo: string): Promise<void> {
+    if (this.routeProgressions[serviceNo] || this.routeProgressLoading[serviceNo]) {
+      return;
+    }
+
+    const currentBusStopCode = this.searchedBusStopCode.trim();
+
+    if (!currentBusStopCode) {
+      this.routeProgressErrors[serviceNo] = 'Route progression is unavailable for this stop.';
+      return;
+    }
+
+    this.routeProgressLoading[serviceNo] = true;
+    this.routeProgressErrors[serviceNo] = '';
+
+    try {
+      const [routes] = await Promise.all([
+        this.ltaBusRoutesService.getBusRoutes(serviceNo).toPromise(),
+        this.ensureBusStopsLoaded().catch(() => [])
+      ]);
+      const progression = this.buildRouteProgression(Array.isArray(routes) ? routes : [], currentBusStopCode);
+
+      if (progression) {
+        this.routeProgressions[serviceNo] = progression;
+      } else {
+        this.routeProgressErrors[serviceNo] = 'Route progression is unavailable for this stop.';
+      }
+    } catch {
+      this.routeProgressErrors[serviceNo] = 'Route progression is taking a pause.';
+    } finally {
+      this.routeProgressLoading[serviceNo] = false;
+    }
+  }
+
+  private buildRouteProgression(routes: BusRoute[], currentBusStopCode: string): RouteProgression | null {
+    const matchingRoute = routes.find((route) => route.BusStopCode === currentBusStopCode);
+
+    if (!matchingRoute) {
+      return null;
+    }
+
+    const orderedRoute = routes
+      .filter((route) => route.Direction === matchingRoute.Direction)
+      .sort((a, b) => Number(a.StopSequence) - Number(b.StopSequence));
+    const currentStopIndex = orderedRoute.findIndex((route) => route.BusStopCode === currentBusStopCode);
+
+    if (currentStopIndex < 0) {
+      return null;
+    }
+
+    const visibleStartIndex = Math.max(0, currentStopIndex - 1);
+    const visibleEndIndex = Math.min(orderedRoute.length, currentStopIndex + 6);
+    const visibleStops = orderedRoute.slice(visibleStartIndex, visibleEndIndex);
+    const terminalRoute = orderedRoute[orderedRoute.length - 1];
+    const terminalIsVisible = visibleStops.some((route) => route.BusStopCode === terminalRoute.BusStopCode);
+    const progressionStops = visibleStops.map((route, index) => {
+      const routeIndex = visibleStartIndex + index;
+
+      return this.routeProgressStop(route, routeIndex < currentStopIndex
+        ? 'previous'
+        : routeIndex === currentStopIndex
+          ? 'current'
+          : 'next');
+    });
+
+    if (!terminalIsVisible) {
+      progressionStops.push(this.routeProgressStop(terminalRoute, 'terminal'));
+    }
+
+    return {
+      stops: progressionStops
+    };
+  }
+
+  private routeProgressStop(route: BusRoute, status: RouteProgressStop['status']): RouteProgressStop {
+    const busStop = this.busStops.find((stop) => stop.BusStopCode === route.BusStopCode);
+
+    return {
+      code: route.BusStopCode,
+      name: busStop?.Description || route.BusStopCode,
+      roadName: busStop?.RoadName || route.BusStopCode,
+      status
+    };
   }
 
   private rankBusStops(query: string, stops = this.busStops): BusStop[] {

@@ -11,11 +11,17 @@ const PORT = process.env.PORT || 3000;
 const accountKey = process.env.LTA_ACCOUNT_KEY;
 const ltaArrivalEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival';
 const ltaBusStopsEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/BusStops';
+const ltaBusRoutesEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/BusRoutes';
 const busStopsPageSize = 500;
+const busRoutesPageSize = 500;
 const busStopsCacheTtl = 12 * 60 * 60 * 1000;
+const busRoutesCacheTtl = 12 * 60 * 60 * 1000;
 let busStopsCache = null;
 let busStopsCacheTime = 0;
 let busStopsRequest = null;
+let busRoutesCache = null;
+let busRoutesCacheTime = 0;
+let busRoutesRequest = null;
 
 // CORS is enabled for Ionic dev, Capacitor iOS, and Render-hosted backend access.
 const corsOptions = {
@@ -63,6 +69,23 @@ function cleanBusStop(stop) {
     RoadName: stop.RoadName,
     Latitude: stop.Latitude,
     Longitude: stop.Longitude
+  };
+}
+
+function cleanBusRoute(route) {
+  return {
+    ServiceNo: route.ServiceNo,
+    Operator: route.Operator,
+    Direction: route.Direction,
+    StopSequence: route.StopSequence,
+    BusStopCode: route.BusStopCode,
+    Distance: route.Distance,
+    WD_FirstBus: route.WD_FirstBus,
+    WD_LastBus: route.WD_LastBus,
+    SAT_FirstBus: route.SAT_FirstBus,
+    SAT_LastBus: route.SAT_LastBus,
+    SUN_FirstBus: route.SUN_FirstBus,
+    SUN_LastBus: route.SUN_LastBus
   };
 }
 
@@ -126,6 +149,46 @@ async function fetchBusStops() {
   }
 }
 
+async function fetchBusRoutes() {
+  const cachedRoutesAreFresh = busRoutesCache && Date.now() - busRoutesCacheTime < busRoutesCacheTtl;
+
+  if (cachedRoutesAreFresh) {
+    return busRoutesCache;
+  }
+
+  if (busRoutesRequest) {
+    return busRoutesRequest;
+  }
+
+  busRoutesRequest = (async () => {
+    const routes = [];
+    let skip = 0;
+
+    while (true) {
+      const response = await axios.get(ltaBusRoutesEndpoint, ltaRequestOptions({
+        $skip: skip
+      }));
+      const page = Array.isArray(response.data.value) ? response.data.value : [];
+
+      routes.push(...page.map(cleanBusRoute));
+
+      if (page.length < busRoutesPageSize) {
+        busRoutesCache = routes;
+        busRoutesCacheTime = Date.now();
+        return busRoutesCache;
+      }
+
+      skip += busRoutesPageSize;
+    }
+  })();
+
+  try {
+    return await busRoutesRequest;
+  } finally {
+    busRoutesRequest = null;
+  }
+}
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok'
@@ -165,6 +228,28 @@ app.get('/api/bus-stops', async (req, res) => {
     const stops = await fetchBusStops();
 
     return res.json(filterBusStops(stops, req.query.search));
+  } catch (error) {
+    return ltaFailure(res, error);
+  }
+});
+
+app.get('/api/bus-routes', async (req, res) => {
+  const serviceNo = String(req.query.serviceNo || '').trim().toUpperCase();
+
+  if (!/^[A-Z0-9]+$/.test(serviceNo)) {
+    return res.status(400).json({
+      error: 'Please provide a valid bus service number.'
+    });
+  }
+
+  if (!hasAccountKey(res)) {
+    return;
+  }
+
+  try {
+    const routes = await fetchBusRoutes();
+
+    return res.json(routes.filter((route) => String(route.ServiceNo || '').toUpperCase() === serviceNo));
   } catch (error) {
     return ltaFailure(res, error);
   }

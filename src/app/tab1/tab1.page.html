@@ -190,6 +190,32 @@
                 <strong>{{ service.thirdBus.timing }}</strong>
               </div>
             </div>
+
+            <div class="route-progress route-progress--loading" *ngIf="routeProgressLoading[service.serviceNo]">
+              <ion-spinner name="crescent"></ion-spinner>
+              <span>Loading route stops</span>
+            </div>
+
+            <div class="route-progress route-progress--error" *ngIf="!routeProgressLoading[service.serviceNo] && routeProgressErrors[service.serviceNo]">
+              <span>{{ routeProgressErrors[service.serviceNo] }}</span>
+            </div>
+
+            <div
+              class="route-progress"
+              *ngIf="!routeProgressLoading[service.serviceNo] && routeProgressions[service.serviceNo] as progression"
+            >
+              <div
+                class="route-progress__stop"
+                *ngFor="let stop of progression.stops"
+                [ngClass]="'route-progress__stop--' + stop.status"
+              >
+                <span class="route-progress__dot"></span>
+                <div>
+                  <strong>{{ stop.name }}</strong>
+                  <small>{{ stop.status === 'terminal' ? 'Terminal' : stop.status }} · {{ stop.roadName }} · {{ stop.code }}</small>
+                </div>
+              </div>
+            </div>
           </div>
         </article>
       </div>
