@@ -21,11 +21,25 @@
         <span>Soft city movement from Serangoon to the next good stop.</span>
       </div>
 
-      <div class="route-orbit" aria-label="Next saved commute">
-        <span>next usual ride</span>
-        <strong>Home to School</strong>
-        <p>Bus 156 is settling in at 4 min</p>
-      </div>
+      <button
+        type="button"
+        class="route-orbit"
+        aria-label="Check your saved bus stop"
+        *ngIf="favouriteBusStops.length; else emptyHeroShortcut"
+        (click)="viewFavouriteStop(favouriteBusStops[0])"
+      >
+        <span>Your saved stop</span>
+        <strong>{{ favouriteBusStops[0].nickname || favouriteBusStops[0].Description }}</strong>
+        <p>Tap to check arrivals</p>
+      </button>
+
+      <ng-template #emptyHeroShortcut>
+        <div class="route-orbit route-orbit--empty" aria-label="Save a favourite stop">
+          <span>Save a stop to make this yours</span>
+          <strong>Bookmark your usual stop</strong>
+          <p>Faster checks for the rides you take most.</p>
+        </div>
+      </ng-template>
     </header>
 
     <section class="search-card pop-in" aria-label="Find a bus">
@@ -41,6 +55,15 @@
           [(ngModel)]="searchTerm"
           (ngModelChange)="onSearchTermChange($event)"
         />
+        <button
+          type="button"
+          class="search-clear-button"
+          aria-label="Clear bus stop search"
+          *ngIf="searchTerm"
+          (click)="clearSearch()"
+        >
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
         <button type="submit" aria-label="Search bus arrivals">
           <ion-icon name="arrow-forward-outline"></ion-icon>
         </button>
@@ -174,7 +197,10 @@
             <div class="service-badge service-badge--compact">{{ service.serviceNo }}</div>
 
             <div class="live-row__main">
-              <h3>{{ destinationLabel(service) }}</h3>
+              <h3>
+                <span>{{ destinationName(service) }}</span>
+                <small *ngIf="destinationCode(service)">{{ destinationCode(service) }}</small>
+              </h3>
               <div class="live-row__meta">
                 <span>{{ service.nextBus.type }}</span>
                 <span [class.available]="service.nextBus.wheelchairAccessible">

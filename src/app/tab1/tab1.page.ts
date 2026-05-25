@@ -181,6 +181,18 @@ export class Tab1Page implements OnInit, OnDestroy {
     }, 220);
   }
 
+  clearSearch(): void {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+    }
+
+    this.searchTerm = '';
+    this.busStopResults = [];
+    this.stopSearchError = '';
+    this.selectedBusStop = undefined;
+    this.logMatchesFound(0);
+  }
+
   searchArrivals(busStopCode = this.searchedBusStopCode): void {
     this.hasSearchedArrivals = true;
     this.isLoadingArrivals = true;
@@ -314,9 +326,25 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   destinationLabel(service: BusServiceArrival): string {
-    return service.nextBus.destinationCode
-      ? `Destination ${service.nextBus.destinationCode}`
+    const code = this.destinationCode(service);
+
+    return code
+      ? `${this.destinationName(service)} · ${code}`
       : 'Destination unavailable';
+  }
+
+  destinationName(service: BusServiceArrival): string {
+    const code = this.destinationCode(service);
+
+    if (!code) {
+      return 'Destination unavailable';
+    }
+
+    return this.busStopLookup.get(code)?.Description || `Stop ${code}`;
+  }
+
+  destinationCode(service: BusServiceArrival): string {
+    return service.nextBus.destinationCode || '';
   }
 
   timingTone(service: BusServiceArrival): string {
