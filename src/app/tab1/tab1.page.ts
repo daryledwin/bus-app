@@ -63,8 +63,10 @@ export class Tab1Page implements OnInit, OnDestroy {
   selectedRouteServiceNo = '';
   selectedRouteService?: BusServiceArrival;
   private busStops: BusStop[] = [];
+  private busStopLookup = new Map<string, BusStop>();
   private busStopsLoadPromise?: Promise<BusStop[]>;
   private searchTimer?: ReturnType<typeof setTimeout>;
+  private routePrefetchTimer?: ReturnType<typeof setTimeout>;
   private selectedStopSubscription?: Subscription;
   private readonly favouritesStorageKey = 'favouriteBusStops';
 
@@ -127,6 +129,10 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.selectedStopSubscription?.unsubscribe();
+
+    if (this.routePrefetchTimer) {
+      clearTimeout(this.routePrefetchTimer);
+    }
   }
 
   get isTextSearchActive(): boolean {
@@ -187,6 +193,7 @@ export class Tab1Page implements OnInit, OnDestroy {
         this.searchedBusStopCode = arrivalLookup.busStopCode;
         this.liveBusServices = this.sortLiveServices(arrivalLookup.services);
         this.isLoadingArrivals = false;
+        this.prefetchRouteProgressions(this.liveBusServices);
         this.scrollToArrivals();
       },
       error: (error) => {
@@ -392,6 +399,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.busStopsLoadPromise = this.ltaBusStopsService.getBusStops(forceRefresh).toPromise()
       .then((stops = []) => {
         this.busStops = Array.isArray(stops) ? stops : [];
+        this.busStopLookup = new Map(this.busStops.map((stop) => [stop.BusStopCode, stop]));
         console.log('Bus stops loaded count:', this.busStops.length);
         console.log('IOS DEBUG 2 - bus stops loaded count:', this.busStops.length);
         console.log('First bus stop sample:', this.busStops[0]);
@@ -462,6 +470,18 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
   }
 
+  private prefetchRouteProgressions(services: BusServiceArrival[]): void {
+    if (this.routePrefetchTimer) {
+      clearTimeout(this.routePrefetchTimer);
+    }
+
+    this.routePrefetchTimer = setTimeout(() => {
+      services.slice(0, 4).forEach((service) => {
+        this.loadRouteProgression(service.serviceNo);
+      });
+    }, 450);
+  }
+
   private buildRouteProgression(routes: BusRoute[], currentBusStopCode: string): RouteProgression | null {
     const matchingRoute = routes.find((route) => route.BusStopCode === currentBusStopCode);
 
@@ -498,7 +518,7 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   private routeProgressStop(route: BusRoute, status: RouteProgressStop['status']): RouteProgressStop {
-    const busStop = this.busStops.find((stop) => stop.BusStopCode === route.BusStopCode);
+    const busStop = this.busStopLookup.get(route.BusStopCode);
 
     return {
       code: route.BusStopCode,
@@ -516,7 +536,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
 
     const knownStop = this.selectedBusStop
-      || this.busStops.find((stop) => stop.BusStopCode === busStopCode)
+      || this.busStopLookup.get(busStopCode)
       || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
 
     return {
@@ -527,6 +547,11 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   private resetRouteState(): void {
+    if (this.routePrefetchTimer) {
+      clearTimeout(this.routePrefetchTimer);
+      this.routePrefetchTimer = undefined;
+    }
+
     this.expandedLiveServiceNo = '';
     this.routeProgressions = {};
     this.routeProgressLoading = {};

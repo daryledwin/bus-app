@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
+import { environment } from '../environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -12,6 +13,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private splashExitTimer?: ReturnType<typeof setTimeout>;
   private splashRemoveTimer?: ReturnType<typeof setTimeout>;
+  private backendKeepAliveTimer?: ReturnType<typeof setInterval>;
+  private readonly visibilityChangeHandler = () => {
+    if (!document.hidden) {
+      this.warmBackend();
+    }
+  };
 
   private readonly splashTaglines = [
     'your next ride, lowk stress free.',
@@ -28,6 +35,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.splashTagline = this.randomTagline();
+    this.warmBackend();
+    this.backendKeepAliveTimer = setInterval(() => this.warmBackend(), 240000);
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+
     this.splashExitTimer = setTimeout(() => {
       this.splashLeaving = true;
     }, 2450);
@@ -44,9 +55,21 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.splashRemoveTimer) {
       clearTimeout(this.splashRemoveTimer);
     }
+
+    if (this.backendKeepAliveTimer) {
+      clearInterval(this.backendKeepAliveTimer);
+    }
+
+    document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
   }
 
   private randomTagline(): string {
     return this.splashTaglines[Math.floor(Math.random() * this.splashTaglines.length)];
+  }
+
+  private warmBackend(): void {
+    fetch(`${environment.apiBaseUrl}/health`, { cache: 'no-store' }).catch(() => {
+      // Best-effort keep-alive only; arrival searches still handle errors normally.
+    });
   }
 }

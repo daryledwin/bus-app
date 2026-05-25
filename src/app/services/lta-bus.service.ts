@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, timeout } from 'rxjs/operators';
 
 import { environment } from '../../environments/environment';
 
@@ -69,6 +69,7 @@ export class LtaBusService {
     const params = new HttpParams().set('busStopCode', cleanedBusStopCode);
 
     return this.http.get<LtaBusResponse>(this.endpoint, { params }).pipe(
+      timeout(9500),
       map((response) => ({
         busStopCode: response.BusStopCode || cleanedBusStopCode,
         services: (response.Services || []).map((service) => this.mapService(service))
