@@ -92,6 +92,7 @@ ion-content.bus-home {
 .route-orbit,
 .search-card,
 .arrival-card,
+.live-row,
 .saved-card,
 .recent-strip,
 .bottom-nav {
@@ -664,6 +665,156 @@ ion-content.bus-home {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.live-list {
+  background: rgba(255, 248, 235, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 28px;
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 6px;
+  overflow: hidden;
+  padding: 7px;
+}
+
+.live-row {
+  background:
+    linear-gradient(180deg, rgba(255, 251, 243, 0.9), rgba(255, 246, 233, 0.72));
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+  transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.live-row + .live-row::before {
+  background: rgba(132, 115, 100, 0.12);
+  content: "";
+  height: 1px;
+  left: 76px;
+  position: absolute;
+  right: 18px;
+  top: -3px;
+}
+
+.live-row__summary {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 78px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.service-badge--compact {
+  border-radius: 17px;
+  font-size: 21px;
+  height: 52px;
+  min-width: 52px;
+  padding: 0 10px;
+}
+
+.live-row__main {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.live-row__main h3 {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.16;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-row__meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11px;
+  font-weight: 720;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.live-row__meta span {
+  align-items: center;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.live-row__meta span:not(:last-child)::after {
+  background: rgba(132, 115, 100, 0.34);
+  border-radius: 999px;
+  content: "";
+  height: 3px;
+  margin-left: 6px;
+  width: 3px;
+}
+
+.live-row__meta .available {
+  color: var(--sage-deep);
+  font-weight: 800;
+}
+
+.live-row__times {
+  color: var(--sage-deep);
+  display: grid;
+  justify-items: end;
+  min-width: 78px;
+}
+
+.live-row__times strong {
+  font-size: 24px;
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.live-row__times span {
+  color: var(--muted-soft);
+  font-size: 11px;
+  font-weight: 760;
+  margin-top: 5px;
+  white-space: nowrap;
+}
+
+.live-row__times.tone-arriving strong {
+  color: #a56a32;
+}
+
+.live-row__times.tone-soon strong {
+  color: #7c7436;
+}
+
+.live-row__times.tone-later strong {
+  color: var(--sage-deep);
+}
+
+.live-row__details {
+  display: grid;
+  gap: 9px;
+  padding: 0 12px 12px 76px;
+  position: relative;
+  z-index: 1;
+}
+
+.live-row.expanded {
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.94), rgba(251, 239, 221, 0.8));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
 .live-card {
   border-radius: 30px;
   display: grid;
@@ -717,6 +868,12 @@ ion-content.bus-home {
   font-size: 16px;
 }
 
+.live-route--compact {
+  border-radius: 16px;
+  font-size: 11px;
+  padding: 9px 10px;
+}
+
 .timing-row {
   display: grid;
   gap: 10px;
@@ -746,6 +903,21 @@ ion-content.bus-home {
   font-weight: 820;
   letter-spacing: 0;
   line-height: 1;
+}
+
+.timing-row--compact {
+  gap: 7px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.timing-row--compact div {
+  border-radius: 15px;
+  min-height: 54px;
+  padding: 9px;
+}
+
+.timing-row--compact strong {
+  font-size: 15px;
 }
 
 .live-meta {
@@ -993,6 +1165,7 @@ ion-content.bus-home {
 
 .arrival-card:hover,
 .live-card:hover,
+.live-row:hover,
 .saved-card:hover,
 .search-bar button:hover,
 .search-meta button:hover,
@@ -1012,6 +1185,10 @@ ion-content.bus-home {
 .bottom-nav button:active,
 .section-heading button:active {
   transform: scale(0.96);
+}
+
+.live-row__summary:active {
+  transform: scale(0.99);
 }
 
 .fade-in {
@@ -1051,7 +1228,6 @@ ion-content.bus-home {
   }
 
   .arrival-grid,
-  .live-grid,
   .saved-grid {
     grid-template-columns: 1fr;
   }
@@ -1104,6 +1280,32 @@ ion-content.bus-home {
   .arrival-card__bottom {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .live-list {
+    border-radius: 24px;
+    padding: 6px;
+  }
+
+  .live-row__summary {
+    gap: 10px;
+    grid-template-columns: auto minmax(0, 1fr) minmax(68px, auto);
+    min-height: 74px;
+    padding: 9px 10px;
+  }
+
+  .service-badge--compact {
+    font-size: 19px;
+    height: 48px;
+    min-width: 48px;
+  }
+
+  .live-row__times strong {
+    font-size: 21px;
+  }
+
+  .live-row__details {
+    padding-left: 70px;
   }
 
   .bottom-nav span {

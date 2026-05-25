@@ -50,6 +50,7 @@ export class Tab1Page implements OnInit {
   hasSearchedArrivals = false;
   arrivalError = '';
   stopSearchError = '';
+  expandedLiveServiceNo = '';
   private busStops: BusStop[] = [];
   private busStopsLoadPromise?: Promise<BusStop[]>;
   private searchTimer?: ReturnType<typeof setTimeout>;
@@ -222,7 +223,7 @@ export class Tab1Page implements OnInit {
     this.ltaBusService.getBusArrivals(busStopCode).subscribe({
       next: (arrivalLookup) => {
         this.searchedBusStopCode = arrivalLookup.busStopCode;
-        this.liveBusServices = arrivalLookup.services;
+        this.liveBusServices = this.sortLiveServices(arrivalLookup.services);
         this.isLoadingArrivals = false;
         this.scrollToArrivals();
       },
@@ -245,6 +246,34 @@ export class Tab1Page implements OnInit {
 
   trackBusStop(index: number, stop: BusStop): string {
     return stop.BusStopCode;
+  }
+
+  trackLiveService(index: number, service: BusServiceArrival): string {
+    return service.serviceNo;
+  }
+
+  toggleLiveService(serviceNo: string): void {
+    this.expandedLiveServiceNo = this.expandedLiveServiceNo === serviceNo ? '' : serviceNo;
+  }
+
+  destinationLabel(service: BusServiceArrival): string {
+    return service.nextBus.destinationCode
+      ? `Destination ${service.nextBus.destinationCode}`
+      : 'Destination unavailable';
+  }
+
+  timingTone(service: BusServiceArrival): string {
+    const minutesAway = service.nextBus.minutesAway;
+
+    if (minutesAway !== null && minutesAway <= 1) {
+      return 'arriving';
+    }
+
+    if (minutesAway !== null && minutesAway <= 5) {
+      return 'soon';
+    }
+
+    return 'later';
   }
 
   private async searchBusStops(query: string): Promise<void> {
@@ -362,6 +391,14 @@ export class Tab1Page implements OnInit {
       .sort((a, b) => b.score - a.score || String(a.stop.Description || '').localeCompare(String(b.stop.Description || '')))
       .slice(0, 8)
       .map((result) => result.stop);
+  }
+
+  private sortLiveServices(services: BusServiceArrival[]): BusServiceArrival[] {
+    return [...services].sort((a, b) => this.arrivalSortValue(a) - this.arrivalSortValue(b));
+  }
+
+  private arrivalSortValue(service: BusServiceArrival): number {
+    return service.nextBus.minutesAway === null ? Number.MAX_SAFE_INTEGER : service.nextBus.minutesAway;
   }
 
   private matchScore(stop: BusStop, query: string, tokens: string[]): number {

@@ -142,47 +142,54 @@
         <p>No live buses are showing for this stop right now. Try another bus stop code.</p>
       </div>
 
-      <div class="live-grid" *ngIf="liveBusServices.length">
+      <div class="live-list" *ngIf="liveBusServices.length">
         <article
-          class="live-card float-up"
-          *ngFor="let service of liveBusServices; let i = index"
-          [style.animation-delay.ms]="70 * i"
+          class="live-row float-up"
+          *ngFor="let service of liveBusServices; let i = index; trackBy: trackLiveService"
+          [class.expanded]="expandedLiveServiceNo === service.serviceNo"
+          [style.animation-delay.ms]="35 * i"
         >
-          <div class="live-card__top">
-            <div class="service-badge">{{ service.serviceNo }}</div>
-            <div class="arrival-time" [class.arriving]="service.nextBus.minutesAway !== null && service.nextBus.minutesAway <= 1">
+          <button type="button" class="live-row__summary" (click)="toggleLiveService(service.serviceNo)">
+            <div class="service-badge service-badge--compact">{{ service.serviceNo }}</div>
+
+            <div class="live-row__main">
+              <h3>{{ destinationLabel(service) }}</h3>
+              <div class="live-row__meta">
+                <span>{{ service.nextBus.type }}</span>
+                <span [class.available]="service.nextBus.wheelchairAccessible">
+                  {{ service.nextBus.wheelchairAccessible ? 'Wheelchair' : 'Access unknown' }}
+                </span>
+                <span>{{ service.nextBus.load }}</span>
+              </div>
+            </div>
+
+            <div class="live-row__times" [ngClass]="'tone-' + timingTone(service)">
               <strong>{{ service.nextBus.timing }}</strong>
-              <span>{{ service.operator }}</span>
+              <span>next {{ service.subsequentBus.timing }}</span>
             </div>
-          </div>
+          </button>
 
-          <div class="live-route">
-            <span>origin {{ service.nextBus.originCode || 'unavailable' }}</span>
-            <ion-icon name="arrow-forward-outline"></ion-icon>
-            <span>destination {{ service.nextBus.destinationCode || 'unavailable' }}</span>
-          </div>
-
-          <div class="timing-row">
-            <div>
-              <span>next</span>
-              <strong>{{ service.nextBus.timing }}</strong>
+          <div class="live-row__details" *ngIf="expandedLiveServiceNo === service.serviceNo">
+            <div class="live-route live-route--compact">
+              <span>origin {{ service.nextBus.originCode || 'unavailable' }}</span>
+              <ion-icon name="arrow-forward-outline"></ion-icon>
+              <span>destination {{ service.nextBus.destinationCode || 'unavailable' }}</span>
             </div>
-            <div>
-              <span>subsequent</span>
-              <strong>{{ service.subsequentBus.timing }}</strong>
-            </div>
-          </div>
 
-          <div class="live-meta">
-            <span class="occupancy" [ngClass]="service.nextBus.load === 'Seats available' ? 'load-light' : service.nextBus.load === 'Standing available' ? 'load-steady' : 'load-cozy'">
-              <i></i>
-              {{ service.nextBus.load }}
-            </span>
-            <span class="deck">{{ service.nextBus.type }}</span>
-            <span class="accessibility" [class.available]="service.nextBus.wheelchairAccessible">
-              <ion-icon name="accessibility-outline"></ion-icon>
-              {{ service.nextBus.wheelchairAccessible ? 'Wheelchair accessible' : 'Accessibility unavailable' }}
-            </span>
+            <div class="timing-row timing-row--compact">
+              <div>
+                <span>next</span>
+                <strong>{{ service.nextBus.timing }}</strong>
+              </div>
+              <div>
+                <span>subsequent</span>
+                <strong>{{ service.subsequentBus.timing }}</strong>
+              </div>
+              <div>
+                <span>third</span>
+                <strong>{{ service.thirdBus.timing }}</strong>
+              </div>
+            </div>
           </div>
         </article>
       </div>
