@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { map, shareReplay } from 'rxjs/operators';
+import { Observable, throwError, timer } from 'rxjs';
+import { catchError, map, mergeMap, retryWhen, shareReplay, timeout } from 'rxjs/operators';
 
 import { environment } from '../../environments/environment';
 
@@ -43,7 +43,21 @@ export class LtaBusRoutesService {
     if (!this.routeRequests.has(cleanedServiceNo)) {
       const params = new HttpParams().set('serviceNo', cleanedServiceNo);
       const request = this.http.get<BusRoutesResponse>(this.endpoint, { params }).pipe(
+        timeout(30000),
+        retryWhen((errors) => errors.pipe(
+          mergeMap((error, retryIndex) => {
+            if (retryIndex >= 1 || !this.isTransientError(error)) {
+              return throwError(error);
+            }
+
+            return timer(1800);
+          })
+        )),
         map((response) => this.unwrapBusRoutes(response)),
+        catchError((error) => {
+          this.routeRequests.delete(cleanedServiceNo);
+          return throwError(error);
+        }),
         shareReplay(1)
       );
 
@@ -64,5 +78,12 @@ export class LtaBusRoutesService {
       || response.busRoutes
       || response.results
       || [];
+  }
+
+  private isTransientError(error: any): boolean {
+    return error?.name === 'TimeoutError'
+      || error?.status === 0
+      || error?.status === 429
+      || error?.status >= 500;
   }
 }

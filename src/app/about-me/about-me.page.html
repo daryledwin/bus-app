@@ -1,0 +1,49 @@
+<ion-content [fullscreen]="true" class="about-page">
+  <main class="about-shell">
+    <button type="button" class="about-back-button" aria-label="Back to home" (click)="goBack()">
+      <ion-icon name="chevron-back-outline"></ion-icon>
+    </button>
+
+    <section class="about-hero" aria-labelledby="about-title">
+      <div class="about-skyline" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <img class="about-bus-illustration" src="assets/images/bus%20uncle.png" alt="" aria-hidden="true" />
+
+      <div class="about-chip">
+        <ion-icon name="sparkles-outline"></ion-icon>
+        Meet the maker
+      </div>
+      <h1 id="about-title">Built with care</h1>
+      <p>for everyday commutes</p>
+
+      <div class="about-story">
+        Hi there! I’m Daryl, an SMU Software Engineering student. I started building My Bus over the summer as a way to explore app development and design. After using bus apps that often felt dated or cluttered, I wanted to create something more modern, calming, and commuter-friendly. Hopefully, this app makes everyday commutes feel just a little lighter.
+      </div>
+    </section>
+
+    <section class="about-mini-grid" aria-label="App details">
+      <article>
+        <ion-icon name="bookmark-outline"></ion-icon>
+        <span>saved stops</span>
+      </article>
+      <article>
+        <ion-icon name="navigate-outline"></ion-icon>
+        <span>nearby rides</span>
+      </article>
+      <article>
+        <ion-icon name="time-outline"></ion-icon>
+        <span>live arrivals</span>
+      </article>
+    </section>
+
+    <footer class="about-footer">
+      made with love for everyday commuters 🚌❤️
+    </footer>
+  </main>
+</ion-content>

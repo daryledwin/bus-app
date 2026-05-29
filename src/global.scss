@@ -24,3 +24,12 @@
 @import "~@ionic/angular/css/text-alignment.css";
 @import "~@ionic/angular/css/text-transformation.css";
 @import "~@ionic/angular/css/flex-utils.css";
+@import "~leaflet/dist/leaflet.css";
+
+html,
+body,
+ion-app {
+  background:
+    radial-gradient(circle at 50% -8%, rgba(255, 255, 255, 0.58), transparent 32%),
+    linear-gradient(180deg, #d5efff 0%, #e6f6ff 50%, #f6fbff 100%);
+}

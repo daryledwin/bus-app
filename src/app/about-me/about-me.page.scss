@@ -1,0 +1,341 @@
+:host {
+  --blue: #1977c9;
+  --blue-soft: #dff1ff;
+  --sun: #ffd74b;
+  --ink: #071a44;
+  --muted: #536d84;
+  --line: rgba(255, 255, 255, 0.76);
+  --paper: rgba(255, 255, 255, 0.9);
+  --shadow-float: 0 28px 72px rgba(16, 111, 191, 0.18), 0 9px 26px rgba(16, 111, 191, 0.1);
+  --shadow-soft: 0 15px 38px rgba(16, 111, 191, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+}
+
+ion-content.about-page {
+  --background:
+    radial-gradient(circle at 22% 8%, rgba(255, 215, 75, 0.2), transparent 26%),
+    linear-gradient(180deg, #d5efff 0%, #e6f6ff 52%, #f6fbff 100%);
+}
+
+.about-shell {
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 760px;
+  padding: max(18px, env(safe-area-inset-top)) 18px 48px;
+}
+
+.about-back-button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow-soft);
+  color: var(--blue);
+  display: grid;
+  height: 44px;
+  place-items: center;
+  width: 44px;
+}
+
+.about-back-button ion-icon {
+  font-size: 24px;
+}
+
+.about-hero {
+  background:
+    radial-gradient(circle at 82% 22%, rgba(255, 215, 75, 0.3), transparent 25%),
+    radial-gradient(circle at 90% 34%, rgba(255, 255, 255, 0.46), transparent 24%),
+    radial-gradient(circle at 14% 88%, rgba(25, 119, 201, 0.13), transparent 34%),
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.72), transparent 28%),
+    linear-gradient(150deg, #f4fbff 0%, #e4f5ff 43%, #d7ecfb 100%);
+  border: 1px solid var(--line);
+  border-radius: 40px;
+  box-shadow: var(--shadow-float);
+  min-height: 332px;
+  overflow: hidden;
+  padding: 28px 28px 34px;
+  position: relative;
+}
+
+.about-hero::before {
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0));
+  content: "";
+  filter: blur(18px);
+  height: 112px;
+  left: -8%;
+  pointer-events: none;
+  position: absolute;
+  top: -26px;
+  transform: rotate(-8deg);
+  width: 66%;
+}
+
+.about-chip {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #0b5ea7;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 780;
+  gap: 7px;
+  padding: 10px 13px;
+  position: relative;
+  z-index: 2;
+}
+
+.about-chip ion-icon {
+  color: #f3bb18;
+  font-size: 16px;
+}
+
+.about-hero h1 {
+  color: var(--ink);
+  font-size: clamp(34px, 8vw, 58px);
+  font-weight: 860;
+  letter-spacing: 0;
+  line-height: 0.98;
+  margin: 34px 0 12px;
+  max-width: 480px;
+  position: relative;
+  z-index: 2;
+}
+
+.about-hero p {
+  color: rgba(7, 26, 68, 0.66);
+  font-size: 15px;
+  font-weight: 680;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 360px;
+  position: relative;
+  z-index: 2;
+}
+
+.about-skyline,
+.about-skyline span,
+.about-bus-illustration {
+  position: absolute;
+}
+
+.about-skyline {
+  align-items: flex-end;
+  bottom: 24px;
+  display: flex;
+  gap: 9px;
+  height: 98px;
+  left: 22px;
+  opacity: 0.22;
+  pointer-events: none;
+  right: 22px;
+  z-index: 1;
+}
+
+.about-skyline::before {
+  background:
+    linear-gradient(90deg, rgba(38, 106, 156, 0.16), rgba(38, 106, 156, 0.04)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  border-radius: 999px 999px 0 0;
+  bottom: 12px;
+  content: "";
+  height: 14px;
+  left: 0;
+  position: absolute;
+  width: min(360px, 92%);
+}
+
+.about-skyline::after {
+  background:
+    linear-gradient(90deg, transparent 0 8%, rgba(38, 106, 156, 0.12) 8% 11%, transparent 11% 24%, rgba(38, 106, 156, 0.1) 24% 27%, transparent 27%),
+    linear-gradient(180deg, rgba(38, 106, 156, 0.13), rgba(38, 106, 156, 0.04));
+  border-radius: 12px 12px 0 0;
+  bottom: 0;
+  content: "";
+  height: 24px;
+  left: -6px;
+  position: relative;
+  position: absolute;
+  width: min(420px, 100%);
+}
+
+.about-skyline span {
+  background: linear-gradient(180deg, rgba(37, 112, 167, 0.25), rgba(37, 112, 167, 0.06));
+  border-radius: 8px 8px 0 0;
+  bottom: 0;
+  display: block;
+  position: relative;
+  width: 34px;
+}
+
+.about-skyline span:nth-child(1) {
+  height: 48px;
+  width: 42px;
+}
+
+.about-skyline span:nth-child(2) {
+  height: 78px;
+  width: 34px;
+}
+
+.about-skyline span:nth-child(3) {
+  height: 42px;
+  width: 52px;
+}
+
+.about-skyline span:nth-child(4) {
+  height: 88px;
+  width: 32px;
+}
+
+.about-skyline span:nth-child(5) {
+  height: 60px;
+  width: 44px;
+}
+
+.about-skyline span:nth-child(6) {
+  height: 36px;
+  width: 58px;
+}
+
+.about-bus-illustration {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter: none;
+  height: auto;
+  mask-image: radial-gradient(ellipse at center, #000 48%, rgba(0, 0, 0, 0.74) 61%, transparent 78%);
+  object-fit: contain;
+  opacity: 0.68;
+  pointer-events: none;
+  right: clamp(6px, 2.5vw, 26px);
+  top: clamp(-18px, -2vw, -6px);
+  width: clamp(146px, 27vw, 216px);
+  z-index: 1;
+}
+
+.about-mini-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.about-mini-grid article {
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 24px;
+  box-shadow:
+    0 18px 38px rgba(16, 111, 191, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    inset 0 -18px 36px rgba(25, 119, 201, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  min-height: 116px;
+  overflow: hidden;
+  padding: 18px 8px 15px;
+  position: relative;
+  text-align: center;
+}
+
+.about-mini-grid article:nth-child(1) {
+  background:
+    radial-gradient(circle at 70% 18%, rgba(255, 255, 255, 0.78), transparent 36%),
+    linear-gradient(150deg, rgba(255, 244, 244, 0.98), rgba(255, 214, 214, 0.78));
+}
+
+.about-mini-grid article:nth-child(2) {
+  background:
+    radial-gradient(circle at 70% 18%, rgba(255, 255, 255, 0.78), transparent 36%),
+    linear-gradient(150deg, rgba(239, 254, 255, 0.98), rgba(188, 239, 242, 0.78));
+}
+
+.about-mini-grid article:nth-child(3) {
+  background:
+    radial-gradient(circle at 70% 18%, rgba(255, 255, 255, 0.82), transparent 36%),
+    linear-gradient(150deg, rgba(255, 250, 229, 0.98), rgba(255, 224, 124, 0.66));
+}
+
+.about-mini-grid article::before {
+  background: rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  content: "";
+  height: 70px;
+  left: 50%;
+  position: absolute;
+  top: 14px;
+  transform: translateX(-50%);
+  width: 70px;
+  z-index: 1;
+}
+
+.about-mini-grid ion-icon {
+  display: block;
+  font-size: 38px;
+  height: 38px;
+  position: relative;
+  width: 38px;
+  z-index: 3;
+}
+
+.about-mini-grid article:nth-child(1) ion-icon {
+  color: #d96b6b;
+}
+
+.about-mini-grid article:nth-child(2) ion-icon {
+  color: #1296a8;
+}
+
+.about-mini-grid article:nth-child(3) ion-icon {
+  color: #c68a10;
+}
+
+.about-mini-grid span {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.2;
+  position: relative;
+  z-index: 3;
+}
+
+.about-footer {
+  color: rgba(7, 26, 68, 0.62);
+  font-size: 13px;
+  font-weight: 760;
+  padding: 10px 4px 0;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    padding-inline: 14px;
+  }
+
+  .about-hero {
+    border-radius: 34px;
+    min-height: 348px;
+    padding: 24px 24px 30px;
+  }
+
+  .about-skyline {
+    bottom: 22px;
+    height: 82px;
+  }
+
+  .about-bus-illustration {
+    opacity: 0.54;
+    right: -10px;
+    top: -14px;
+    width: min(44vw, 174px);
+  }
+
+  .about-story {
+    margin-top: 22px;
+    max-width: 94%;
+  }
+}

@@ -1,9 +1,23 @@
 <ion-content [fullscreen]="true" class="nearby-page">
+  <ion-refresher
+    class="nearby-refresher"
+    slot="fixed"
+    pullFactor="0.55"
+    pullMin="74"
+    pullMax="126"
+    (ionRefresh)="refreshNearbyStops($event)"
+  >
+    <ion-refresher-content
+      pullingIcon="chevron-down-outline"
+      refreshingSpinner="crescent"
+    ></ion-refresher-content>
+  </ion-refresher>
+
   <main class="nearby-shell">
-    <header class="nearby-header">
+    <header class="nearby-header fade-in">
       <div>
         <p>nearby stops</p>
-        <h1>closest places to catch your next ride</h1>
+        <h1>catch a ride nearby</h1>
       </div>
       <div class="nearby-header__actions">
         <button
@@ -20,21 +34,25 @@
       </div>
     </header>
 
-    <section class="nearby-preview" aria-hidden="true">
-      <div class="nearby-preview__sun"></div>
-      <div class="nearby-preview__route">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
+    <section class="nearby-map-card pop-in" aria-label="Nearby bus stops map">
+      <div #nearbyMap class="nearby-map"></div>
+      <button
+        type="button"
+        class="nearby-locate-button"
+        aria-label="Recenter map on your location"
+        [disabled]="!hasUserLocation || isLoadingLocation"
+        (click)="recenterOnUserLocation()"
+      >
+        <ion-icon name="locate-outline"></ion-icon>
+      </button>
     </section>
 
-    <section class="nearby-state" *ngIf="isLoadingLocation" aria-live="polite">
+    <section class="nearby-state fade-in-delayed" *ngIf="isLoadingLocation && !nearbyStops.length" aria-live="polite">
       <ion-spinner name="crescent"></ion-spinner>
-      <p>Finding the gentlest stops around you.</p>
+      <p>Finding bus stops around you.</p>
     </section>
 
-    <section class="nearby-state nearby-state--error" *ngIf="!isLoadingLocation && nearbyError" aria-live="polite">
+    <section class="nearby-state nearby-state--error fade-in-delayed" *ngIf="!isLoadingLocation && nearbyError" aria-live="polite">
       <ion-icon name="location-outline"></ion-icon>
       <div>
         <p>{{ nearbyError }}</p>
@@ -42,14 +60,16 @@
       </div>
     </section>
 
-    <section class="nearby-list" *ngIf="!isLoadingLocation && !nearbyError && nearbyStops.length">
+    <section class="nearby-list" *ngIf="nearbyStops.length">
       <article
         class="nearby-stop-card"
+        [class.selected]="selectedNearbyStop?.BusStopCode === stop.BusStopCode"
         role="button"
         tabindex="0"
-        *ngFor="let stop of nearbyStops; trackBy: trackNearbyStop"
-        (click)="viewBuses(stop)"
-        (keydown.enter)="viewBuses(stop)"
+        *ngFor="let stop of nearbyStops; let i = index; trackBy: trackNearbyStop"
+        [style.animation-delay.ms]="120 + (35 * i)"
+        (click)="selectNearbyStop(stop)"
+        (keydown.enter)="selectNearbyStop(stop)"
       >
         <div class="nearby-stop-card__marker">
           <ion-icon name="bus-outline"></ion-icon>
@@ -57,17 +77,21 @@
         <div class="nearby-stop-card__copy">
           <h2>{{ stop.Description }}</h2>
           <p>{{ stop.RoadName }} · {{ stop.BusStopCode }}</p>
-          <span>{{ distanceLabel(stop.distanceMeters) }}</span>
+          <div class="nearby-stop-card__footer">
+            <span class="nearby-distance" [ngClass]="'nearby-distance--' + nearbyDistanceTone(stop.distanceMeters)">
+              {{ distanceLabel(stop.distanceMeters) }}
+            </span>
+            <button type="button" (click)="viewBuses(stop); $event.stopPropagation()">
+              View buses
+            </button>
+          </div>
         </div>
-        <button type="button" (click)="viewBuses(stop); $event.stopPropagation()">
-          View buses
-        </button>
       </article>
     </section>
   </main>
 
-  <nav class="bottom-nav" aria-label="Bus navigation">
-    <button type="button" routerLink="/tabs/tab1" aria-label="Home">
+  <nav slot="fixed" class="bottom-nav" aria-label="Bus navigation">
+    <button type="button" routerLink="/tabs/tab1" routerDirection="root" aria-label="Home">
       <ion-icon name="home-outline"></ion-icon>
       <span>Home</span>
     </button>

@@ -3,6 +3,7 @@ require('dotenv').config();
 const axios = require('axios');
 const cors = require('cors');
 const express = require('express');
+const https = require('https');
 
 const app = express();
 // Render provides PORT at runtime; local development falls back to 3000.
@@ -16,6 +17,13 @@ const busStopsPageSize = 500;
 const busRoutesPageSize = 500;
 const busStopsCacheTtl = 12 * 60 * 60 * 1000;
 const busRoutesCacheTtl = 12 * 60 * 60 * 1000;
+const appLatestVersion = process.env.APP_LATEST_VERSION || '0.0.1';
+const appMinimumSupportedVersion = process.env.APP_MINIMUM_SUPPORTED_VERSION || '0.0.1';
+const appUpdateUrl = process.env.APP_UPDATE_URL || 'https://apps.apple.com/';
+const ltaHttpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 20
+});
 let busStopsCache = null;
 let busStopsCacheTime = 0;
 let busStopsRequest = null;
@@ -47,9 +55,40 @@ function ltaRequestOptions(params) {
     headers: {
       AccountKey: accountKey
     },
+    httpsAgent: ltaHttpsAgent,
     params,
-    timeout: 10000
+    timeout: 15000
   };
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryLtaRequest(error) {
+  const status = error.response && error.response.status;
+
+  return !status || status === 429 || status >= 500;
+}
+
+async function getFromLta(url, params, attempts = 2) {
+  let lastError;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await axios.get(url, ltaRequestOptions(params));
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === attempts - 1 || !shouldRetryLtaRequest(error)) {
+        throw error;
+      }
+
+      await wait(800 * (attempt + 1));
+    }
+  }
+
+  throw lastError;
 }
 
 function ltaFailure(res, error) {
@@ -125,9 +164,9 @@ async function fetchBusStops() {
     let skip = 0;
 
     while (true) {
-      const response = await axios.get(ltaBusStopsEndpoint, ltaRequestOptions({
+      const response = await getFromLta(ltaBusStopsEndpoint, {
         $skip: skip
-      }));
+      });
       const page = Array.isArray(response.data.value) ? response.data.value : [];
 
       stops.push(...page.map(cleanBusStop));
@@ -165,9 +204,9 @@ async function fetchBusRoutes() {
     let skip = 0;
 
     while (true) {
-      const response = await axios.get(ltaBusRoutesEndpoint, ltaRequestOptions({
+      const response = await getFromLta(ltaBusRoutesEndpoint, {
         $skip: skip
-      }));
+      });
       const page = Array.isArray(response.data.value) ? response.data.value : [];
 
       routes.push(...page.map(cleanBusRoute));
@@ -195,6 +234,14 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/api/app-version', (req, res) => {
+  res.json({
+    latestVersion: appLatestVersion,
+    minimumSupportedVersion: appMinimumSupportedVersion,
+    updateUrl: appUpdateUrl
+  });
+});
+
 app.get('/api/bus-arrival', async (req, res) => {
   const busStopCode = String(req.query.busStopCode || '').trim();
 
@@ -209,9 +256,9 @@ app.get('/api/bus-arrival', async (req, res) => {
   }
 
   try {
-    const response = await axios.get(ltaArrivalEndpoint, ltaRequestOptions({
+    const response = await getFromLta(ltaArrivalEndpoint, {
       BusStopCode: busStopCode
-    }));
+    }, 3);
 
     return res.json(response.data);
   } catch (error) {

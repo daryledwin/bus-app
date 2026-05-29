@@ -1,6 +1,24 @@
 <ion-content [fullscreen]="true" class="bus-home">
+  <ion-refresher
+    class="home-refresher"
+    slot="fixed"
+    pullFactor="0.55"
+    pullMin="74"
+    pullMax="126"
+    (ionRefresh)="refreshLiveArrivals($event)"
+  >
+    <ion-refresher-content
+      pullingIcon="chevron-down-outline"
+      refreshingSpinner="crescent"
+    ></ion-refresher-content>
+  </ion-refresher>
+
   <main class="home-shell">
     <header class="commute-header fade-in">
+      <button type="button" class="about-home-button" routerLink="/about-me" aria-label="About My Bus">
+        <ion-icon name="sparkles-outline"></ion-icon>
+      </button>
+
       <div class="header-glow" aria-hidden="true"></div>
       <div class="skyline" aria-hidden="true">
         <span></span>
@@ -18,28 +36,10 @@
         </div>
         <p>{{ greeting }}</p>
         <h1>where are we heading today?</h1>
-        <span>Soft city movement from Serangoon to the next good stop.</span>
+        <span class="hero-tagline" [class.hero-tagline--hidden]="!heroTaglineVisible">{{ heroTagline }}</span>
       </div>
 
-      <button
-        type="button"
-        class="route-orbit"
-        aria-label="Check your saved bus stop"
-        *ngIf="favouriteBusStops.length; else emptyHeroShortcut"
-        (click)="viewFavouriteStop(favouriteBusStops[0])"
-      >
-        <span>Your saved stop</span>
-        <strong>{{ favouriteBusStops[0].nickname || favouriteBusStops[0].Description }}</strong>
-        <p>Tap to check arrivals</p>
-      </button>
-
-      <ng-template #emptyHeroShortcut>
-        <div class="route-orbit route-orbit--empty" aria-label="Save a favourite stop">
-          <span>Save a stop to make this yours</span>
-          <strong>Bookmark your usual stop</strong>
-          <p>Faster checks for the rides you take most.</p>
-        </div>
-      </ng-template>
+      <img class="hero-illustration" src="assets/images/illustration.png" alt="" aria-hidden="true" />
     </header>
 
     <section class="search-card pop-in" aria-label="Find a bus">
@@ -80,15 +80,6 @@
           </div>
         </section>
 
-        <section class="stop-shelf" aria-label="Popular nearby stops">
-          <p>popular nearby stops</p>
-          <div class="mini-stop-row">
-            <button type="button" *ngFor="let stop of popularStops; trackBy: trackBusStop" (click)="selectBusStop(stop)">
-              <strong>{{ stop.Description }}</strong>
-              <span>{{ stop.RoadName }} · {{ stop.BusStopCode }}</span>
-            </button>
-          </div>
-        </section>
       </div>
 
       <div class="stop-search-panel" *ngIf="isTextSearchActive">
@@ -137,9 +128,10 @@
         <div>
           <p>live bus arrival</p>
           <div class="arrival-title-row">
-            <h2 id="nearby-title">
-              {{ hasSearchedArrivals ? (selectedBusStop?.Description || 'Stop ' + (searchedBusStopCode || 'search')) : 'Ready when you are' }}
-            </h2>
+            <div class="arrival-title-copy">
+              <h2 id="nearby-title">{{ arrivalStopTitle() }}</h2>
+              <span *ngIf="arrivalStopSubtitle()">{{ arrivalStopSubtitle() }}</span>
+            </div>
             <button
               type="button"
               class="favourite-stop-button"
@@ -152,7 +144,7 @@
             </button>
           </div>
         </div>
-        <button type="button" (click)="searchArrivals()" [disabled]="isLoadingArrivals" *ngIf="hasSearchedArrivals">
+        <button type="button" (click)="refreshLiveArrivals()" [disabled]="isLoadingArrivals" *ngIf="hasSearchedArrivals">
           <ion-icon name="refresh-outline"></ion-icon>
           live
         </button>
@@ -165,7 +157,12 @@
 
       <div class="arrival-state arrival-state--error" *ngIf="arrivalError" aria-live="polite">
         <ion-icon name="alert-circle-outline"></ion-icon>
-        <p>{{ arrivalError }}</p>
+        <div>
+          <p>{{ arrivalError }}</p>
+          <button type="button" *ngIf="searchedBusStopCode" (click)="retryArrivals()">
+            Try again
+          </button>
+        </div>
       </div>
 
       <div
@@ -193,20 +190,27 @@
           [class.expanded]="expandedLiveServiceNo === service.serviceNo"
           [style.animation-delay.ms]="35 * i"
         >
-          <button type="button" class="live-row__summary" (click)="toggleLiveService(service.serviceNo)">
+          <button type="button" class="live-row__summary" (click)="toggleLiveService(service)">
             <div class="service-badge service-badge--compact">{{ service.serviceNo }}</div>
 
             <div class="live-row__main">
-              <h3>
-                <span>{{ destinationName(service) }}</span>
-                <small *ngIf="destinationCode(service)">{{ destinationCode(service) }}</small>
-              </h3>
-              <div class="live-row__meta">
-                <span>{{ service.nextBus.type }}</span>
-                <span [class.available]="service.nextBus.wheelchairAccessible">
-                  {{ service.nextBus.wheelchairAccessible ? 'Wheelchair' : 'Access unknown' }}
+              <div class="live-row__meta live-row__meta--stacked">
+                <span class="metadata-line metadata-line--bus-type" [ngClass]="'metadata-line--' + busTypeTone(service.nextBus.type)">
+                  <ion-icon name="bus-outline"></ion-icon>
+                  {{ service.nextBus.type }}
                 </span>
-                <span>{{ service.nextBus.load }}</span>
+                <span
+                  class="metadata-line"
+                  [class.metadata-line--accessible]="service.nextBus.wheelchairAccessible"
+                  [class.metadata-line--not-accessible]="!service.nextBus.wheelchairAccessible"
+                >
+                  <ion-icon name="accessibility-outline"></ion-icon>
+                  {{ service.nextBus.wheelchairAccessible ? 'Wheelchair accessible' : 'No wheelchair access' }}
+                </span>
+                <span class="metadata-line load-pill" [ngClass]="'load-pill--' + loadTone(service.nextBus.load)">
+                  <ion-icon name="ticket-outline"></ion-icon>
+                  {{ service.nextBus.load }}
+                </span>
               </div>
             </div>
 
@@ -214,37 +218,28 @@
               <strong>{{ service.nextBus.timing }}</strong>
               <span>next {{ service.subsequentBus.timing }}</span>
             </div>
+
+            <ion-icon class="live-row__chevron" name="chevron-down-outline" aria-hidden="true"></ion-icon>
           </button>
 
           <div class="live-row__details" *ngIf="expandedLiveServiceNo === service.serviceNo">
-            <div class="live-route live-route--compact">
-              <span>origin {{ service.nextBus.originCode || 'unavailable' }}</span>
-              <ion-icon name="arrow-forward-outline"></ion-icon>
-              <span>destination {{ service.nextBus.destinationCode || 'unavailable' }}</span>
-            </div>
+            <p class="live-row__origin" *ngIf="serviceOriginCode(service)">
+              From {{ serviceOriginName(service) }} ({{ serviceOriginCode(service) }})
+            </p>
 
             <div class="timing-row timing-row--compact">
-              <div>
+              <div class="timing-card timing-card--next">
                 <span>next</span>
                 <strong>{{ service.nextBus.timing }}</strong>
               </div>
-              <div>
+              <div class="timing-card timing-card--subsequent">
                 <span>subsequent</span>
                 <strong>{{ service.subsequentBus.timing }}</strong>
               </div>
-              <div>
+              <div class="timing-card timing-card--third">
                 <span>third</span>
                 <strong>{{ service.thirdBus.timing }}</strong>
               </div>
-            </div>
-
-            <div class="live-meta live-meta--compact">
-              <span class="accessibility">{{ service.nextBus.type }}</span>
-              <span class="accessibility" [class.available]="service.nextBus.wheelchairAccessible">
-                <ion-icon name="accessibility-outline"></ion-icon>
-                {{ service.nextBus.wheelchairAccessible ? 'Wheelchair' : 'Access unknown' }}
-              </span>
-              <span class="accessibility">{{ service.nextBus.load }}</span>
             </div>
 
             <button
@@ -252,7 +247,7 @@
               class="view-route-button"
               (click)="openRouteModal(service)"
             >
-              View Full Route
+              <span>View Full Route</span>
               <ion-icon name="arrow-forward-outline"></ion-icon>
             </button>
           </div>
@@ -329,7 +324,7 @@
             <p>full route</p>
             <h2>{{ destinationLabel(routeService) }}</h2>
             <span *ngIf="routeProgressions[selectedRouteServiceNo] as progression">
-              {{ progression.stopsRemaining }} stops remaining · Terminal {{ progression.terminalName }}
+              {{ progression.stopsRemaining }} stops remaining
             </span>
           </div>
           <button type="button" class="route-sheet__close" aria-label="Close route" (click)="closeRouteModal()">
@@ -356,30 +351,51 @@
           *ngIf="!routeProgressLoading[selectedRouteServiceNo] && routeProgressions[selectedRouteServiceNo] as progression"
         >
           <div class="route-progress route-progress--modal">
-            <div
+            <button
+              #routeStopRow
+              type="button"
               class="route-progress__stop"
-              *ngFor="let stop of progression.stops"
-              [ngClass]="'route-progress__stop--' + stop.status"
+              *ngFor="let stop of progression.stops; let routeStopIndex = index; trackBy: trackRouteStop"
+              [ngClass]="[
+                'route-progress__stop--' + stop.status,
+                routeStopIndex < progression.currentStopIndex ? 'completed-stop' : '',
+                routeStopIndex === progression.currentStopIndex ? 'current-stop' : '',
+                routeStopIndex > progression.currentStopIndex ? 'upcoming-stop' : '',
+                stop.status === 'terminal' ? 'terminal-stop' : ''
+              ]"
+              [attr.data-route-status]="stop.status"
+              [attr.aria-label]="'View arrivals for ' + stop.name + ' bus stop ' + stop.code"
+              (click)="selectRouteStop(stop)"
             >
               <span class="route-progress__dot"></span>
-              <div>
-                <strong>{{ stop.name }}</strong>
+              <div class="route-progress__copy">
+                <div class="route-progress__name-row">
+                  <strong>{{ stop.name }}</strong>
+                  <span class="route-progress__current-pill" *ngIf="stop.status === 'current'">You are here</span>
+                  <ion-icon
+                    *ngIf="stop.status === 'terminal'"
+                    class="route-progress__terminal-icon"
+                    name="flag-outline"
+                    aria-hidden="true"
+                  ></ion-icon>
+                </div>
                 <small>{{ stop.status === 'terminal' ? 'Terminal' : stop.status }} · {{ stop.roadName }} · {{ stop.code }}</small>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </section>
     </ng-template>
   </ion-modal>
 
-  <nav class="bottom-nav" aria-label="Bus navigation">
+  <nav slot="fixed" class="bottom-nav" aria-label="Bus navigation">
     <button
       type="button"
       *ngFor="let item of navItems"
-      [class.active]="item.active"
+      [class.active]="isNavRouteActive(item.route)"
       [attr.aria-label]="item.label"
-      [routerLink]="item.route"
+      (touchend)="navigateFromBottomNav(item.route, $event)"
+      (click)="navigateFromBottomNav(item.route, $event)"
     >
       <ion-icon [name]="item.icon"></ion-icon>
       <span>{{ item.label }}</span>

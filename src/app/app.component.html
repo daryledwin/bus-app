@@ -1,5 +1,5 @@
 <ion-app>
-  <ion-router-outlet></ion-router-outlet>
+  <ion-router-outlet #rootRouterOutlet></ion-router-outlet>
 
   <section
     class="skibidi-splash"
@@ -34,10 +34,10 @@
 
     <div class="splash-content">
       <div class="splash-logo-wrap">
-        <img src="assets/images/logo.png" alt="skibidi bus logo" />
+        <img src="assets/images/illustration.png" alt="My Bus illustration" />
       </div>
       <div class="splash-copy">
-        <h1>buslehlahlorliao</h1>
+        <h1>My Bus</h1>
         <p>{{ splashTagline }}</p>
       </div>
       <div class="splash-loader" aria-hidden="true">
@@ -45,4 +45,41 @@
       </div>
     </div>
   </section>
+
+  <ion-modal
+    class="app-update-modal"
+    [isOpen]="updateModalVisible"
+    [backdropDismiss]="!updateIsForced"
+    (didDismiss)="dismissUpdateModal()"
+  >
+    <ng-template>
+      <section class="app-update-card" role="dialog" aria-modal="true" aria-label="App update available">
+        <div class="app-update-card__glow" aria-hidden="true"></div>
+        <div class="app-update-card__icon" aria-hidden="true">
+          <ion-icon name="bus-outline"></ion-icon>
+          <ion-icon name="sparkles-outline"></ion-icon>
+        </div>
+
+        <div class="app-update-card__copy">
+          <p>fresh updates</p>
+          <h2>A smoother ride is here 🚌</h2>
+          <span>We've added improvements and fixes to make your commute experience even smoother.</span>
+        </div>
+
+        <div class="app-update-card__actions" [class.app-update-card__actions--forced]="updateIsForced">
+          <button type="button" class="app-update-card__primary" (click)="openUpdateUrl()">
+            {{ updateIsForced ? 'Continue to update' : 'Update now' }}
+          </button>
+          <button
+            type="button"
+            class="app-update-card__secondary"
+            *ngIf="!updateIsForced"
+            (click)="dismissUpdateModal()"
+          >
+            Later
+          </button>
+        </div>
+      </section>
+    </ng-template>
+  </ion-modal>
 </ion-app>

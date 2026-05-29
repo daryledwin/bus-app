@@ -1,21 +1,49 @@
 :host {
-  --cream: #fbf2e4;
-  --cream-soft: #fff8ef;
-  --sage: #a8b99e;
-  --sage-deep: #687d65;
-  --ink: #453b31;
-  --muted: #847364;
-  --paper: rgba(255, 249, 239, 0.86);
-  --line: rgba(255, 255, 255, 0.66);
-  --shadow-float: 0 24px 70px rgba(102, 78, 52, 0.16), 0 9px 24px rgba(102, 78, 52, 0.08);
-  --shadow-soft: 0 15px 38px rgba(102, 78, 52, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  --cream: #eaf8ff;
+  --cream-soft: #f7fcff;
+  --sage: #5eb7e6;
+  --sage-deep: #1977c9;
+  --sun: #ffd74b;
+  --ink: #152f4d;
+  --muted: #647c91;
+  --muted-soft: #8da6b7;
+  --paper: rgba(255, 255, 255, 0.88);
+  --line: rgba(255, 255, 255, 0.72);
+  --shadow-float: 0 24px 70px rgba(29, 108, 168, 0.16), 0 9px 24px rgba(29, 108, 168, 0.08);
+  --shadow-soft: 0 15px 38px rgba(29, 108, 168, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.86);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
 }
 
 ion-content.nearby-page {
   --background:
-    linear-gradient(180deg, #ffeecf 0%, #fff3df 24%, var(--cream) 58%, #f8ecdc 100%);
+    radial-gradient(circle at 50% -4%, rgba(255, 215, 75, 0.2), transparent 32%),
+    linear-gradient(180deg, #dff5ff 0%, #edfaff 42%, #f5fbff 100%);
+}
+
+.nearby-refresher {
+  --color: #1977c9;
+  height: 82px;
+  top: max(8px, env(safe-area-inset-top));
+  z-index: 20;
+}
+
+:host ::ng-deep .nearby-refresher ion-refresher-content {
+  height: 82px;
+}
+
+:host ::ng-deep .nearby-refresher .refresher-pulling-icon,
+:host ::ng-deep .nearby-refresher .refresher-refreshing-icon {
+  align-items: center;
+  color: #1977c9;
+  justify-content: center;
+  margin: 0 auto;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+:host ::ng-deep .nearby-refresher .refresher-pulling-icon ion-spinner,
+:host ::ng-deep .nearby-refresher .refresher-refreshing-icon ion-spinner {
+  color: #1977c9;
 }
 
 .nearby-shell {
@@ -23,7 +51,7 @@ ion-content.nearby-page {
   gap: 16px;
   margin: 0 auto;
   max-width: 760px;
-  padding: max(18px, env(safe-area-inset-top)) 18px 128px;
+  padding: max(18px, env(safe-area-inset-top)) 18px calc(188px + env(safe-area-inset-bottom));
 }
 
 .nearby-header {
@@ -31,7 +59,15 @@ ion-content.nearby-page {
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  padding: 8px 2px 0;
+  background:
+    radial-gradient(circle at 82% 20%, rgba(255, 226, 74, 0.34), transparent 26%),
+    linear-gradient(155deg, rgba(244, 252, 255, 0.94), rgba(182, 229, 250, 0.76));
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 34px;
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+  padding: 24px;
+  position: relative;
 }
 
 .nearby-header p {
@@ -44,6 +80,7 @@ ion-content.nearby-page {
 }
 
 .nearby-header h1 {
+  color: #152f4d;
   font-size: clamp(30px, 7vw, 48px);
   font-weight: 840;
   letter-spacing: 0;
@@ -60,11 +97,11 @@ ion-content.nearby-page {
 
 .nearby-header__actions button {
   align-items: center;
-  background: rgba(255, 248, 234, 0.66);
+  background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--line);
   border-radius: 999px;
   box-shadow: var(--shadow-soft);
-  color: var(--sage-deep);
+  color: #1977c9;
   display: grid;
   flex: 0 0 auto;
   height: 44px;
@@ -80,71 +117,219 @@ ion-content.nearby-page {
   font-size: 22px;
 }
 
-.nearby-preview {
-  background:
-    linear-gradient(155deg, rgba(255, 245, 225, 0.94), rgba(229, 206, 174, 0.62)),
-    linear-gradient(180deg, rgba(255, 209, 132, 0.58), rgba(176, 192, 154, 0.28));
+.nearby-map-card {
+  background: rgba(255, 255, 255, 0.86);
   border: 1px solid var(--line);
-  border-radius: 32px;
+  border-radius: 30px;
   box-shadow: var(--shadow-float);
-  min-height: 150px;
+  min-height: 190px;
   overflow: hidden;
+  padding: 7px;
   position: relative;
 }
 
-.nearby-preview::before {
+.nearby-map {
   background:
-    linear-gradient(90deg, rgba(104, 125, 101, 0.13) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(104, 125, 101, 0.1) 1px, transparent 1px);
-  background-size: 42px 42px;
-  content: "";
-  inset: 0;
-  opacity: 0.72;
-  position: absolute;
+    linear-gradient(155deg, rgba(244, 252, 255, 0.94), rgba(182, 229, 250, 0.62)),
+    linear-gradient(180deg, rgba(255, 215, 75, 0.22), rgba(97, 194, 235, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  height: 180px;
+  overflow: hidden;
+  width: 100%;
 }
 
-.nearby-preview__sun {
-  background: rgba(241, 203, 131, 0.8);
+.nearby-locate-button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 999px;
-  box-shadow: 0 0 54px rgba(241, 203, 131, 0.42);
-  height: 56px;
+  bottom: 17px;
+  box-shadow: 0 12px 28px rgba(29, 108, 168, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  color: #1977c9;
+  display: grid;
+  height: 42px;
+  place-items: center;
   position: absolute;
-  right: 26px;
-  top: 24px;
-  width: 56px;
+  right: 17px;
+  transition: opacity 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  width: 42px;
+  z-index: 520;
 }
 
-.nearby-preview__route {
-  bottom: 28px;
-  display: flex;
-  gap: 34px;
-  left: 30px;
-  position: absolute;
+.nearby-locate-button ion-icon {
+  font-size: 21px;
 }
 
-.nearby-preview__route::before {
-  background: rgba(104, 125, 101, 0.42);
-  content: "";
-  height: 2px;
-  left: 8px;
-  position: absolute;
-  right: 8px;
-  top: 9px;
+.nearby-locate-button:disabled {
+  opacity: 0.48;
 }
 
-.nearby-preview__route span {
-  background: var(--sage-deep);
-  border: 3px solid #fff8ef;
+:host ::ng-deep .leaflet-container {
+  background: #e9f8ff;
+  color: var(--ink);
+  font-family: inherit;
+}
+
+:host ::ng-deep .leaflet-control-zoom {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(29, 108, 168, 0.18);
+  overflow: hidden;
+}
+
+:host ::ng-deep .leaflet-control-zoom a {
+  background: rgba(255, 255, 255, 0.94);
+  border: 0;
+  color: var(--sage-deep);
+  font-weight: 800;
+}
+
+:host ::ng-deep .nearby-user-marker,
+:host ::ng-deep .nearby-stop-marker {
+  align-items: center;
+  background: transparent;
+  display: grid;
+  place-items: center;
+}
+
+:host ::ng-deep .nearby-user-marker__pulse,
+:host ::ng-deep .nearby-user-marker__dot,
+:host ::ng-deep .nearby-stop-marker span {
   border-radius: 999px;
-  box-shadow: 0 4px 10px rgba(104, 125, 101, 0.2);
+  display: block;
+}
+
+:host ::ng-deep .nearby-user-marker__pulse {
+  animation: nearby-user-pulse 2.4s ease-out infinite;
+  background: rgba(242, 188, 82, 0.22);
+  height: 32px;
+  position: absolute;
+  width: 32px;
+}
+
+:host ::ng-deep .nearby-user-marker__dot {
+  background: #f2bc52;
+  border: 4px solid #ffffff;
+  box-shadow: 0 0 0 5px rgba(242, 188, 82, 0.2), 0 8px 20px rgba(83, 64, 39, 0.26);
   height: 20px;
   position: relative;
   width: 20px;
-  z-index: 1;
 }
 
-.nearby-preview__route span:first-child {
-  background: #b1844a;
+:host ::ng-deep .nearby-stop-marker span {
+  align-items: center;
+  background: linear-gradient(145deg, #1b8fe0, #1570bd);
+  border: 3px solid #ffffff;
+  box-shadow: 0 8px 18px rgba(29, 108, 168, 0.28);
+  color: #ffffff;
+  display: grid;
+  height: 28px;
+  place-items: center;
+  width: 28px;
+}
+
+:host ::ng-deep .nearby-stop-marker svg {
+  height: 15px;
+  width: 15px;
+}
+
+:host ::ng-deep .nearby-stop-marker.selected span {
+  background: linear-gradient(145deg, #ffe66a, #ffc94d);
+  box-shadow: 0 0 0 7px rgba(255, 215, 75, 0.26), 0 9px 22px rgba(29, 108, 168, 0.24);
+  color: #17304a;
+  height: 34px;
+  width: 34px;
+}
+
+:host ::ng-deep .nearby-stop-marker.selected svg {
+  height: 17px;
+  width: 17px;
+}
+
+:host ::ng-deep .nearby-map-popup {
+  margin-bottom: 10px;
+}
+
+:host ::ng-deep .nearby-map-popup .leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  box-shadow: 0 16px 38px rgba(29, 108, 168, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  padding: 0;
+}
+
+:host ::ng-deep .nearby-map-popup .leaflet-popup-content {
+  margin: 0;
+  min-width: 0;
+}
+
+:host ::ng-deep .nearby-map-popup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: 5px 5px 14px rgba(29, 108, 168, 0.12);
+}
+
+:host ::ng-deep .nearby-map-callout {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 9px 10px;
+}
+
+:host ::ng-deep .nearby-map-callout__copy {
+  min-width: 0;
+}
+
+:host ::ng-deep .nearby-map-callout h2 {
+  color: var(--ink);
+  font-family: inherit;
+  display: -webkit-box;
+  font-size: 13.5px;
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 1.15;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+:host ::ng-deep .nearby-map-callout p {
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 720;
+  line-height: 1.25;
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:host ::ng-deep .nearby-map-callout span {
+  color: var(--sage-deep);
+  display: block;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 840;
+  margin-top: 2px;
+}
+
+:host ::ng-deep .nearby-map-callout__action {
+  background: linear-gradient(145deg, rgba(255, 230, 106, 0.86), rgba(255, 201, 77, 0.82));
+  border: 1px solid rgba(255, 215, 75, 0.42);
+  border-radius: 999px;
+  color: #17304a;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 840;
+  min-height: 28px;
+  padding: 0 9px;
+  white-space: nowrap;
 }
 
 .nearby-state,
@@ -156,7 +341,7 @@ ion-content.nearby-page {
 
 .nearby-state {
   align-items: center;
-  background: rgba(255, 248, 235, 0.68);
+  background: rgba(255, 255, 255, 0.86);
   border-radius: 28px;
   color: var(--muted);
   display: flex;
@@ -167,7 +352,7 @@ ion-content.nearby-page {
 
 .nearby-state ion-spinner,
 .nearby-state > ion-icon {
-  color: var(--sage-deep);
+  color: #1977c9;
   flex: 0 0 auto;
   font-size: 26px;
   height: 28px;
@@ -187,10 +372,10 @@ ion-content.nearby-page {
 }
 
 .nearby-state button {
-  background: rgba(255, 250, 242, 0.76);
+  background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 999px;
-  color: #875a43;
+  color: #1977c9;
   font: inherit;
   font-size: 12px;
   font-weight: 820;
@@ -206,27 +391,40 @@ ion-content.nearby-page {
 
 .nearby-stop-card {
   align-items: center;
+  animation: slideUp 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   background: var(--paper);
   border-radius: 24px;
   color: inherit;
   cursor: pointer;
   display: grid;
-  gap: 12px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  min-height: 86px;
-  padding: 13px;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 72px;
+  padding: 10px 11px;
   transition: box-shadow 180ms ease, transform 180ms ease;
+}
+
+.nearby-stop-card.selected {
+  background: linear-gradient(180deg, rgba(255, 250, 235, 0.95), rgba(255, 255, 255, 0.95));
+  border-color: rgba(255, 201, 77, 0.35);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+.nearby-stop-card.selected .nearby-stop-card__marker {
+  background: linear-gradient(145deg, #ffe66a, #ffc94d);
+  color: #17304a;
 }
 
 .nearby-stop-card__marker {
   align-items: center;
-  background: rgba(168, 185, 158, 0.3);
+  background: rgba(25, 119, 201, 0.12);
   border-radius: 18px;
-  color: var(--sage-deep);
+  color: #1977c9;
   display: grid;
-  height: 48px;
+  height: 44px;
   place-items: center;
-  width: 48px;
+  width: 44px;
 }
 
 .nearby-stop-card__marker ion-icon {
@@ -234,6 +432,8 @@ ion-content.nearby-page {
 }
 
 .nearby-stop-card__copy {
+  display: grid;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -253,41 +453,64 @@ ion-content.nearby-page {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.35;
-  margin: 5px 0 0;
+  line-height: 1.25;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nearby-stop-card span {
-  color: var(--sage-deep);
+.nearby-stop-card__footer {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+  margin-top: 3px;
+  min-width: 0;
+}
+
+.nearby-stop-card .nearby-distance {
+  color: #1977c9;
   display: block;
   font-size: 12px;
   font-weight: 820;
-  margin-top: 6px;
+  margin-top: 0;
+  min-width: 0;
+}
+
+.nearby-stop-card .nearby-distance--near {
+  color: #1fa971;
+}
+
+.nearby-stop-card .nearby-distance--medium {
+  color: #c69214;
+}
+
+.nearby-stop-card .nearby-distance--far {
+  color: #cf5c5c;
 }
 
 .nearby-stop-card button {
-  background: rgba(168, 185, 158, 0.26);
-  border: 1px solid rgba(168, 185, 158, 0.34);
+  background: linear-gradient(145deg, rgba(255, 230, 106, 0.86), rgba(255, 201, 77, 0.82));
+  border: 1px solid rgba(255, 215, 75, 0.42);
   border-radius: 999px;
-  color: var(--sage-deep);
+  color: #17304a;
+  flex: 0 0 auto;
   font: inherit;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 820;
-  min-height: 36px;
-  padding: 0 13px;
+  min-height: 32px;
+  padding: 0 11px;
   white-space: nowrap;
 }
 
 .bottom-nav {
-  background: linear-gradient(180deg, rgba(255, 249, 238, 0.78), rgba(249, 235, 214, 0.66));
-  backdrop-filter: blur(20px) saturate(1.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(235, 248, 255, 0.94));
+  backdrop-filter: blur(24px) saturate(1.08);
   border: 1px solid var(--line);
   border-radius: 34px;
-  bottom: calc(13px + env(safe-area-inset-bottom));
-  box-shadow: 0 24px 64px rgba(84, 64, 45, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  box-shadow: 0 22px 58px rgba(29, 108, 168, 0.22), 0 8px 18px rgba(29, 108, 168, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.94);
   display: grid;
   gap: 4px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -296,8 +519,8 @@ ion-content.nearby-page {
   padding: 8px;
   position: fixed;
   transform: translateX(-50%);
-  width: calc(100% - 28px);
-  z-index: 10;
+  width: min(360px, calc(100% - 36px));
+  z-index: 1000;
 }
 
 .bottom-nav button {
@@ -305,7 +528,7 @@ ion-content.nearby-page {
   background: transparent;
   border: 0;
   border-radius: 25px;
-  color: var(--muted);
+  color: #8da6b7;
   display: grid;
   font: inherit;
   font-size: 10px;
@@ -321,26 +544,95 @@ ion-content.nearby-page {
 }
 
 .bottom-nav button.active {
-  background: rgba(168, 185, 158, 0.34);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 12px 22px rgba(104, 125, 101, 0.16);
-  color: var(--ink);
+  background: rgba(25, 119, 201, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68), 0 12px 22px rgba(29, 108, 168, 0.16);
+  color: #1977c9;
+}
+
+.fade-in {
+  animation: fadeIn 620ms ease both;
+}
+
+.fade-in-delayed {
+  animation: fadeIn 700ms 120ms ease both;
+}
+
+.pop-in {
+  animation: popIn 720ms 80ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.float-up {
+  animation: slideUp 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .nearby-stop-card:hover,
 .nearby-header__actions button:hover,
 .nearby-state button:hover,
-.nearby-stop-card button:hover,
-.bottom-nav button:hover {
-  box-shadow: 0 20px 46px rgba(102, 78, 52, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+.nearby-locate-button:hover,
+.nearby-stop-card button:hover {
+  box-shadow: 0 20px 46px rgba(29, 108, 168, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   transform: translateY(-2px);
 }
 
 .nearby-stop-card:active,
 .nearby-header__actions button:active,
 .nearby-state button:active,
-.nearby-stop-card button:active,
-.bottom-nav button:active {
+.nearby-locate-button:active,
+.nearby-stop-card button:active {
   transform: scale(0.97);
+}
+
+@keyframes nearby-user-pulse {
+  0% {
+    opacity: 0.72;
+    transform: scale(0.72);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 520px) {
@@ -353,12 +645,16 @@ ion-content.nearby-page {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .nearby-stop-card button {
-    grid-column: 2;
-    justify-self: start;
-  }
-
   .bottom-nav span {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
   }
 }

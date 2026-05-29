@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, throwError } from 'rxjs';
-import { map, timeout } from 'rxjs/operators';
+import { Observable, throwError, timer } from 'rxjs';
+import { map, mergeMap, retryWhen, timeout } from 'rxjs/operators';
 
 import { environment } from '../../environments/environment';
 
@@ -69,12 +69,28 @@ export class LtaBusService {
     const params = new HttpParams().set('busStopCode', cleanedBusStopCode);
 
     return this.http.get<LtaBusResponse>(this.endpoint, { params }).pipe(
-      timeout(9500),
+      timeout(24000),
+      retryWhen((errors) => errors.pipe(
+        mergeMap((error, retryIndex) => {
+          if (retryIndex >= 2 || !this.isTransientError(error)) {
+            return throwError(error);
+          }
+
+          return timer(retryIndex === 0 ? 1200 : 3200);
+        })
+      )),
       map((response) => ({
         busStopCode: response.BusStopCode || cleanedBusStopCode,
         services: (response.Services || []).map((service) => this.mapService(service))
       }))
     );
+  }
+
+  private isTransientError(error: any): boolean {
+    return error?.name === 'TimeoutError'
+      || error?.status === 0
+      || error?.status === 429
+      || error?.status >= 500;
   }
 
   private mapService(service: LtaServiceResponse): BusServiceArrival {
@@ -134,9 +150,9 @@ export class LtaBusService {
       case 'SEA':
         return 'Seats available';
       case 'SDA':
-        return 'Standing available';
+        return 'Standing room';
       case 'LSD':
-        return 'Limited standing';
+        return 'Crowded';
       default:
         return 'Load unavailable';
     }

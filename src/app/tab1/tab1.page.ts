@@ -1,16 +1,19 @@
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild } from '@angular/core';
-import { IonContent } from '@ionic/angular';
+import { Component, ElementRef, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { IonContent, IonRouterOutlet } from '@ionic/angular';
+import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { SPLASH_TAGLINES } from '../app.component';
 import { BusRoute, LtaBusRoutesService } from '../services/lta-bus-routes.service';
 import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
+import { SplashOverlayService } from '../services/splash-overlay.service';
+import { WidgetBridgeService } from '../services/widget-bridge.service';
 
 interface NavItem {
   label: string;
   icon: string;
   route: string;
-  active?: boolean;
 }
 
 interface FavouriteBusStop {
@@ -29,6 +32,7 @@ interface RouteProgressStop {
 
 interface RouteProgression {
   stops: RouteProgressStop[];
+  currentStopIndex: number;
   stopsRemaining: number;
   terminalName: string;
 }
@@ -41,8 +45,11 @@ interface RouteProgression {
 export class Tab1Page implements OnInit, OnDestroy {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
+  @ViewChildren('routeStopRow') private readonly routeStopRows?: QueryList<ElementRef<HTMLElement>>;
 
   readonly greeting = this.currentGreeting();
+  heroTagline = this.randomHeroTagline();
+  heroTaglineVisible = true;
   searchTerm = '';
   searchedBusStopCode = '';
   liveBusServices: BusServiceArrival[] = [];
@@ -66,36 +73,20 @@ export class Tab1Page implements OnInit, OnDestroy {
   private busStopLookup = new Map<string, BusStop>();
   private busStopsLoadPromise?: Promise<BusStop[]>;
   private searchTimer?: ReturnType<typeof setTimeout>;
+  private coldStartSplashTimer?: ReturnType<typeof setTimeout>;
+  private heroTaglineTimer?: ReturnType<typeof setInterval>;
+  private heroTaglineFadeTimer?: ReturnType<typeof setTimeout>;
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
+  private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
   private selectedStopSubscription?: Subscription;
+  private arrivalRequestId = 0;
+  private coldStartSplashRequestId = 0;
+  private lastNavTapAt = 0;
+  private lastNavRoute = '';
   private readonly favouritesStorageKey = 'favouriteBusStops';
 
-  readonly popularStops: BusStop[] = [
-    {
-      BusStopCode: '01012',
-      Description: 'Hotel Grand Pacific',
-      RoadName: 'Victoria St',
-      Latitude: 1.29685,
-      Longitude: 103.853
-    },
-    {
-      BusStopCode: '08057',
-      Description: 'Dhoby Ghaut Stn',
-      RoadName: 'Orchard Rd',
-      Latitude: 1.29947,
-      Longitude: 103.84594
-    },
-    {
-      BusStopCode: '01112',
-      Description: 'Opp Bugis Stn Exit C',
-      RoadName: 'Victoria St',
-      Latitude: 1.30009,
-      Longitude: 103.8552
-    }
-  ];
-
   readonly navItems: NavItem[] = [
-    { label: 'Home', icon: 'home-outline', route: '/tabs/tab1', active: true },
+    { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
     { label: 'Nearby', icon: 'navigate-outline', route: '/tabs/tab2' }
   ];
 
@@ -103,14 +94,20 @@ export class Tab1Page implements OnInit, OnDestroy {
     private readonly ltaBusService: LtaBusService,
     private readonly ltaBusRoutesService: LtaBusRoutesService,
     private readonly ltaBusStopsService: LtaBusStopsService,
-    private readonly selectedBusStopService: SelectedBusStopService
+    private readonly router: Router,
+    private readonly selectedBusStopService: SelectedBusStopService,
+    private readonly splashOverlayService: SplashOverlayService,
+    private readonly widgetBridgeService: WidgetBridgeService,
+    @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
     this.recentBusStops = this.loadRecentBusStops();
     this.favouriteBusStops = this.loadFavouriteBusStops();
+    this.syncWidgetFavouriteStop();
   }
 
   async ngOnInit(): Promise<void> {
     console.log('IOS DEBUG 1 - home page initialized');
+    this.heroTaglineTimer = setInterval(() => this.rotateHeroTagline(), 5200);
     this.selectedStopSubscription = this.selectedBusStopService.selectedStop$.subscribe((stop) => {
       if (!stop) {
         return;
@@ -127,12 +124,104 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
   }
 
+  ionViewWillEnter(): void {
+    if (this.routerOutlet) {
+      this.routerOutlet.swipeGesture = false;
+    }
+  }
+
   ngOnDestroy(): void {
     this.selectedStopSubscription?.unsubscribe();
+
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+    }
+
+    this.clearColdStartSplashTimer();
+    this.hideColdStartSplashIfNeeded();
+
+    if (this.heroTaglineTimer) {
+      clearInterval(this.heroTaglineTimer);
+    }
+
+    if (this.heroTaglineFadeTimer) {
+      clearTimeout(this.heroTaglineFadeTimer);
+    }
 
     if (this.routePrefetchTimer) {
       clearTimeout(this.routePrefetchTimer);
     }
+
+    if (this.routeModalScrollTimer) {
+      clearTimeout(this.routeModalScrollTimer);
+    }
+  }
+
+  private rotateHeroTagline(): void {
+    this.heroTaglineVisible = false;
+
+    this.heroTaglineFadeTimer = setTimeout(() => {
+      this.heroTagline = this.randomHeroTagline(this.heroTagline);
+      this.heroTaglineVisible = true;
+    }, 240);
+  }
+
+  private randomHeroTagline(currentTagline = ''): string {
+    const availableTaglines = SPLASH_TAGLINES.filter((tagline) => tagline !== currentTagline);
+    const taglines = availableTaglines.length ? availableTaglines : SPLASH_TAGLINES;
+    return taglines[Math.floor(Math.random() * taglines.length)];
+  }
+
+  isNavRouteActive(route: string): boolean {
+    return this.router.url === route || this.router.url.startsWith(`${route}/`);
+  }
+
+  navigateFromBottomNav(route: string, event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    const now = Date.now();
+    if (this.lastNavRoute === route && now - this.lastNavTapAt < 450) {
+      return;
+    }
+
+    this.lastNavRoute = route;
+    this.lastNavTapAt = now;
+
+    if (this.isNavRouteActive(route)) {
+      return;
+    }
+
+    this.router.navigateByUrl(route);
+  }
+
+  private scheduleColdStartSplash(requestId: number): void {
+    this.clearColdStartSplashTimer();
+
+    this.coldStartSplashTimer = setTimeout(() => {
+      if (!this.isLoadingArrivals || requestId !== this.arrivalRequestId) {
+        return;
+      }
+
+      this.coldStartSplashRequestId = requestId;
+      this.splashOverlayService.showColdStartLoading();
+    }, 4200);
+  }
+
+  private clearColdStartSplashTimer(): void {
+    if (this.coldStartSplashTimer) {
+      clearTimeout(this.coldStartSplashTimer);
+      this.coldStartSplashTimer = undefined;
+    }
+  }
+
+  private hideColdStartSplashIfNeeded(): void {
+    if (this.coldStartSplashRequestId !== this.arrivalRequestId) {
+      return;
+    }
+
+    this.coldStartSplashRequestId = 0;
+    this.splashOverlayService.hideColdStartLoading();
   }
 
   get isTextSearchActive(): boolean {
@@ -186,35 +275,107 @@ export class Tab1Page implements OnInit, OnDestroy {
       clearTimeout(this.searchTimer);
     }
 
+    this.clearColdStartSplashTimer();
+    if (this.coldStartSplashRequestId) {
+      this.coldStartSplashRequestId = 0;
+      this.splashOverlayService.hideColdStartLoading();
+    }
+
+    this.arrivalRequestId++;
     this.searchTerm = '';
     this.busStopResults = [];
     this.stopSearchError = '';
     this.selectedBusStop = undefined;
+    this.searchedBusStopCode = '';
+    this.hasSearchedArrivals = false;
+    this.isLoadingArrivals = false;
+    this.arrivalError = '';
+    this.liveBusServices = [];
+    this.resetRouteState();
     this.logMatchesFound(0);
   }
 
-  searchArrivals(busStopCode = this.searchedBusStopCode): void {
+  searchArrivals(busStopCode = this.searchedBusStopCode, onComplete?: () => void): void {
+    this.clearColdStartSplashTimer();
+    if (this.coldStartSplashRequestId) {
+      this.coldStartSplashRequestId = 0;
+      this.splashOverlayService.hideColdStartLoading();
+    }
+
+    const normalizedBusStopCode = busStopCode.trim();
+    if (!normalizedBusStopCode) {
+      onComplete?.();
+      return;
+    }
+
+    const requestId = ++this.arrivalRequestId;
     this.hasSearchedArrivals = true;
     this.isLoadingArrivals = true;
     this.arrivalError = '';
     this.liveBusServices = [];
     this.resetRouteState();
+    this.searchedBusStopCode = normalizedBusStopCode;
+    this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
+    this.scheduleColdStartSplash(requestId);
 
-    this.ltaBusService.getBusArrivals(busStopCode).subscribe({
+    this.ltaBusService.getBusArrivals(normalizedBusStopCode).subscribe({
       next: (arrivalLookup) => {
+        if (requestId !== this.arrivalRequestId) {
+          onComplete?.();
+          return;
+        }
+
         this.searchedBusStopCode = arrivalLookup.busStopCode;
+        this.resolveSelectedBusStopForCode(arrivalLookup.busStopCode, requestId);
         this.liveBusServices = this.sortLiveServices(arrivalLookup.services);
         this.isLoadingArrivals = false;
+        this.clearColdStartSplashTimer();
+        this.hideColdStartSplashIfNeeded();
         this.prefetchRouteProgressions(this.liveBusServices);
         this.scrollToArrivals();
+        onComplete?.();
       },
       error: (error) => {
-        this.searchedBusStopCode = busStopCode.trim();
+        if (requestId !== this.arrivalRequestId) {
+          onComplete?.();
+          return;
+        }
+
+        this.searchedBusStopCode = normalizedBusStopCode;
+        this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
         this.arrivalError = this.errorMessage(error);
         this.isLoadingArrivals = false;
+        this.clearColdStartSplashTimer();
+        this.hideColdStartSplashIfNeeded();
         this.scrollToArrivals();
+        onComplete?.();
       }
     });
+  }
+
+  refreshLiveArrivals(event?: CustomEvent<{ complete: () => Promise<void> | void }>): void {
+    const completeRefresh = () => {
+      const completion = event?.detail?.complete?.();
+
+      if (completion && typeof completion.catch === 'function') {
+        completion.catch(() => undefined);
+      }
+    };
+
+    if (!this.searchedBusStopCode.trim()) {
+      completeRefresh();
+      return;
+    }
+
+    this.searchArrivals(this.searchedBusStopCode, completeRefresh);
+  }
+
+  retryArrivals(): void {
+    if (!this.searchedBusStopCode) {
+      return;
+    }
+
+    this.searchArrivals(this.searchedBusStopCode);
   }
 
   selectBusStop(stop: BusStop): void {
@@ -235,6 +396,10 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   trackFavouriteBusStop(index: number, stop: FavouriteBusStop): string {
     return stop.BusStopCode;
+  }
+
+  trackRouteStop(index: number, stop: RouteProgressStop): string {
+    return `${stop.code}-${index}`;
   }
 
   isCurrentBusStopFavourite(): boolean {
@@ -306,8 +471,12 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.saveFavouriteBusStops();
   }
 
-  toggleLiveService(serviceNo: string): void {
-    this.expandedLiveServiceNo = this.expandedLiveServiceNo === serviceNo ? '' : serviceNo;
+  toggleLiveService(service: BusServiceArrival): void {
+    this.expandedLiveServiceNo = this.expandedLiveServiceNo === service.serviceNo ? '' : service.serviceNo;
+
+    if (this.expandedLiveServiceNo) {
+      this.loadRouteProgression(service.serviceNo);
+    }
   }
 
   openRouteModal(service: BusServiceArrival): void {
@@ -315,14 +484,30 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.selectedRouteServiceNo = service.serviceNo;
     this.isRouteModalOpen = true;
     this.loadRouteProgression(service.serviceNo);
+    this.scheduleRouteModalScroll();
   }
 
   closeRouteModal(): void {
     this.isRouteModalOpen = false;
+    this.clearRouteModalScrollTimer();
   }
 
   routeModalDismissed(): void {
     this.isRouteModalOpen = false;
+    this.clearRouteModalScrollTimer();
+  }
+
+  selectRouteStop(stop: RouteProgressStop): void {
+    const busStop = this.busStopLookup.get(stop.code) || {
+      BusStopCode: stop.code,
+      Description: stop.name || `Bus Stop ${stop.code}`,
+      RoadName: stop.roadName || 'Road unavailable',
+      Latitude: 0,
+      Longitude: 0
+    };
+
+    this.closeRouteModal();
+    this.selectBusStop(busStop);
   }
 
   destinationLabel(service: BusServiceArrival): string {
@@ -347,6 +532,49 @@ export class Tab1Page implements OnInit, OnDestroy {
     return service.nextBus.destinationCode || '';
   }
 
+  serviceOriginName(service: BusServiceArrival): string {
+    const code = this.serviceOriginCode(service);
+
+    if (!code) {
+      return 'Origin unavailable';
+    }
+
+    return this.busStopLookup.get(code)?.Description || `Bus stop ${code}`;
+  }
+
+  serviceOriginCode(service: BusServiceArrival): string {
+    return service.nextBus.originCode || '';
+  }
+
+  stopName(code: string | null): string {
+    if (!code) {
+      return 'Bus stop unavailable';
+    }
+
+    return this.busStopLookup.get(code)?.Description || `Bus Stop ${code}`;
+  }
+
+  arrivalStopTitle(): string {
+    if (!this.hasSearchedArrivals) {
+      return 'Ready when you are';
+    }
+
+    const busStopCode = this.searchedBusStopCode.trim();
+    const stop = this.arrivalDisplayStop();
+
+    return stop?.Description || (busStopCode ? `Bus stop ${busStopCode}` : 'Bus stop');
+  }
+
+  arrivalStopSubtitle(): string {
+    if (!this.hasSearchedArrivals) {
+      return '';
+    }
+
+    const busStopCode = this.arrivalDisplayStop()?.BusStopCode || this.searchedBusStopCode.trim();
+
+    return busStopCode ? `Bus stop ${busStopCode}` : '';
+  }
+
   timingTone(service: BusServiceArrival): string {
     const minutesAway = service.nextBus.minutesAway;
 
@@ -359,6 +587,32 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
 
     return 'later';
+  }
+
+  loadTone(load: string): string {
+    switch (load) {
+      case 'Seats available':
+        return 'seats';
+      case 'Standing room':
+        return 'standing';
+      case 'Crowded':
+        return 'crowded';
+      default:
+        return 'unknown';
+    }
+  }
+
+  busTypeTone(type: string): string {
+    switch (type) {
+      case 'Double deck':
+        return 'double-deck';
+      case 'Bendy bus':
+        return 'bendy-bus';
+      case 'Single deck':
+        return 'single-deck';
+      default:
+        return 'bus-type-unknown';
+    }
   }
 
   private async searchBusStops(query: string): Promise<void> {
@@ -495,6 +749,54 @@ export class Tab1Page implements OnInit, OnDestroy {
       this.routeProgressErrors[serviceNo] = 'Route progression is taking a pause.';
     } finally {
       this.routeProgressLoading[serviceNo] = false;
+
+      if (this.isRouteModalOpen && this.selectedRouteServiceNo === serviceNo) {
+        this.scheduleRouteModalScroll();
+      }
+    }
+  }
+
+  private scheduleRouteModalScroll(): void {
+    if (!this.isRouteModalOpen) {
+      return;
+    }
+
+    this.clearRouteModalScrollTimer();
+    this.routeModalScrollTimer = setTimeout(() => this.scrollRouteModalToCurrentStop(), 160);
+  }
+
+  private scrollRouteModalToCurrentStop(): void {
+    const rows = this.routeStopRows?.toArray() || [];
+    const targetRow = rows.find((row) => row.nativeElement.dataset['routeStatus'] === 'current')
+      || rows.find((row) => row.nativeElement.dataset['routeStatus'] === 'next')
+      || rows.find((row) => row.nativeElement.dataset['routeStatus'] === 'terminal');
+
+    if (!targetRow) {
+      return;
+    }
+
+    const rowElement = targetRow.nativeElement;
+    const scrollContainer = rowElement.closest('.route-sheet__body') as HTMLElement | null;
+
+    if (!scrollContainer) {
+      rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const rowRect = rowElement.getBoundingClientRect();
+    const targetTop = scrollContainer.scrollTop + rowRect.top - containerRect.top - (scrollContainer.clientHeight * 0.28);
+
+    scrollContainer.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: 'smooth'
+    });
+  }
+
+  private clearRouteModalScrollTimer(): void {
+    if (this.routeModalScrollTimer) {
+      clearTimeout(this.routeModalScrollTimer);
+      this.routeModalScrollTimer = undefined;
     }
   }
 
@@ -504,10 +806,27 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
 
     this.routePrefetchTimer = setTimeout(() => {
-      services.slice(0, 4).forEach((service) => {
-        this.loadRouteProgression(service.serviceNo);
-      });
-    }, 450);
+      const visibleServiceNos = services.slice(0, 3).map((service) => service.serviceNo);
+      const serviceNos = this.expandedLiveServiceNo
+        ? [this.expandedLiveServiceNo, ...visibleServiceNos.filter((serviceNo) => serviceNo !== this.expandedLiveServiceNo)]
+        : visibleServiceNos;
+
+      this.prefetchRouteProgressionQueue(serviceNos);
+    }, 1600);
+  }
+
+  private prefetchRouteProgressionQueue(serviceNos: string[], index = 0): void {
+    const serviceNo = serviceNos[index];
+
+    if (!serviceNo) {
+      return;
+    }
+
+    this.loadRouteProgression(serviceNo).finally(() => {
+      this.routePrefetchTimer = setTimeout(() => {
+        this.prefetchRouteProgressionQueue(serviceNos, index + 1);
+      }, 180);
+    });
   }
 
   private buildRouteProgression(routes: BusRoute[], currentBusStopCode: string): RouteProgression | null {
@@ -540,6 +859,7 @@ export class Tab1Page implements OnInit, OnDestroy {
 
     return {
       stops: progressionStops,
+      currentStopIndex,
       stopsRemaining: Math.max(0, orderedRoute.length - currentStopIndex - 1),
       terminalName: terminalStop.name
     };
@@ -554,6 +874,45 @@ export class Tab1Page implements OnInit, OnDestroy {
       roadName: busStop?.RoadName || route.BusStopCode,
       status
     };
+  }
+
+  private arrivalDisplayStop(): BusStop | undefined {
+    const busStopCode = this.searchedBusStopCode.trim();
+
+    if (this.selectedBusStop?.BusStopCode === busStopCode) {
+      return this.selectedBusStop;
+    }
+
+    return this.busStopLookup.get(busStopCode)
+      || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
+  }
+
+  private resolveSelectedBusStopForCode(busStopCode: string, requestId = this.arrivalRequestId): void {
+    if (!busStopCode) {
+      return;
+    }
+
+    const knownStop = this.busStopLookup.get(busStopCode)
+      || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
+
+    if (knownStop) {
+      this.selectedBusStop = knownStop;
+      return;
+    }
+
+    this.ensureBusStopsLoaded()
+      .then(() => {
+        if (requestId !== this.arrivalRequestId || this.searchedBusStopCode.trim() !== busStopCode) {
+          return;
+        }
+
+        const loadedStop = this.busStopLookup.get(busStopCode);
+
+        if (loadedStop) {
+          this.selectedBusStop = loadedStop;
+        }
+      })
+      .catch(() => undefined);
   }
 
   private currentBusStopForFavourite(): FavouriteBusStop | null {
@@ -579,6 +938,8 @@ export class Tab1Page implements OnInit, OnDestroy {
       clearTimeout(this.routePrefetchTimer);
       this.routePrefetchTimer = undefined;
     }
+
+    this.clearRouteModalScrollTimer();
 
     this.expandedLiveServiceNo = '';
     this.routeProgressions = {};
@@ -659,15 +1020,23 @@ export class Tab1Page implements OnInit, OnDestroy {
   private currentGreeting(): string {
     const hour = new Date().getHours();
 
+    if (hour < 5) {
+      return 'burning the midnight oil?';
+    }
+
     if (hour < 12) {
       return 'good morning';
     }
 
-    if (hour < 18) {
+    if (hour < 17) {
       return 'good afternoon';
     }
 
-    return 'good evening';
+    if (hour < 22) {
+      return 'good evening';
+    }
+
+    return 'still out and about?';
   }
 
   private logSearchQuery(query: string): void {
@@ -730,6 +1099,23 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   private saveFavouriteBusStops(): void {
     localStorage.setItem(this.favouritesStorageKey, JSON.stringify(this.favouriteBusStops));
+    this.syncWidgetFavouriteStop();
+  }
+
+  private syncWidgetFavouriteStop(): void {
+    const firstFavourite = this.favouriteBusStops[0];
+
+    if (!firstFavourite) {
+      this.widgetBridgeService.syncFavouriteStop();
+      return;
+    }
+
+    this.widgetBridgeService.syncFavouriteStop({
+      busStopCode: firstFavourite.BusStopCode,
+      name: firstFavourite.Description,
+      roadName: firstFavourite.RoadName,
+      nickname: firstFavourite.nickname
+    });
   }
 
   private errorMessage(error: unknown): string {
