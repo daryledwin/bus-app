@@ -1,12 +1,9 @@
 import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { App } from '@capacitor/app';
-import { PluginListenerHandle } from '@capacitor/core';
 import { IonRouterOutlet } from '@ionic/angular';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../environments/environment';
-import { AppUpdateService } from './services/app-update.service';
 import { SplashOverlayService } from './services/splash-overlay.service';
 import { WidgetBridgeService } from './services/widget-bridge.service';
 
@@ -44,30 +41,21 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   splashVisible = true;
   splashLeaving = false;
   splashTagline = '';
-  updateModalVisible = false;
-  updateIsForced = false;
-  updateUrl = '';
-  updateLatestVersion = '';
 
   private splashExitTimer?: ReturnType<typeof setTimeout>;
   private splashRemoveTimer?: ReturnType<typeof setTimeout>;
   private backendKeepAliveTimer?: ReturnType<typeof setInterval>;
   private coldStartSplashSubscription?: Subscription;
   private routerSubscription?: Subscription;
-  private appStateListener?: PluginListenerHandle;
-  private optionalUpdateDismissedForVersion = '';
-  private updateCheckInFlight = false;
   private readonly visibilityChangeHandler = () => {
     if (!document.hidden) {
       this.warmBackend();
       this.widgetBridgeService.syncStoredFavouriteStop();
-      this.checkForAppUpdate();
     }
   };
 
   constructor(
     private readonly router: Router,
-    private readonly appUpdateService: AppUpdateService,
     private readonly splashOverlayService: SplashOverlayService,
     private readonly widgetBridgeService: WidgetBridgeService
   ) {}
@@ -75,21 +63,9 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     this.splashTagline = this.randomTagline();
     this.warmBackend();
-    this.checkForAppUpdate();
     this.widgetBridgeService.syncStoredFavouriteStop();
     this.backendKeepAliveTimer = setInterval(() => this.warmBackend(), 240000);
     document.addEventListener('visibilitychange', this.visibilityChangeHandler);
-    App.addListener('appStateChange', ({ isActive }) => {
-      if (!isActive) {
-        return;
-      }
-
-      this.warmBackend();
-      this.widgetBridgeService.syncStoredFavouriteStop();
-      this.checkForAppUpdate();
-    }).then((listener) => {
-      this.appStateListener = listener;
-    }).catch(() => undefined);
     this.coldStartSplashSubscription = this.splashOverlayService.coldStartLoading$.subscribe((isLoading) => {
       if (isLoading) {
         this.showColdStartSplash();
@@ -129,56 +105,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.coldStartSplashSubscription?.unsubscribe();
     this.routerSubscription?.unsubscribe();
-    this.appStateListener?.remove();
     document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
-  }
-
-  dismissUpdateModal(): void {
-    if (this.updateIsForced) {
-      return;
-    }
-
-    this.updateModalVisible = false;
-    this.optionalUpdateDismissedForVersion = this.updateLatestVersion;
-  }
-
-  openUpdateUrl(): void {
-    if (!this.updateUrl) {
-      return;
-    }
-
-    window.open(this.updateUrl, '_system');
-  }
-
-  private async checkForAppUpdate(): Promise<void> {
-    if (this.updateCheckInFlight || this.updateIsForced) {
-      return;
-    }
-
-    this.updateCheckInFlight = true;
-
-    try {
-      const updateStatus = await this.appUpdateService.checkForUpdate();
-
-      if (!updateStatus) {
-        this.updateModalVisible = false;
-        this.updateIsForced = false;
-        this.updateUrl = '';
-        this.updateLatestVersion = '';
-        return;
-      }
-
-      if (!updateStatus.forced && this.optionalUpdateDismissedForVersion === updateStatus.latestVersion) {
-        return;
-      }
-
-      this.updateIsForced = updateStatus.forced;
-      this.updateUrl = updateStatus.updateUrl;
-      this.updateLatestVersion = updateStatus.latestVersion;
-      this.updateModalVisible = true;
-    } finally {
-      this.updateCheckInFlight = false;
-    }
   }
 
   private updateRootSwipeGesture(url: string): void {

@@ -17,9 +17,6 @@ const busStopsPageSize = 500;
 const busRoutesPageSize = 500;
 const busStopsCacheTtl = 12 * 60 * 60 * 1000;
 const busRoutesCacheTtl = 12 * 60 * 60 * 1000;
-const appLatestVersion = process.env.APP_LATEST_VERSION || '0.0.1';
-const appMinimumSupportedVersion = process.env.APP_MINIMUM_SUPPORTED_VERSION || '0.0.1';
-const appUpdateUrl = process.env.APP_UPDATE_URL || 'https://apps.apple.com/';
 const ltaHttpsAgent = new https.Agent({
   keepAlive: true,
   maxSockets: 20
@@ -231,14 +228,6 @@ async function fetchBusRoutes() {
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok'
-  });
-});
-
-app.get('/api/app-version', (req, res) => {
-  res.json({
-    latestVersion: appLatestVersion,
-    minimumSupportedVersion: appMinimumSupportedVersion,
-    updateUrl: appUpdateUrl
   });
 });
 
