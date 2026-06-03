@@ -37,6 +37,12 @@ interface RouteProgression {
   terminalName: string;
 }
 
+interface ArrivalSearchOptions {
+  preserveRouteState?: boolean;
+  preserveScrollPosition?: boolean;
+  scrollToArrivals?: boolean;
+}
+
 @Component({
   selector: 'app-tab1',
   templateUrl: 'tab1.page.html',
@@ -60,6 +66,9 @@ export class Tab1Page implements OnInit, OnDestroy {
   isLoadingArrivals = false;
   isLoadingBusStops = false;
   hasSearchedArrivals = false;
+  showStickyArrivalHeader = false;
+  isLiveRefreshCascadeRunning = false;
+  suppressLiveRowFloatAnimation = false;
   arrivalError = '';
   stopSearchError = '';
   expandedLiveServiceNo = '';
@@ -78,6 +87,7 @@ export class Tab1Page implements OnInit, OnDestroy {
   private heroTaglineFadeTimer?: ReturnType<typeof setTimeout>;
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
   private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
+  private liveRefreshCascadeTimer?: ReturnType<typeof setTimeout>;
   private selectedStopSubscription?: Subscription;
   private arrivalRequestId = 0;
   private coldStartSplashRequestId = 0;
@@ -138,6 +148,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
 
     this.clearColdStartSplashTimer();
+    this.clearLiveRefreshCascadeTimer();
     this.hideColdStartSplashIfNeeded();
 
     if (this.heroTaglineTimer) {
@@ -295,7 +306,11 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.logMatchesFound(0);
   }
 
-  searchArrivals(busStopCode = this.searchedBusStopCode, onComplete?: () => void): void {
+  searchArrivals(
+    busStopCode = this.searchedBusStopCode,
+    onComplete?: () => void,
+    options: ArrivalSearchOptions = {}
+  ): void {
     this.clearColdStartSplashTimer();
     if (this.coldStartSplashRequestId) {
       this.coldStartSplashRequestId = 0;
@@ -312,8 +327,13 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.hasSearchedArrivals = true;
     this.isLoadingArrivals = true;
     this.arrivalError = '';
-    this.liveBusServices = [];
-    this.resetRouteState();
+    if (!options.preserveScrollPosition) {
+      this.liveBusServices = [];
+      this.suppressLiveRowFloatAnimation = false;
+    }
+    if (!options.preserveRouteState) {
+      this.resetRouteState();
+    }
     this.searchedBusStopCode = normalizedBusStopCode;
     this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
     this.scheduleColdStartSplash(requestId);
@@ -332,7 +352,10 @@ export class Tab1Page implements OnInit, OnDestroy {
         this.clearColdStartSplashTimer();
         this.hideColdStartSplashIfNeeded();
         this.prefetchRouteProgressions(this.liveBusServices);
-        this.scrollToArrivals();
+        this.syncExpandedServiceAfterRefresh();
+        if (options.scrollToArrivals !== false) {
+          this.scrollToArrivals();
+        }
         onComplete?.();
       },
       error: (error) => {
@@ -347,13 +370,21 @@ export class Tab1Page implements OnInit, OnDestroy {
         this.isLoadingArrivals = false;
         this.clearColdStartSplashTimer();
         this.hideColdStartSplashIfNeeded();
-        this.scrollToArrivals();
+        if (options.scrollToArrivals !== false) {
+          this.scrollToArrivals();
+        }
         onComplete?.();
       }
     });
   }
 
-  refreshLiveArrivals(event?: CustomEvent<{ complete: () => Promise<void> | void }>): void {
+  async refreshLiveArrivals(event?: CustomEvent<{ complete: () => Promise<void> | void }>): Promise<void> {
+    const isButtonRefresh = !event;
+
+    if (isButtonRefresh && (this.isLoadingArrivals || this.isLiveRefreshCascadeRunning)) {
+      return;
+    }
+
     const completeRefresh = () => {
       const completion = event?.detail?.complete?.();
 
@@ -367,7 +398,39 @@ export class Tab1Page implements OnInit, OnDestroy {
       return;
     }
 
-    this.searchArrivals(this.searchedBusStopCode, completeRefresh);
+    const shouldPreserveScroll = isButtonRefresh;
+    const savedScrollTop = shouldPreserveScroll ? await this.currentScrollTop() : null;
+
+    this.searchArrivals(
+      this.searchedBusStopCode,
+      () => {
+        if (savedScrollTop !== null) {
+          this.restoreScrollPosition(savedScrollTop);
+        }
+
+        if (isButtonRefresh && !this.arrivalError && this.liveBusServices.length) {
+          this.startLiveRefreshCascade();
+        }
+
+        completeRefresh();
+      },
+      {
+        preserveRouteState: true,
+        preserveScrollPosition: shouldPreserveScroll,
+        scrollToArrivals: !shouldPreserveScroll
+      }
+    );
+  }
+
+  onHomeScroll(event: CustomEvent<{ scrollTop: number }>): void {
+    if (!this.hasSearchedArrivals || !this.searchedBusStopCode) {
+      this.showStickyArrivalHeader = false;
+      return;
+    }
+
+    const scrollTop = event.detail.scrollTop || 0;
+    const arrivalsTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
+    this.showStickyArrivalHeader = scrollTop > arrivalsTop + 70;
   }
 
   retryArrivals(): void {
@@ -392,6 +455,10 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   trackLiveService(index: number, service: BusServiceArrival): string {
     return service.serviceNo;
+  }
+
+  cascadeDelay(index: number): number {
+    return Math.min(index, 8) * 55;
   }
 
   trackFavouriteBusStop(index: number, stop: FavouriteBusStop): string {
@@ -1052,6 +1119,53 @@ export class Tab1Page implements OnInit, OnDestroy {
       const sectionTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
       this.content?.scrollToPoint(0, Math.max(sectionTop - 18, 0), 520);
     }, 80);
+  }
+
+  private async currentScrollTop(): Promise<number> {
+    try {
+      const scrollElement = await this.content?.getScrollElement();
+      return scrollElement?.scrollTop || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private restoreScrollPosition(scrollTop: number): void {
+    setTimeout(() => {
+      this.content?.scrollToPoint(0, scrollTop, 0);
+    }, 90);
+  }
+
+  private startLiveRefreshCascade(): void {
+    this.clearLiveRefreshCascadeTimer();
+    this.suppressLiveRowFloatAnimation = true;
+    this.isLiveRefreshCascadeRunning = true;
+
+    this.liveRefreshCascadeTimer = setTimeout(() => {
+      this.isLiveRefreshCascadeRunning = false;
+      this.liveRefreshCascadeTimer = undefined;
+    }, Math.min(this.liveBusServices.length, 9) * 55 + 340);
+  }
+
+  private clearLiveRefreshCascadeTimer(): void {
+    if (this.liveRefreshCascadeTimer) {
+      clearTimeout(this.liveRefreshCascadeTimer);
+      this.liveRefreshCascadeTimer = undefined;
+    }
+
+    this.isLiveRefreshCascadeRunning = false;
+  }
+
+  private syncExpandedServiceAfterRefresh(): void {
+    if (!this.expandedLiveServiceNo) {
+      return;
+    }
+
+    const expandedServiceStillExists = this.liveBusServices.some((service) => service.serviceNo === this.expandedLiveServiceNo);
+
+    if (!expandedServiceStillExists) {
+      this.expandedLiveServiceNo = '';
+    }
   }
 
   private rememberBusStop(stop: BusStop): void {

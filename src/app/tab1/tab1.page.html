@@ -1,4 +1,4 @@
-<ion-content [fullscreen]="true" class="bus-home">
+<ion-content [fullscreen]="true" class="bus-home" [scrollEvents]="true" (ionScroll)="onHomeScroll($event)">
   <ion-refresher
     class="home-refresher"
     slot="fixed"
@@ -12,6 +12,40 @@
       refreshingSpinner="crescent"
     ></ion-refresher-content>
   </ion-refresher>
+
+  <div
+    class="sticky-arrival-header"
+    *ngIf="hasSearchedArrivals && searchedBusStopCode"
+    [class.sticky-arrival-header--visible]="showStickyArrivalHeader"
+    aria-live="polite"
+  >
+    <div class="sticky-arrival-header__copy">
+      <strong>{{ arrivalStopTitle() }}</strong>
+      <span>{{ arrivalStopSubtitle() || ('Bus stop ' + searchedBusStopCode) }}</span>
+    </div>
+
+    <div class="sticky-arrival-header__actions">
+      <button
+        type="button"
+        class="sticky-arrival-header__icon-button"
+        [class.active]="isCurrentBusStopFavourite()"
+        [attr.aria-label]="isCurrentBusStopFavourite() ? 'Remove favourite bus stop' : 'Save favourite bus stop'"
+        (click)="toggleCurrentFavourite()"
+      >
+        <ion-icon [name]="isCurrentBusStopFavourite() ? 'bookmark' : 'bookmark-outline'"></ion-icon>
+      </button>
+
+      <button
+        type="button"
+        class="sticky-arrival-header__live-button"
+        (click)="refreshLiveArrivals()"
+        [disabled]="isLoadingArrivals || isLiveRefreshCascadeRunning"
+      >
+        <ion-icon name="refresh-outline"></ion-icon>
+        live
+      </button>
+    </div>
+  </div>
 
   <main class="home-shell">
     <header class="commute-header fade-in">
@@ -144,7 +178,12 @@
             </button>
           </div>
         </div>
-        <button type="button" (click)="refreshLiveArrivals()" [disabled]="isLoadingArrivals" *ngIf="hasSearchedArrivals">
+        <button
+          type="button"
+          (click)="refreshLiveArrivals()"
+          [disabled]="isLoadingArrivals || isLiveRefreshCascadeRunning"
+          *ngIf="hasSearchedArrivals"
+        >
           <ion-icon name="refresh-outline"></ion-icon>
           live
         </button>
@@ -185,10 +224,13 @@
 
       <div class="live-list" *ngIf="liveBusServices.length">
         <article
-          class="live-row float-up"
+          class="live-row"
           *ngFor="let service of liveBusServices; let i = index; trackBy: trackLiveService"
           [class.expanded]="expandedLiveServiceNo === service.serviceNo"
+          [class.float-up]="!suppressLiveRowFloatAnimation && !isLiveRefreshCascadeRunning"
+          [class.live-row--refresh-cascade]="isLiveRefreshCascadeRunning"
           [style.animation-delay.ms]="35 * i"
+          [style.--cascade-delay]="cascadeDelay(i) + 'ms'"
         >
           <button type="button" class="live-row__summary" (click)="toggleLiveService(service)">
             <div class="service-badge service-badge--compact">{{ service.serviceNo }}</div>
@@ -333,8 +375,12 @@
         </header>
 
         <div class="route-sheet__state" *ngIf="routeProgressLoading[selectedRouteServiceNo]" aria-live="polite">
+          <ion-icon name="cloud-outline" aria-hidden="true"></ion-icon>
           <ion-spinner name="crescent"></ion-spinner>
-          <p>Loading full route</p>
+          <div>
+            <p>Preparing route...</p>
+            <span>This is usually only slow the first time.</span>
+          </div>
         </div>
 
         <div

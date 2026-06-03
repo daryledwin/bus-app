@@ -33,6 +33,123 @@ ion-content.bus-home {
   --color: #1977c9;
 }
 
+.sticky-arrival-header {
+  align-items: center;
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(235, 248, 255, 0.78)),
+    radial-gradient(circle at 88% 18%, rgba(255, 215, 75, 0.2), transparent 38%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 28px;
+  box-shadow: 0 18px 46px rgba(16, 111, 191, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  left: 50%;
+  min-height: 66px;
+  opacity: 0;
+  padding: 10px 10px 10px 16px;
+  pointer-events: none;
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 10px);
+  transform: translate3d(-50%, -12px, 0) scale(0.985);
+  transition: opacity 180ms ease, transform 180ms ease;
+  width: min(calc(100% - 28px), 724px);
+  z-index: 40;
+}
+
+.sticky-arrival-header--visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(-50%, 0, 0) scale(1);
+}
+
+.sticky-arrival-header__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sticky-arrival-header__copy strong {
+  color: #102b57;
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1.12;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-arrival-header__copy span {
+  color: #6d8398;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sticky-arrival-header__actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.sticky-arrival-header__icon-button,
+.sticky-arrival-header__live-button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 8px 20px rgba(16, 111, 191, 0.1);
+  color: #1977c9;
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+
+.sticky-arrival-header__icon-button {
+  border-radius: 999px;
+  display: grid;
+  height: 38px;
+  place-items: center;
+  width: 38px;
+}
+
+.sticky-arrival-header__icon-button.active {
+  background: rgba(25, 119, 201, 0.14);
+  color: #102b57;
+}
+
+.sticky-arrival-header__live-button {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 820;
+  gap: 5px;
+  min-height: 38px;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.sticky-arrival-header__icon-button ion-icon {
+  font-size: 19px;
+}
+
+.sticky-arrival-header__live-button ion-icon {
+  font-size: 15px;
+}
+
+.sticky-arrival-header__live-button:disabled {
+  opacity: 0.58;
+}
+
+.sticky-arrival-header__icon-button:active,
+.sticky-arrival-header__live-button:active {
+  transform: scale(0.96);
+}
+
 .home-shell {
   margin: 0 auto;
   max-width: 760px;
@@ -1731,27 +1848,46 @@ ion-modal.route-modal::part(content) {
   background: #ffffff;
   border: 1px solid rgba(174, 222, 245, 0.72);
   border-radius: 22px;
-  color: var(--muted);
+  color: #5d748d;
   display: flex;
-  gap: 10px;
+  gap: 9px;
   margin: 3px 0 12px;
   min-height: 66px;
-  padding: 14px;
+  padding: 12px 14px;
 }
 
 .route-sheet__state ion-spinner,
 .route-sheet__state ion-icon {
-  color: var(--sage-deep);
   flex: 0 0 auto;
-  height: 22px;
-  width: 22px;
+}
+
+.route-sheet__state ion-icon {
+  color: rgba(37, 136, 220, 0.62);
+  height: 24px;
+  width: 24px;
+}
+
+.route-sheet__state ion-spinner {
+  color: #2588dc;
+  height: 18px;
+  width: 18px;
 }
 
 .route-sheet__state p {
+  color: #11305b;
   font-size: 13px;
   font-weight: 720;
   line-height: 1.35;
   margin: 0;
+}
+
+.route-sheet__state span {
+  color: #6d8398;
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+  margin-top: 2px;
 }
 
 .route-sheet__state--error {
@@ -2305,6 +2441,24 @@ ion-modal.route-modal::part(content) {
 
 .float-up {
   animation: slideUp 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.live-row--refresh-cascade {
+  animation: liveRefreshCascade 260ms cubic-bezier(0.18, 0.86, 0.28, 1) both;
+  animation-delay: var(--cascade-delay, 0ms) !important;
+  will-change: opacity, transform;
+}
+
+@keyframes liveRefreshCascade {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 680px) {

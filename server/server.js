@@ -17,6 +17,7 @@ const busStopsPageSize = 500;
 const busRoutesPageSize = 500;
 const busStopsCacheTtl = 12 * 60 * 60 * 1000;
 const busRoutesCacheTtl = 12 * 60 * 60 * 1000;
+const busRoutesRefreshInterval = 10 * 60 * 60 * 1000;
 const ltaHttpsAgent = new https.Agent({
   keepAlive: true,
   maxSockets: 20
@@ -27,6 +28,7 @@ let busStopsRequest = null;
 let busRoutesCache = null;
 let busRoutesCacheTime = 0;
 let busRoutesRequest = null;
+let busRoutesRefreshTimer = null;
 
 // CORS is enabled for Ionic dev, Capacitor iOS, and Render-hosted backend access.
 const corsOptions = {
@@ -185,20 +187,26 @@ async function fetchBusStops() {
   }
 }
 
-async function fetchBusRoutes() {
+async function fetchBusRoutes(options = {}) {
+  const forceRefresh = Boolean(options.forceRefresh);
+  const reason = options.reason || 'request';
   const cachedRoutesAreFresh = busRoutesCache && Date.now() - busRoutesCacheTime < busRoutesCacheTtl;
 
-  if (cachedRoutesAreFresh) {
+  if (cachedRoutesAreFresh && !forceRefresh) {
     return busRoutesCache;
   }
 
   if (busRoutesRequest) {
+    console.log(`[BusRoutes cache] Reusing in-flight cache warm for ${reason}.`);
     return busRoutesRequest;
   }
 
   busRoutesRequest = (async () => {
+    const startedAt = Date.now();
     const routes = [];
     let skip = 0;
+
+    console.log(`[BusRoutes cache] Warming started (${reason}).`);
 
     while (true) {
       const response = await getFromLta(ltaBusRoutesEndpoint, {
@@ -211,6 +219,9 @@ async function fetchBusRoutes() {
       if (page.length < busRoutesPageSize) {
         busRoutesCache = routes;
         busRoutesCacheTime = Date.now();
+        console.log(
+          `[BusRoutes cache] Warming succeeded (${reason}) in ${Date.now() - startedAt}ms. Cached ${busRoutesCache.length} route records.`
+        );
         return busRoutesCache;
       }
 
@@ -220,8 +231,41 @@ async function fetchBusRoutes() {
 
   try {
     return await busRoutesRequest;
+  } catch (error) {
+    console.error(`[BusRoutes cache] Warming failed (${reason}).`, error.message);
+    throw error;
   } finally {
     busRoutesRequest = null;
+  }
+}
+
+function warmBusRoutesCache(reason = 'startup') {
+  if (!accountKey) {
+    console.warn(`[BusRoutes cache] Warming skipped (${reason}): LTA_ACCOUNT_KEY is missing.`);
+    return;
+  }
+
+  fetchBusRoutes({
+    forceRefresh: true,
+    reason
+  }).catch(() => {
+    // fetchBusRoutes logs the failure. Keep the server running and try again later.
+  });
+}
+
+function startBusRoutesCacheWarmers() {
+  warmBusRoutesCache('startup');
+
+  if (busRoutesRefreshTimer) {
+    clearInterval(busRoutesRefreshTimer);
+  }
+
+  busRoutesRefreshTimer = setInterval(() => {
+    warmBusRoutesCache('background refresh');
+  }, busRoutesRefreshInterval);
+
+  if (typeof busRoutesRefreshTimer.unref === 'function') {
+    busRoutesRefreshTimer.unref();
   }
 }
 
@@ -283,9 +327,15 @@ app.get('/api/bus-routes', async (req, res) => {
   }
 
   try {
+    const lookupStartedAt = Date.now();
     const routes = await fetchBusRoutes();
+    const filteredRoutes = routes.filter((route) => String(route.ServiceNo || '').toUpperCase() === serviceNo);
 
-    return res.json(routes.filter((route) => String(route.ServiceNo || '').toUpperCase() === serviceNo));
+    console.log(
+      `[BusRoutes cache] Lookup for ${serviceNo} returned ${filteredRoutes.length} records in ${Date.now() - lookupStartedAt}ms.`
+    );
+
+    return res.json(filteredRoutes);
   } catch (error) {
     return ltaFailure(res, error);
   }
@@ -293,4 +343,5 @@ app.get('/api/bus-routes', async (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`LTA bus proxy listening on port ${PORT}`);
+  startBusRoutesCacheWarmers();
 });
