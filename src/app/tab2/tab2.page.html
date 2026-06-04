@@ -19,19 +19,6 @@
         <p>nearby stops</p>
         <h1>catch a ride nearby</h1>
       </div>
-      <div class="nearby-header__actions">
-        <button
-          type="button"
-          aria-label="Refresh nearby stops"
-          [disabled]="isLoadingLocation"
-          (click)="loadNearbyStops()"
-        >
-          <ion-icon name="refresh-outline"></ion-icon>
-        </button>
-        <button type="button" routerLink="/tabs/tab1" aria-label="Back to home">
-          <ion-icon name="home-outline"></ion-icon>
-        </button>
-      </div>
     </header>
 
     <section class="nearby-map-card pop-in" aria-label="Nearby bus stops map">
@@ -71,6 +58,24 @@
         (click)="selectNearbyStop(stop)"
         (keydown.enter)="selectNearbyStop(stop)"
       >
+        <button
+          type="button"
+          class="nearby-favourite-button"
+          [class.active]="isFavouriteStop(stop)"
+          [class.saved-pop]="recentlyToggledFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'saved'"
+          [class.removed-pop]="recentlyToggledFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
+          [attr.aria-label]="isFavouriteStop(stop) ? 'Remove favourite stop' : 'Save favourite stop'"
+          (click)="toggleFavouriteStop(stop); $event.stopPropagation()"
+        >
+          <ion-icon [name]="isFavouriteStop(stop) ? 'heart' : 'heart-outline'"></ion-icon>
+          <span class="favourite-sparkles" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        </button>
         <div class="nearby-stop-card__marker">
           <ion-icon name="bus-outline"></ion-icon>
         </div>

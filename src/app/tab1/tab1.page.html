@@ -29,10 +29,20 @@
         type="button"
         class="sticky-arrival-header__icon-button"
         [class.active]="isCurrentBusStopFavourite()"
+        [class.saved-pop]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'saved'"
+        [class.removed-pop]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed'"
+        [disabled]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed'"
         [attr.aria-label]="isCurrentBusStopFavourite() ? 'Remove favourite bus stop' : 'Save favourite bus stop'"
         (click)="toggleCurrentFavourite()"
       >
-        <ion-icon [name]="isCurrentBusStopFavourite() ? 'bookmark' : 'bookmark-outline'"></ion-icon>
+        <ion-icon [name]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : (isCurrentBusStopFavourite() ? 'heart' : 'heart-outline')"></ion-icon>
+        <span class="favourite-sparkles" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
       </button>
 
       <button
@@ -171,10 +181,20 @@
               class="favourite-stop-button"
               *ngIf="hasSearchedArrivals && searchedBusStopCode"
               [class.active]="isCurrentBusStopFavourite()"
+              [class.saved-pop]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'saved'"
+              [class.removed-pop]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed'"
+              [disabled]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed'"
               [attr.aria-label]="isCurrentBusStopFavourite() ? 'Remove favourite bus stop' : 'Save favourite bus stop'"
               (click)="toggleCurrentFavourite()"
             >
-              <ion-icon [name]="isCurrentBusStopFavourite() ? 'bookmark' : 'bookmark-outline'"></ion-icon>
+              <ion-icon [name]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : (isCurrentBusStopFavourite() ? 'heart' : 'heart-outline')"></ion-icon>
+              <span class="favourite-sparkles" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
             </button>
           </div>
         </div>
@@ -302,13 +322,13 @@
       <div class="section-heading">
         <div>
           <p>saved stops</p>
-          <h2 id="saved-title">Quick shortcuts</h2>
+          <h2 id="saved-title">Favourite Stops</h2>
         </div>
       </div>
 
       <div class="saved-empty" *ngIf="!favouriteBusStops.length">
-        <ion-icon name="bookmark-outline"></ion-icon>
-        <p>Save a bus stop to keep its live arrivals close by.</p>
+        <ion-icon name="heart-outline"></ion-icon>
+        <p>Save your favourite stops for quick access.</p>
       </div>
 
       <div class="favourite-shortcuts" *ngIf="favouriteBusStops.length">
@@ -317,12 +337,28 @@
           role="button"
           tabindex="0"
           *ngFor="let stop of favouriteBusStops; trackBy: trackFavouriteBusStop"
+          [class.favourite-stop-card--removing]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
           (click)="viewFavouriteStop(stop)"
           (keydown.enter)="viewFavouriteStop(stop)"
         >
-          <div class="favourite-stop-icon">
-            <ion-icon name="bookmark"></ion-icon>
-          </div>
+          <button
+            type="button"
+            class="favourite-stop-icon"
+            [class.saved-pop]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'saved'"
+            [class.removed-pop]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
+            [disabled]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
+            aria-label="Remove favourite bus stop"
+            (click)="removeFavouriteStop(stop.BusStopCode); $event.stopPropagation()"
+          >
+            <ion-icon [name]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : 'heart'"></ion-icon>
+            <span class="favourite-sparkles" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </button>
           <div class="favourite-stop-copy">
             <h3>{{ stop.nickname || stop.Description }}</h3>
             <p>{{ stop.Description }} · {{ stop.RoadName }} · {{ stop.BusStopCode }}</p>

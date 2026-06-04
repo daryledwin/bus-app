@@ -3,6 +3,7 @@ import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { Router } from '@angular/router';
 import * as L from 'leaflet';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
+import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
 
 interface NearbyBusStop extends BusStop {
@@ -18,6 +19,13 @@ interface StoredNearbyLocation extends NearbyLocation {
   savedAt: number;
 }
 
+interface FavouriteBusStop {
+  BusStopCode: string;
+  Description: string;
+  RoadName: string;
+  nickname?: string;
+}
+
 @Component({
   selector: 'app-tab2',
   templateUrl: 'tab2.page.html',
@@ -29,25 +37,33 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   nearbyStops: NearbyBusStop[] = [];
   selectedNearbyStop?: NearbyBusStop;
+  favouriteBusStops: FavouriteBusStop[] = [];
+  recentlyToggledFavouriteCode = '';
+  recentFavouriteAction: 'saved' | 'removed' | '' = '';
   isLoadingLocation = false;
   hasUserLocation = false;
   nearbyError = '';
   private readonly singaporeCenter = { latitude: 1.3521, longitude: 103.8198 };
   private readonly lastLocationStorageKey = 'nearbyStopsLastLocation';
+  private readonly favouritesStorageKey = 'favouriteBusStops';
   private readonly lastLocationMaxAgeMs = 1000 * 60 * 60 * 12;
   private mapCenter = this.singaporeCenter;
   private map?: L.Map;
   private userMarker?: L.Marker;
   private stopMarkers = new Map<string, L.Marker>();
   private selectedStopPopup?: L.Popup;
+  private favouritePopTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly ltaBusStopsService: LtaBusStopsService,
     private readonly ngZone: NgZone,
+    private readonly refreshFeedbackService: RefreshFeedbackService,
     private readonly router: Router,
     private readonly selectedBusStopService: SelectedBusStopService,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
-  ) {}
+  ) {
+    this.favouriteBusStops = this.loadFavouriteBusStops();
+  }
 
   ngOnInit(): void {
     this.loadNearbyStops();
@@ -57,6 +73,8 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     if (this.routerOutlet) {
       this.routerOutlet.swipeGesture = false;
     }
+
+    this.favouriteBusStops = this.loadFavouriteBusStops();
   }
 
   ngAfterViewInit(): void {
@@ -72,6 +90,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.map?.remove();
     this.stopMarkers.clear();
+    if (this.favouritePopTimer) {
+      clearTimeout(this.favouritePopTimer);
+    }
   }
 
   async loadNearbyStops(): Promise<void> {
@@ -105,11 +126,17 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   async refreshNearbyStops(event: Event): Promise<void> {
     const refresher = event.target as HTMLIonRefresherElement;
+    let shouldShowFeedback = false;
 
     try {
       await this.loadNearbyStops();
+      shouldShowFeedback = this.nearbyStops.length > 0;
     } finally {
       await refresher.complete();
+    }
+
+    if (shouldShowFeedback) {
+      await this.refreshFeedbackService.success('Nearby stops updated ✨');
     }
   }
 
@@ -122,6 +149,51 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       Longitude: stop.Longitude
     });
     this.router.navigate(['/tabs/tab1']);
+  }
+
+  isFavouriteStop(stop: NearbyBusStop): boolean {
+    return this.favouriteBusStops.some((favouriteStop) => favouriteStop.BusStopCode === stop.BusStopCode);
+  }
+
+  toggleFavouriteStop(stop: NearbyBusStop): void {
+    const wasFavourite = this.isFavouriteStop(stop);
+    let becameFavourite = false;
+
+    if (wasFavourite) {
+      this.favouriteBusStops = this.favouriteBusStops.filter((favouriteStop) => favouriteStop.BusStopCode !== stop.BusStopCode);
+    } else {
+      const favouriteStop: FavouriteBusStop = {
+        BusStopCode: stop.BusStopCode,
+        Description: stop.Description,
+        RoadName: stop.RoadName
+      };
+
+      this.favouriteBusStops = [
+        favouriteStop,
+        ...this.favouriteBusStops.filter((existingStop) => existingStop.BusStopCode !== stop.BusStopCode)
+      ];
+      becameFavourite = true;
+    }
+
+    this.saveFavouriteBusStops();
+
+    if (becameFavourite) {
+      void this.refreshFeedbackService.favouriteSaved();
+    }
+
+    this.recentlyToggledFavouriteCode = stop.BusStopCode;
+    this.recentFavouriteAction = wasFavourite ? 'removed' : 'saved';
+
+    if (this.favouritePopTimer) {
+      clearTimeout(this.favouritePopTimer);
+    }
+
+    this.favouritePopTimer = setTimeout(() => {
+      if (this.recentlyToggledFavouriteCode === stop.BusStopCode) {
+        this.recentlyToggledFavouriteCode = '';
+        this.recentFavouriteAction = '';
+      }
+    }, 460);
   }
 
   selectNearbyStop(stop: NearbyBusStop): void {
@@ -302,6 +374,25 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     } catch {
       return undefined;
     }
+  }
+
+  private loadFavouriteBusStops(): FavouriteBusStop[] {
+    const storedStops = localStorage.getItem(this.favouritesStorageKey);
+
+    if (!storedStops) {
+      return [];
+    }
+
+    try {
+      const parsedStops = JSON.parse(storedStops) as FavouriteBusStop[];
+      return Array.isArray(parsedStops) ? parsedStops : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private saveFavouriteBusStops(): void {
+    localStorage.setItem(this.favouritesStorageKey, JSON.stringify(this.favouriteBusStops));
   }
 
   private initializeMap(): void {

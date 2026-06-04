@@ -401,6 +401,8 @@ ion-content.nearby-page {
   grid-template-columns: auto minmax(0, 1fr);
   min-height: 72px;
   padding: 10px 11px;
+  padding-right: 48px;
+  position: relative;
   transition: box-shadow 180ms ease, transform 180ms ease;
 }
 
@@ -502,6 +504,96 @@ ion-content.nearby-page {
   min-height: 32px;
   padding: 0 11px;
   white-space: nowrap;
+}
+
+.nearby-stop-card .nearby-favourite-button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 8px 18px rgba(16, 111, 191, 0.1);
+  color: #1977c9;
+  display: grid;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  place-items: center;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  width: 30px;
+  z-index: 2;
+}
+
+.nearby-stop-card .nearby-favourite-button.active {
+  background: rgba(25, 119, 201, 0.14);
+  color: #1977c9;
+}
+
+.nearby-stop-card .nearby-favourite-button ion-icon {
+  font-size: 16px;
+  transition: opacity 150ms ease, transform 180ms ease;
+}
+
+.nearby-stop-card .nearby-favourite-button.saved-pop {
+  animation: favouriteSavePop 420ms cubic-bezier(0.2, 0.9, 0.25, 1.12);
+}
+
+.nearby-stop-card .nearby-favourite-button.removed-pop {
+  animation: favouriteRemovePop 260ms ease-out;
+}
+
+.favourite-sparkles {
+  inset: 50% auto auto 50%;
+  pointer-events: none;
+  position: absolute;
+}
+
+.favourite-sparkles span {
+  background: radial-gradient(circle, rgba(25, 119, 201, 0.88), rgba(25, 119, 201, 0));
+  border-radius: 999px;
+  height: 5px;
+  left: -2.5px;
+  opacity: 0;
+  position: absolute;
+  top: -2.5px;
+  transform: translate3d(0, 0, 0) scale(0.42);
+  width: 5px;
+}
+
+.nearby-stop-card .nearby-favourite-button.saved-pop .favourite-sparkles span {
+  animation: favouriteSparkle 430ms ease-out both;
+}
+
+.favourite-sparkles span:nth-child(1) {
+  --spark-x: -14px;
+  --spark-y: -10px;
+}
+
+.favourite-sparkles span:nth-child(2) {
+  --spark-x: 0;
+  --spark-y: -16px;
+  animation-delay: 28ms;
+}
+
+.favourite-sparkles span:nth-child(3) {
+  --spark-x: 13px;
+  --spark-y: -8px;
+  animation-delay: 44ms;
+}
+
+.favourite-sparkles span:nth-child(4) {
+  --spark-x: -11px;
+  --spark-y: 10px;
+  animation-delay: 60ms;
+}
+
+.favourite-sparkles span:nth-child(5) {
+  --spark-x: 12px;
+  --spark-y: 9px;
+  animation-delay: 76ms;
 }
 
 .bottom-nav {
@@ -620,6 +712,50 @@ ion-content.nearby-page {
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes favouriteSavePop {
+  0% {
+    transform: translateY(-50%) scale(0.9);
+  }
+
+  52% {
+    transform: translateY(-50%) scale(1.1);
+  }
+
+  100% {
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+@keyframes favouriteRemovePop {
+  0% {
+    transform: translateY(-50%) scale(1);
+  }
+
+  45% {
+    transform: translateY(-50%) scale(0.9);
+  }
+
+  100% {
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+@keyframes favouriteSparkle {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.42);
+  }
+
+  28% {
+    opacity: 0.84;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--spark-x), var(--spark-y), 0) scale(1);
   }
 }
 

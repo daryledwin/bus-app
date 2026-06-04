@@ -9,6 +9,7 @@ import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
 import { SplashOverlayService } from '../services/splash-overlay.service';
 import { WidgetBridgeService } from '../services/widget-bridge.service';
+import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 
 interface NavItem {
   label: string;
@@ -69,6 +70,8 @@ export class Tab1Page implements OnInit, OnDestroy {
   showStickyArrivalHeader = false;
   isLiveRefreshCascadeRunning = false;
   suppressLiveRowFloatAnimation = false;
+  recentlyAnimatedFavouriteCode = '';
+  recentFavouriteAction: 'saved' | 'removed' | '' = '';
   arrivalError = '';
   stopSearchError = '';
   expandedLiveServiceNo = '';
@@ -88,6 +91,7 @@ export class Tab1Page implements OnInit, OnDestroy {
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
   private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
   private liveRefreshCascadeTimer?: ReturnType<typeof setTimeout>;
+  private favouriteAnimationTimer?: ReturnType<typeof setTimeout>;
   private selectedStopSubscription?: Subscription;
   private arrivalRequestId = 0;
   private coldStartSplashRequestId = 0;
@@ -107,6 +111,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     private readonly router: Router,
     private readonly selectedBusStopService: SelectedBusStopService,
     private readonly splashOverlayService: SplashOverlayService,
+    private readonly refreshFeedbackService: RefreshFeedbackService,
     private readonly widgetBridgeService: WidgetBridgeService,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
@@ -138,6 +143,9 @@ export class Tab1Page implements OnInit, OnDestroy {
     if (this.routerOutlet) {
       this.routerOutlet.swipeGesture = false;
     }
+
+    this.favouriteBusStops = this.loadFavouriteBusStops();
+    this.syncWidgetFavouriteStop();
   }
 
   ngOnDestroy(): void {
@@ -149,6 +157,7 @@ export class Tab1Page implements OnInit, OnDestroy {
 
     this.clearColdStartSplashTimer();
     this.clearLiveRefreshCascadeTimer();
+    this.clearFavouriteAnimationTimer();
     this.hideColdStartSplashIfNeeded();
 
     if (this.heroTaglineTimer) {
@@ -413,6 +422,10 @@ export class Tab1Page implements OnInit, OnDestroy {
         }
 
         completeRefresh();
+
+        if (event && !this.arrivalError) {
+          void this.refreshFeedbackService.success('Arrivals refreshed ✨');
+        }
       },
       {
         preserveRouteState: true,
@@ -491,6 +504,8 @@ export class Tab1Page implements OnInit, OnDestroy {
       ...this.favouriteBusStops.filter((stop) => stop.BusStopCode !== currentStop.BusStopCode)
     ];
     this.saveFavouriteBusStops();
+    this.markFavouriteAnimation(currentStop.BusStopCode, 'saved');
+    void this.refreshFeedbackService.favouriteSaved();
   }
 
   viewFavouriteStop(stop: FavouriteBusStop): void {
@@ -508,8 +523,24 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   removeFavouriteStop(busStopCode: string): void {
-    this.favouriteBusStops = this.favouriteBusStops.filter((stop) => stop.BusStopCode !== busStopCode);
-    this.saveFavouriteBusStops();
+    if (this.recentlyAnimatedFavouriteCode === busStopCode && this.recentFavouriteAction === 'removed') {
+      return;
+    }
+
+    if (!this.favouriteBusStops.some((stop) => stop.BusStopCode === busStopCode)) {
+      return;
+    }
+
+    this.markFavouriteAnimation(busStopCode, 'removed');
+
+    setTimeout(() => {
+      this.favouriteBusStops = this.favouriteBusStops.filter((stop) => stop.BusStopCode !== busStopCode);
+      this.saveFavouriteBusStops();
+
+      if (this.recentlyAnimatedFavouriteCode === busStopCode) {
+        this.clearFavouriteAnimationTimer();
+      }
+    }, 260);
   }
 
   renameFavouriteStop(stop: FavouriteBusStop): void {
@@ -1154,6 +1185,26 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
 
     this.isLiveRefreshCascadeRunning = false;
+  }
+
+  private markFavouriteAnimation(busStopCode: string, action: 'saved' | 'removed'): void {
+    this.clearFavouriteAnimationTimer();
+    this.recentlyAnimatedFavouriteCode = busStopCode;
+    this.recentFavouriteAction = action;
+
+    this.favouriteAnimationTimer = setTimeout(() => {
+      this.clearFavouriteAnimationTimer();
+    }, action === 'saved' ? 460 : 260);
+  }
+
+  private clearFavouriteAnimationTimer(): void {
+    if (this.favouriteAnimationTimer) {
+      clearTimeout(this.favouriteAnimationTimer);
+      this.favouriteAnimationTimer = undefined;
+    }
+
+    this.recentlyAnimatedFavouriteCode = '';
+    this.recentFavouriteAction = '';
   }
 
   private syncExpandedServiceAfterRefresh(): void {
