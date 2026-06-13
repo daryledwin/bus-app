@@ -35,7 +35,9 @@
         [attr.aria-label]="isCurrentBusStopFavourite() ? 'Remove favourite bus stop' : 'Save favourite bus stop'"
         (click)="toggleCurrentFavourite()"
       >
-        <ion-icon [name]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : (isCurrentBusStopFavourite() ? 'heart' : 'heart-outline')"></ion-icon>
+        <span class="favourite-icon-pop" aria-hidden="true">
+          <ion-icon [name]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : (isCurrentBusStopFavourite() ? 'heart' : 'heart-outline')"></ion-icon>
+        </span>
         <span class="favourite-sparkles" aria-hidden="true">
           <span></span>
           <span></span>
@@ -79,7 +81,7 @@
           ready to go?
         </div>
         <p>{{ greeting }}</p>
-        <h1>where are we heading today?</h1>
+        <h1>Where are we heading today?</h1>
         <span class="hero-tagline" [class.hero-tagline--hidden]="!heroTaglineVisible">{{ heroTagline }}</span>
       </div>
 
@@ -187,7 +189,9 @@
               [attr.aria-label]="isCurrentBusStopFavourite() ? 'Remove favourite bus stop' : 'Save favourite bus stop'"
               (click)="toggleCurrentFavourite()"
             >
-              <ion-icon [name]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : (isCurrentBusStopFavourite() ? 'heart' : 'heart-outline')"></ion-icon>
+              <span class="favourite-icon-pop" aria-hidden="true">
+                <ion-icon [name]="recentlyAnimatedFavouriteCode === searchedBusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : (isCurrentBusStopFavourite() ? 'heart' : 'heart-outline')"></ion-icon>
+              </span>
               <span class="favourite-sparkles" aria-hidden="true">
                 <span></span>
                 <span></span>
@@ -350,7 +354,9 @@
             aria-label="Remove favourite bus stop"
             (click)="removeFavouriteStop(stop.BusStopCode); $event.stopPropagation()"
           >
-            <ion-icon [name]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : 'heart'"></ion-icon>
+            <span class="favourite-icon-pop" aria-hidden="true">
+              <ion-icon [name]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : 'heart'"></ion-icon>
+            </span>
             <span class="favourite-sparkles" aria-hidden="true">
               <span></span>
               <span></span>

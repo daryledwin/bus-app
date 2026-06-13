@@ -26,6 +26,12 @@ interface FavouriteBusStop {
   nickname?: string;
 }
 
+interface NavItem {
+  label: string;
+  icon: string;
+  route: string;
+}
+
 @Component({
   selector: 'app-tab2',
   templateUrl: 'tab2.page.html',
@@ -53,6 +59,13 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   private stopMarkers = new Map<string, L.Marker>();
   private selectedStopPopup?: L.Popup;
   private favouritePopTimer?: ReturnType<typeof setTimeout>;
+  private lastNavTapAt = 0;
+  private lastNavRoute = '';
+
+  readonly navItems: NavItem[] = [
+    { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
+    { label: 'Nearby', icon: 'navigate-outline', route: '/tabs/tab2' }
+  ];
 
   constructor(
     private readonly ltaBusStopsService: LtaBusStopsService,
@@ -149,6 +162,30 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       Longitude: stop.Longitude
     });
     this.router.navigate(['/tabs/tab1']);
+  }
+
+  isNavRouteActive(route: string): boolean {
+    return this.router.url === route || this.router.url.startsWith(`${route}/`);
+  }
+
+  async navigateFromBottomNav(route: string, event?: Event): Promise<void> {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    const now = Date.now();
+    if (this.lastNavRoute === route && now - this.lastNavTapAt < 450) {
+      return;
+    }
+
+    this.lastNavRoute = route;
+    this.lastNavTapAt = now;
+
+    if (this.isNavRouteActive(route)) {
+      await this.scrollActiveTabToTop();
+      return;
+    }
+
+    this.router.navigateByUrl(route);
   }
 
   isFavouriteStop(stop: NearbyBusStop): boolean {
@@ -340,6 +377,26 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => {
       this.content?.scrollToTop(520);
     }, 40);
+  }
+
+  private async currentScrollTop(): Promise<number> {
+    try {
+      const scrollElement = await this.content?.getScrollElement();
+      return scrollElement?.scrollTop || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async scrollActiveTabToTop(): Promise<void> {
+    const scrollTop = await this.currentScrollTop();
+
+    if (scrollTop <= 6) {
+      return;
+    }
+
+    await this.content?.scrollToTop(520);
+    void this.refreshFeedbackService.lightImpact();
   }
 
   private saveLastLocation(location: NearbyLocation): void {

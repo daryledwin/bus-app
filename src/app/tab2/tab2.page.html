@@ -17,7 +17,7 @@
     <header class="nearby-header fade-in">
       <div>
         <p>nearby stops</p>
-        <h1>catch a ride nearby</h1>
+        <h1>Catch a ride nearby</h1>
       </div>
     </header>
 
@@ -67,7 +67,9 @@
           [attr.aria-label]="isFavouriteStop(stop) ? 'Remove favourite stop' : 'Save favourite stop'"
           (click)="toggleFavouriteStop(stop); $event.stopPropagation()"
         >
-          <ion-icon [name]="isFavouriteStop(stop) ? 'heart' : 'heart-outline'"></ion-icon>
+          <span class="favourite-icon-pop" aria-hidden="true">
+            <ion-icon [name]="isFavouriteStop(stop) ? 'heart' : 'heart-outline'"></ion-icon>
+          </span>
           <span class="favourite-sparkles" aria-hidden="true">
             <span></span>
             <span></span>
@@ -96,13 +98,16 @@
   </main>
 
   <nav slot="fixed" class="bottom-nav" aria-label="Bus navigation">
-    <button type="button" routerLink="/tabs/tab1" routerDirection="root" aria-label="Home">
-      <ion-icon name="home-outline"></ion-icon>
-      <span>Home</span>
-    </button>
-    <button type="button" class="active" aria-label="Nearby stops">
-      <ion-icon name="navigate-outline"></ion-icon>
-      <span>Nearby</span>
+    <button
+      type="button"
+      *ngFor="let item of navItems"
+      [class.active]="isNavRouteActive(item.route)"
+      [attr.aria-label]="item.label"
+      (touchend)="navigateFromBottomNav(item.route, $event)"
+      (click)="navigateFromBottomNav(item.route, $event)"
+    >
+      <ion-icon [name]="item.icon"></ion-icon>
+      <span>{{ item.label }}</span>
     </button>
   </nav>
 </ion-content>

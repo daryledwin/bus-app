@@ -23,6 +23,14 @@ export class RefreshFeedbackService {
     }
   }
 
+  async lightImpact(): Promise<void> {
+    try {
+      await Haptics.impact({ style: ImpactStyle.Light });
+    } catch {
+      // Haptics are a nice-to-have. UI feedback should never fail because of them.
+    }
+  }
+
   private async lightHaptic(): Promise<void> {
     try {
       await Haptics.notification({ type: NotificationType.Success });

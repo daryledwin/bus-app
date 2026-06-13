@@ -196,7 +196,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     return this.router.url === route || this.router.url.startsWith(`${route}/`);
   }
 
-  navigateFromBottomNav(route: string, event?: Event): void {
+  async navigateFromBottomNav(route: string, event?: Event): Promise<void> {
     event?.preventDefault();
     event?.stopPropagation();
 
@@ -209,6 +209,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.lastNavTapAt = now;
 
     if (this.isNavRouteActive(route)) {
+      await this.scrollActiveTabToTop();
       return;
     }
 
@@ -1159,6 +1160,17 @@ export class Tab1Page implements OnInit, OnDestroy {
     } catch {
       return 0;
     }
+  }
+
+  private async scrollActiveTabToTop(): Promise<void> {
+    const scrollTop = await this.currentScrollTop();
+
+    if (scrollTop <= 6) {
+      return;
+    }
+
+    await this.content?.scrollToTop(520);
+    void this.refreshFeedbackService.lightImpact();
   }
 
   private restoreScrollPosition(scrollTop: number): void {
