@@ -82,10 +82,13 @@
         </div>
         <p>{{ greeting }}</p>
         <h1>Where are we heading today?</h1>
-        <span class="hero-tagline" [class.hero-tagline--hidden]="!heroTaglineVisible">{{ heroTagline }}</span>
+        <span class="hero-tagline" [attr.aria-label]="heroTagline">
+          <span class="hero-tagline__sizer" aria-hidden="true">{{ heroTagline }}</span>
+          <span class="hero-tagline__generated" aria-hidden="true">{{ displayedHeroTagline }}</span>
+        </span>
       </div>
 
-      <img class="hero-illustration" src="assets/images/illustration.png" alt="" aria-hidden="true" />
+      <img #heroIllustration class="hero-illustration" src="assets/images/illustration.png" alt="" aria-hidden="true" />
     </header>
 
     <section class="search-card pop-in" aria-label="Find a bus">
@@ -256,7 +259,12 @@
           [style.animation-delay.ms]="35 * i"
           [style.--cascade-delay]="cascadeDelay(i) + 'ms'"
         >
-          <button type="button" class="live-row__summary" (click)="toggleLiveService(service)">
+          <button
+            type="button"
+            class="live-row__summary"
+            [attr.aria-expanded]="expandedLiveServiceNo === service.serviceNo"
+            (click)="toggleLiveService(service)"
+          >
             <div class="service-badge service-badge--compact">{{ service.serviceNo }}</div>
 
             <div class="live-row__main">
@@ -288,34 +296,42 @@
             <ion-icon class="live-row__chevron" name="chevron-down-outline" aria-hidden="true"></ion-icon>
           </button>
 
-          <div class="live-row__details" *ngIf="expandedLiveServiceNo === service.serviceNo">
-            <p class="live-row__origin" *ngIf="serviceOriginCode(service)">
-              From {{ serviceOriginName(service) }} ({{ serviceOriginCode(service) }})
-            </p>
+          <div
+            class="live-row__details-shell"
+            [attr.aria-hidden]="expandedLiveServiceNo !== service.serviceNo"
+          >
+            <div class="live-row__details">
+              <div class="live-row__details-inner">
+                <p class="live-row__origin" *ngIf="serviceOriginCode(service)">
+                  From {{ serviceOriginName(service) }} ({{ serviceOriginCode(service) }})
+                </p>
 
-            <div class="timing-row timing-row--compact">
-              <div class="timing-card timing-card--next">
-                <span>next</span>
-                <strong>{{ service.nextBus.timing }}</strong>
-              </div>
-              <div class="timing-card timing-card--subsequent">
-                <span>subsequent</span>
-                <strong>{{ service.subsequentBus.timing }}</strong>
-              </div>
-              <div class="timing-card timing-card--third">
-                <span>third</span>
-                <strong>{{ service.thirdBus.timing }}</strong>
+                <div class="timing-row timing-row--compact">
+                  <div class="timing-card timing-card--next">
+                    <span>next</span>
+                    <strong>{{ service.nextBus.timing }}</strong>
+                  </div>
+                  <div class="timing-card timing-card--subsequent">
+                    <span>subsequent</span>
+                    <strong>{{ service.subsequentBus.timing }}</strong>
+                  </div>
+                  <div class="timing-card timing-card--third">
+                    <span>third</span>
+                    <strong>{{ service.thirdBus.timing }}</strong>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="view-route-button"
+                  [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
+                  (click)="openRouteModal(service)"
+                >
+                  <span>View Full Route</span>
+                  <ion-icon name="arrow-forward-outline"></ion-icon>
+                </button>
               </div>
             </div>
-
-            <button
-              type="button"
-              class="view-route-button"
-              (click)="openRouteModal(service)"
-            >
-              <span>View Full Route</span>
-              <ion-icon name="arrow-forward-outline"></ion-icon>
-            </button>
           </div>
         </article>
       </div>

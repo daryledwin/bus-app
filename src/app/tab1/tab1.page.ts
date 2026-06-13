@@ -10,6 +10,7 @@ import { SelectedBusStopService } from '../services/selected-bus-stop.service';
 import { SplashOverlayService } from '../services/splash-overlay.service';
 import { WidgetBridgeService } from '../services/widget-bridge.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
+import { SameTabScrollService } from '../services/same-tab-scroll.service';
 
 interface NavItem {
   label: string;
@@ -52,11 +53,12 @@ interface ArrivalSearchOptions {
 export class Tab1Page implements OnInit, OnDestroy {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
+  @ViewChild('heroIllustration') private readonly heroIllustration?: ElementRef<HTMLImageElement>;
   @ViewChildren('routeStopRow') private readonly routeStopRows?: QueryList<ElementRef<HTMLElement>>;
 
   readonly greeting = this.currentGreeting();
   heroTagline = this.randomHeroTagline();
-  heroTaglineVisible = true;
+  displayedHeroTagline = '';
   searchTerm = '';
   searchedBusStopCode = '';
   liveBusServices: BusServiceArrival[] = [];
@@ -87,7 +89,9 @@ export class Tab1Page implements OnInit, OnDestroy {
   private searchTimer?: ReturnType<typeof setTimeout>;
   private coldStartSplashTimer?: ReturnType<typeof setTimeout>;
   private heroTaglineTimer?: ReturnType<typeof setInterval>;
-  private heroTaglineFadeTimer?: ReturnType<typeof setTimeout>;
+  private heroTaglineTypingTimer?: ReturnType<typeof setTimeout>;
+  private heroIllustrationFrame?: number;
+  private pendingHeroScrollTop = 0;
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
   private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
   private liveRefreshCascadeTimer?: ReturnType<typeof setTimeout>;
@@ -112,6 +116,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     private readonly selectedBusStopService: SelectedBusStopService,
     private readonly splashOverlayService: SplashOverlayService,
     private readonly refreshFeedbackService: RefreshFeedbackService,
+    private readonly sameTabScrollService: SameTabScrollService,
     private readonly widgetBridgeService: WidgetBridgeService,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
@@ -122,6 +127,7 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     console.log('IOS DEBUG 1 - home page initialized');
+    this.revealHeroTagline(this.heroTagline);
     this.heroTaglineTimer = setInterval(() => this.rotateHeroTagline(), 5200);
     this.selectedStopSubscription = this.selectedBusStopService.selectedStop$.subscribe((stop) => {
       if (!stop) {
@@ -164,9 +170,8 @@ export class Tab1Page implements OnInit, OnDestroy {
       clearInterval(this.heroTaglineTimer);
     }
 
-    if (this.heroTaglineFadeTimer) {
-      clearTimeout(this.heroTaglineFadeTimer);
-    }
+    this.clearHeroTaglineTypingTimer();
+    this.clearHeroIllustrationFrame();
 
     if (this.routePrefetchTimer) {
       clearTimeout(this.routePrefetchTimer);
@@ -178,12 +183,45 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   private rotateHeroTagline(): void {
-    this.heroTaglineVisible = false;
+    this.heroTagline = this.randomHeroTagline(this.heroTagline);
+    this.revealHeroTagline(this.heroTagline);
+  }
 
-    this.heroTaglineFadeTimer = setTimeout(() => {
-      this.heroTagline = this.randomHeroTagline(this.heroTagline);
-      this.heroTaglineVisible = true;
-    }, 240);
+  private revealHeroTagline(tagline: string): void {
+    this.clearHeroTaglineTypingTimer();
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      this.displayedHeroTagline = tagline;
+      return;
+    }
+
+    const characters = Array.from(tagline);
+    const characterDelay = Math.min(40, Math.max(28, 1350 / characters.length));
+    let characterIndex = 0;
+    this.displayedHeroTagline = '';
+
+    const revealNextCharacter = () => {
+      this.displayedHeroTagline += characters[characterIndex];
+      characterIndex++;
+
+      if (characterIndex >= characters.length) {
+        this.heroTaglineTypingTimer = undefined;
+        return;
+      }
+
+      const previousCharacter = characters[characterIndex - 1];
+      const punctuationPause = /[,.!?]/.test(previousCharacter) ? 70 : 0;
+      this.heroTaglineTypingTimer = setTimeout(revealNextCharacter, characterDelay + punctuationPause);
+    };
+
+    this.heroTaglineTypingTimer = setTimeout(revealNextCharacter, 120);
+  }
+
+  private clearHeroTaglineTypingTimer(): void {
+    if (this.heroTaglineTypingTimer) {
+      clearTimeout(this.heroTaglineTypingTimer);
+      this.heroTaglineTypingTimer = undefined;
+    }
   }
 
   private randomHeroTagline(currentTagline = ''): string {
@@ -437,14 +475,58 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   onHomeScroll(event: CustomEvent<{ scrollTop: number }>): void {
+    const scrollTop = event.detail.scrollTop || 0;
+    this.scheduleHeroIllustrationUpdate(scrollTop);
+
     if (!this.hasSearchedArrivals || !this.searchedBusStopCode) {
       this.showStickyArrivalHeader = false;
       return;
     }
 
-    const scrollTop = event.detail.scrollTop || 0;
     const arrivalsTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
     this.showStickyArrivalHeader = scrollTop > arrivalsTop + 70;
+  }
+
+  private scheduleHeroIllustrationUpdate(scrollTop: number): void {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      this.clearHeroIllustrationFrame();
+
+      const illustration = this.heroIllustration?.nativeElement;
+      if (illustration?.style.transform) {
+        illustration.style.removeProperty('transform');
+        illustration.style.removeProperty('opacity');
+      }
+
+      return;
+    }
+
+    this.pendingHeroScrollTop = scrollTop;
+
+    if (this.heroIllustrationFrame !== undefined) {
+      return;
+    }
+
+    this.heroIllustrationFrame = requestAnimationFrame(() => {
+      this.heroIllustrationFrame = undefined;
+
+      const illustration = this.heroIllustration?.nativeElement;
+      if (!illustration) {
+        return;
+      }
+
+      const progress = Math.min(Math.max(this.pendingHeroScrollTop / 180, 0), 1);
+      illustration.style.transform = `translate3d(${-90 * progress}px, 0, 0) rotate(${-2 * progress}deg)`;
+      illustration.style.opacity = `${1 - 0.2 * progress}`;
+    });
+  }
+
+  private clearHeroIllustrationFrame(): void {
+    if (this.heroIllustrationFrame === undefined) {
+      return;
+    }
+
+    cancelAnimationFrame(this.heroIllustrationFrame);
+    this.heroIllustrationFrame = undefined;
   }
 
   retryArrivals(): void {
@@ -1163,14 +1245,9 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   private async scrollActiveTabToTop(): Promise<void> {
-    const scrollTop = await this.currentScrollTop();
-
-    if (scrollTop <= 6) {
-      return;
+    if (await this.sameTabScrollService.toTop(this.content)) {
+      void this.refreshFeedbackService.lightImpact();
     }
-
-    await this.content?.scrollToTop(520);
-    void this.refreshFeedbackService.lightImpact();
   }
 
   private restoreScrollPosition(scrollTop: number): void {

@@ -5,6 +5,7 @@ import * as L from 'leaflet';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
+import { SameTabScrollService } from '../services/same-tab-scroll.service';
 
 interface NearbyBusStop extends BusStop {
   distanceMeters: number;
@@ -72,6 +73,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     private readonly ngZone: NgZone,
     private readonly refreshFeedbackService: RefreshFeedbackService,
     private readonly router: Router,
+    private readonly sameTabScrollService: SameTabScrollService,
     private readonly selectedBusStopService: SelectedBusStopService,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
@@ -379,24 +381,10 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }, 40);
   }
 
-  private async currentScrollTop(): Promise<number> {
-    try {
-      const scrollElement = await this.content?.getScrollElement();
-      return scrollElement?.scrollTop || 0;
-    } catch {
-      return 0;
-    }
-  }
-
   private async scrollActiveTabToTop(): Promise<void> {
-    const scrollTop = await this.currentScrollTop();
-
-    if (scrollTop <= 6) {
-      return;
+    if (await this.sameTabScrollService.toTop(this.content)) {
+      void this.refreshFeedbackService.lightImpact();
     }
-
-    await this.content?.scrollToTop(520);
-    void this.refreshFeedbackService.lightImpact();
   }
 
   private saveLastLocation(location: NearbyLocation): void {
