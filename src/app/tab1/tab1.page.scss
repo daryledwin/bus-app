@@ -25,6 +25,22 @@ ion-content.bus-home {
     linear-gradient(180deg, #d5efff 0%, #e6f6ff 50%, #f6fbff 100%);
 }
 
+.bus-home.programmatic-scroll .sticky-arrival-header,
+.bus-home.programmatic-scroll .bottom-nav,
+.bus-home.arrivals-settling .bottom-nav {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.bus-home.programmatic-scroll .sticky-arrival-header {
+  visibility: hidden;
+}
+
+.bus-home.programmatic-scroll .bottom-nav,
+.bus-home.arrivals-settling .bottom-nav {
+  box-shadow: 0 8px 22px rgba(29, 108, 168, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.94);
+}
+
 .home-refresher {
   color: #1977c9;
 }
@@ -267,7 +283,6 @@ ion-content.bus-home {
 .morning-chip,
 .search-card,
 .arrival-card,
-.live-row,
 .saved-card,
 .recent-strip,
 .bottom-nav {
@@ -1111,7 +1126,10 @@ ion-content.bus-home {
 .live-row {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(239, 250, 255, 0.82));
+  border: 1px solid var(--line);
   border-radius: 22px;
+  contain-intrinsic-size: auto 80px;
+  content-visibility: auto;
   cursor: pointer;
   overflow: hidden;
   position: relative;
@@ -2570,7 +2588,7 @@ ion-modal.route-modal::part(content) {
   max-width: 360px;
   padding: 8px;
   position: fixed;
-  transform: translateX(-50%);
+  transform: translate3d(-50%, 0, 0);
   width: min(360px, calc(100% - 36px));
   z-index: 1000;
 }
@@ -2607,17 +2625,19 @@ ion-modal.route-modal::part(content) {
   transform: none;
 }
 
-.arrival-card:hover,
-.live-card:hover,
-.live-row:hover,
-.saved-card:hover,
-.search-bar button:hover,
-.search-meta button:hover,
-.mini-stop-row button:hover,
-.stop-result-card:hover,
-.recent-strip button:hover {
-  box-shadow: 0 20px 46px rgba(29, 108, 168, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .arrival-card:hover,
+  .live-card:hover,
+  .live-row:hover,
+  .saved-card:hover,
+  .search-bar button:hover,
+  .search-meta button:hover,
+  .mini-stop-row button:hover,
+  .stop-result-card:hover,
+  .recent-strip button:hover {
+    box-shadow: 0 20px 46px rgba(29, 108, 168, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transform: translateY(-2px);
+  }
 }
 
 .search-bar button:active,

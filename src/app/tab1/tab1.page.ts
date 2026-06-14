@@ -1,4 +1,5 @@
-import { Component, ElementRef, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { Capacitor } from '@capacitor/core';
 import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -50,7 +51,7 @@ interface ArrivalSearchOptions {
   templateUrl: 'tab1.page.html',
   styleUrls: ['tab1.page.scss']
 })
-export class Tab1Page implements OnInit, OnDestroy {
+export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
   @ViewChildren('routeStopRow') private readonly routeStopRows?: QueryList<ElementRef<HTMLElement>>;
@@ -67,6 +68,8 @@ export class Tab1Page implements OnInit, OnDestroy {
   selectedBusStop?: BusStop;
   isLoadingArrivals = false;
   isLoadingBusStops = false;
+  isProgrammaticScroll = false;
+  isSettlingArrivals = false;
   hasSearchedArrivals = false;
   showStickyArrivalHeader = false;
   recentlyAnimatedFavouriteCode = '';
@@ -88,12 +91,17 @@ export class Tab1Page implements OnInit, OnDestroy {
   private heroTaglineTimer?: ReturnType<typeof setInterval>;
   private heroTaglineTypingTimer?: ReturnType<typeof setTimeout>;
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
+  private routePrefetchServiceNos: string[] = [];
+  private routePrefetchRunId = 0;
   private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
   private favouriteAnimationTimer?: ReturnType<typeof setTimeout>;
   private selectedStopSubscription?: Subscription;
   private arrivalRequestId = 0;
   private coldStartSplashRequestId = 0;
   private refreshInProgress = false;
+  private arrivalStickyThreshold = 0;
+  private homeScrollElement?: HTMLElement;
+  private readonly homeScrollListener = () => this.onHomeScroll();
   private lastNavTapAt = 0;
   private lastNavRoute = '';
   private readonly favouritesStorageKey = 'favouriteBusStops';
@@ -113,6 +121,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     private readonly refreshFeedbackService: RefreshFeedbackService,
     private readonly sameTabScrollService: SameTabScrollService,
     private readonly widgetBridgeService: WidgetBridgeService,
+    private readonly ngZone: NgZone,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
     this.recentBusStops = this.loadRecentBusStops();
@@ -140,6 +149,10 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
   }
 
+  ngAfterViewInit(): void {
+    void this.attachHomeScrollListener();
+  }
+
   ionViewWillEnter(): void {
     if (this.routerOutlet) {
       this.routerOutlet.swipeGesture = false;
@@ -151,6 +164,7 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.selectedStopSubscription?.unsubscribe();
+    this.detachHomeScrollListener();
 
     if (this.searchTimer) {
       clearTimeout(this.searchTimer);
@@ -340,6 +354,8 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.selectedBusStop = undefined;
     this.searchedBusStopCode = '';
     this.hasSearchedArrivals = false;
+    this.arrivalStickyThreshold = 0;
+    this.showStickyArrivalHeader = false;
     this.isLoadingArrivals = false;
     this.arrivalError = '';
     this.liveBusServices = [];
@@ -370,6 +386,8 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.arrivalError = '';
     if (!options.preserveScrollPosition) {
       this.liveBusServices = [];
+      this.arrivalStickyThreshold = 0;
+      this.showStickyArrivalHeader = false;
     }
     if (!options.preserveRouteState) {
       this.resetRouteState();
@@ -391,11 +409,8 @@ export class Tab1Page implements OnInit, OnDestroy {
         this.isLoadingArrivals = false;
         this.clearColdStartSplashTimer();
         this.hideColdStartSplashIfNeeded();
-        this.prefetchRouteProgressions(this.liveBusServices);
         this.syncExpandedServiceAfterRefresh();
-        if (options.scrollToArrivals !== false) {
-          this.scrollToArrivals();
-        }
+        this.settleArrivalResults(requestId, options.scrollToArrivals !== false);
         onComplete?.();
       },
       error: (error) => {
@@ -410,9 +425,7 @@ export class Tab1Page implements OnInit, OnDestroy {
         this.isLoadingArrivals = false;
         this.clearColdStartSplashTimer();
         this.hideColdStartSplashIfNeeded();
-        if (options.scrollToArrivals !== false) {
-          this.scrollToArrivals();
-        }
+        this.settleArrivalResults(requestId, options.scrollToArrivals !== false);
         onComplete?.();
       }
     });
@@ -459,15 +472,21 @@ export class Tab1Page implements OnInit, OnDestroy {
     );
   }
 
-  onHomeScroll(event: CustomEvent<{ scrollTop: number }>): void {
-    if (!this.hasSearchedArrivals || !this.searchedBusStopCode) {
-      this.showStickyArrivalHeader = false;
+  private onHomeScroll(): void {
+    if (this.isProgrammaticScroll) {
       return;
     }
 
-    const scrollTop = event.detail.scrollTop || 0;
-    const arrivalsTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
-    this.showStickyArrivalHeader = scrollTop > arrivalsTop + 70;
+    if (!this.hasSearchedArrivals || !this.searchedBusStopCode) {
+      this.updateStickyArrivalHeader(false);
+      return;
+    }
+
+    if (!this.arrivalStickyThreshold) {
+      return;
+    }
+
+    this.updateStickyArrivalHeader((this.homeScrollElement?.scrollTop || 0) > this.arrivalStickyThreshold);
   }
 
   retryArrivals(): void {
@@ -591,6 +610,7 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   toggleLiveService(service: BusServiceArrival): void {
     this.expandedLiveServiceNo = this.expandedLiveServiceNo === service.serviceNo ? '' : service.serviceNo;
+    this.deferRoutePrefetchAfterCardAnimation();
   }
 
   openRouteModal(service: BusServiceArrival): void {
@@ -915,30 +935,53 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   private prefetchRouteProgressions(services: BusServiceArrival[]): void {
+    this.routePrefetchServiceNos = services.slice(0, 3).map((service) => service.serviceNo);
+    this.scheduleRoutePrefetch(1600);
+  }
+
+  private deferRoutePrefetchAfterCardAnimation(): void {
+    if (!this.routePrefetchTimer || !this.routePrefetchServiceNos.length) {
+      return;
+    }
+
+    this.scheduleRoutePrefetch(420);
+  }
+
+  private scheduleRoutePrefetch(delay: number): void {
     if (this.routePrefetchTimer) {
       clearTimeout(this.routePrefetchTimer);
     }
 
+    const runId = ++this.routePrefetchRunId;
     this.routePrefetchTimer = setTimeout(() => {
-      const visibleServiceNos = services.slice(0, 3).map((service) => service.serviceNo);
+      const visibleServiceNos = this.routePrefetchServiceNos;
       const serviceNos = this.expandedLiveServiceNo
         ? [this.expandedLiveServiceNo, ...visibleServiceNos.filter((serviceNo) => serviceNo !== this.expandedLiveServiceNo)]
         : visibleServiceNos;
 
-      this.prefetchRouteProgressionQueue(serviceNos);
-    }, 1600);
+      this.prefetchRouteProgressionQueue(serviceNos, 0, runId);
+    }, delay);
   }
 
-  private prefetchRouteProgressionQueue(serviceNos: string[], index = 0): void {
+  private prefetchRouteProgressionQueue(serviceNos: string[], index: number, runId: number): void {
+    if (runId !== this.routePrefetchRunId) {
+      return;
+    }
+
     const serviceNo = serviceNos[index];
 
     if (!serviceNo) {
+      this.routePrefetchTimer = undefined;
       return;
     }
 
     this.loadRouteProgression(serviceNo).finally(() => {
+      if (runId !== this.routePrefetchRunId) {
+        return;
+      }
+
       this.routePrefetchTimer = setTimeout(() => {
-        this.prefetchRouteProgressionQueue(serviceNos, index + 1);
+        this.prefetchRouteProgressionQueue(serviceNos, index + 1, runId);
       }, 180);
     });
   }
@@ -1052,6 +1095,7 @@ export class Tab1Page implements OnInit, OnDestroy {
       clearTimeout(this.routePrefetchTimer);
       this.routePrefetchTimer = undefined;
     }
+    this.routePrefetchRunId++;
 
     this.clearRouteModalScrollTimer();
 
@@ -1059,6 +1103,7 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.routeProgressions = {};
     this.routeProgressLoading = {};
     this.routeProgressErrors = {};
+    this.routePrefetchServiceNos = [];
     this.isRouteModalOpen = false;
     this.selectedRouteServiceNo = '';
     this.selectedRouteService = undefined;
@@ -1161,11 +1206,76 @@ export class Tab1Page implements OnInit, OnDestroy {
     console.log(`Matches found: ${count}`);
   }
 
-  private scrollToArrivals(): void {
-    setTimeout(() => {
-      const sectionTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
-      this.content?.scrollToPoint(0, Math.max(sectionTop - 18, 0), 520);
-    }, 80);
+  private async attachHomeScrollListener(): Promise<void> {
+    try {
+      const scrollElement = await this.content?.getScrollElement();
+
+      if (!scrollElement) {
+        return;
+      }
+
+      this.homeScrollElement = scrollElement;
+      this.ngZone.runOutsideAngular(() => {
+        scrollElement.addEventListener('scroll', this.homeScrollListener, { passive: true });
+      });
+    } catch {
+      // Ionic will still handle scrolling normally if the optional sticky listener cannot attach.
+    }
+  }
+
+  private detachHomeScrollListener(): void {
+    this.homeScrollElement?.removeEventListener('scroll', this.homeScrollListener);
+    this.homeScrollElement = undefined;
+  }
+
+  private updateStickyArrivalHeader(visible: boolean): void {
+    if (this.showStickyArrivalHeader === visible) {
+      return;
+    }
+
+    this.ngZone.run(() => {
+      this.showStickyArrivalHeader = visible;
+    });
+  }
+
+  private settleArrivalResults(requestId: number, shouldScroll: boolean): void {
+    this.isSettlingArrivals = true;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(async () => {
+        if (requestId !== this.arrivalRequestId) {
+          this.isSettlingArrivals = false;
+          return;
+        }
+
+        const sectionTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
+        this.arrivalStickyThreshold = sectionTop + 70;
+
+        if (shouldScroll) {
+          this.isProgrammaticScroll = true;
+          this.showStickyArrivalHeader = false;
+          try {
+            await this.ngZone.runOutsideAngular(() =>
+              this.content?.scrollToPoint(
+                0,
+                Math.max(sectionTop - 18, 0),
+                Capacitor.isNativePlatform() ? 320 : 460
+              )
+            );
+          } finally {
+            this.isProgrammaticScroll = false;
+          }
+        }
+
+        if (requestId !== this.arrivalRequestId) {
+          this.isSettlingArrivals = false;
+          return;
+        }
+
+        this.isSettlingArrivals = false;
+        this.prefetchRouteProgressions(this.liveBusServices);
+      });
+    });
   }
 
   private async currentScrollTop(): Promise<number> {
@@ -1178,8 +1288,16 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   private async scrollActiveTabToTop(): Promise<void> {
-    if (await this.sameTabScrollService.toTop(this.content)) {
-      void this.refreshFeedbackService.lightImpact();
+    this.isProgrammaticScroll = true;
+    this.showStickyArrivalHeader = false;
+    this.deferRoutePrefetchAfterCardAnimation();
+
+    try {
+      if (await this.sameTabScrollService.toTop(this.content)) {
+        void this.refreshFeedbackService.lightImpact();
+      }
+    } finally {
+      this.isProgrammaticScroll = false;
     }
   }
 

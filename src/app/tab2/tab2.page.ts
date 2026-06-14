@@ -50,6 +50,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   recentlyToggledFavouriteCode = '';
   recentFavouriteAction: 'saved' | 'removed' | '' = '';
   isLoadingLocation = false;
+  isProgrammaticScroll = false;
   hasUserLocation = false;
   locationAccessDeferred = false;
   nearbyError = '';
@@ -414,8 +415,14 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private async scrollActiveTabToTop(): Promise<void> {
-    if (await this.sameTabScrollService.toTop(this.content)) {
-      void this.refreshFeedbackService.lightImpact();
+    this.isProgrammaticScroll = true;
+
+    try {
+      if (await this.sameTabScrollService.toTop(this.content)) {
+        void this.refreshFeedbackService.lightImpact();
+      }
+    } finally {
+      this.isProgrammaticScroll = false;
     }
   }
 

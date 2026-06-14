@@ -1,4 +1,9 @@
-<ion-content [fullscreen]="true" class="bus-home" [scrollEvents]="true" (ionScroll)="onHomeScroll($event)">
+<ion-content
+  [fullscreen]="true"
+  class="bus-home"
+  [class.programmatic-scroll]="isProgrammaticScroll"
+  [class.arrivals-settling]="isSettlingArrivals"
+>
   <ion-refresher
     class="home-refresher"
     slot="fixed"
