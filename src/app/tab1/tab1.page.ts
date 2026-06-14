@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
-import { IonContent, IonRouterOutlet } from '@ionic/angular';
+import { IonContent, IonRouterOutlet, ItemReorderEventDetail } from '@ionic/angular';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SPLASH_TAGLINES } from '../app.component';
@@ -606,6 +606,18 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return updatedStop;
     });
     this.saveFavouriteBusStops();
+  }
+
+  reorderFavouriteStops(event: CustomEvent<ItemReorderEventDetail>): void {
+    const reorderedStops = event.detail.complete(this.favouriteBusStops) as FavouriteBusStop[] | undefined;
+
+    if (!Array.isArray(reorderedStops) || event.detail.from === event.detail.to) {
+      return;
+    }
+
+    this.favouriteBusStops = reorderedStops;
+    this.saveFavouriteBusStops();
+    void this.refreshFeedbackService.lightImpact();
   }
 
   toggleLiveService(service: BusServiceArrival): void {

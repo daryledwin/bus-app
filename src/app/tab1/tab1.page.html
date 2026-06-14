@@ -352,7 +352,12 @@
         <p>Save your favourite stops for quick access.</p>
       </div>
 
-      <div class="favourite-shortcuts" *ngIf="favouriteBusStops.length">
+      <ion-reorder-group
+        class="favourite-shortcuts"
+        *ngIf="favouriteBusStops.length"
+        [disabled]="false"
+        (ionItemReorder)="reorderFavouriteStops($event)"
+      >
         <article
           class="favourite-stop-card"
           role="button"
@@ -362,6 +367,13 @@
           (click)="viewFavouriteStop(stop)"
           (keydown.enter)="viewFavouriteStop(stop)"
         >
+          <ion-reorder
+            class="favourite-stop-reorder"
+            aria-label="Drag to reorder favourite stop"
+            (click)="$event.stopPropagation()"
+          >
+            <ion-icon name="reorder-three-outline" aria-hidden="true"></ion-icon>
+          </ion-reorder>
           <button
             type="button"
             class="favourite-stop-icon"
@@ -405,7 +417,7 @@
             </button>
           </div>
         </article>
-      </div>
+      </ion-reorder-group>
 
     </section>
   </main>
