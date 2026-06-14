@@ -1,0 +1,251 @@
+:host {
+  --blue: #1977c9;
+  --ink: #102c4c;
+  --muted: #627d94;
+  --line: rgba(255, 255, 255, 0.78);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+}
+
+ion-content.onboarding-page {
+  --background:
+    radial-gradient(circle at 50% 0%, rgba(255, 215, 75, 0.28), transparent 28%),
+    linear-gradient(180deg, #d9f3ff 0%, #edf9ff 52%, #f8fcff 100%);
+}
+
+.onboarding-shell {
+  display: grid;
+  margin: 0 auto;
+  max-width: 680px;
+  min-height: 100%;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(22px, env(safe-area-inset-bottom));
+  place-items: center;
+}
+
+.onboarding-card {
+  background:
+    radial-gradient(circle at 88% 9%, rgba(255, 219, 79, 0.28), transparent 22%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.92), rgba(224, 245, 255, 0.8));
+  border: 1px solid var(--line);
+  border-radius: 38px;
+  box-shadow: 0 30px 78px rgba(29, 108, 168, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  overflow: hidden;
+  padding: 26px;
+  position: relative;
+  width: 100%;
+}
+
+.onboarding-glow {
+  background: rgba(255, 255, 255, 0.52);
+  border-radius: 999px;
+  filter: blur(20px);
+  height: 120px;
+  position: absolute;
+  right: -20px;
+  top: -46px;
+  transform: rotate(-16deg);
+  width: 260px;
+}
+
+.onboarding-bus {
+  pointer-events: none;
+  position: absolute;
+  right: -30px;
+  top: -62px;
+  width: clamp(150px, 34vw, 218px);
+}
+
+.onboarding-chip {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: #0b5ea7;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 780;
+  gap: 7px;
+  padding: 9px 12px;
+  position: relative;
+}
+
+.onboarding-chip ion-icon {
+  color: #e9ae13;
+  font-size: 15px;
+}
+
+.onboarding-copy {
+  margin-top: 34px;
+  max-width: 430px;
+  position: relative;
+}
+
+.onboarding-copy h1 {
+  font-size: clamp(34px, 8vw, 54px);
+  font-weight: 860;
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+  margin: 0;
+  max-width: 390px;
+}
+
+.onboarding-copy p {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 640;
+  line-height: 1.5;
+  margin: 13px 0 0;
+}
+
+.onboarding-features {
+  display: grid;
+  gap: 9px;
+  margin-top: 28px;
+  position: relative;
+}
+
+.onboarding-features article {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.67);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  border-radius: 22px;
+  display: grid;
+  gap: 13px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px;
+}
+
+.onboarding-feature-icon {
+  align-items: center;
+  border-radius: 17px;
+  display: grid;
+  height: 46px;
+  place-items: center;
+  width: 46px;
+}
+
+.onboarding-feature-icon ion-icon {
+  font-size: 23px;
+}
+
+.onboarding-feature-icon--blue {
+  background: rgba(25, 119, 201, 0.13);
+  color: #1977c9;
+}
+
+.onboarding-feature-icon--yellow {
+  background: rgba(255, 215, 75, 0.28);
+  color: #a8760b;
+}
+
+.onboarding-feature-icon--heart {
+  background: rgba(236, 126, 135, 0.14);
+  color: #c45f6b;
+}
+
+.onboarding-features h2 {
+  font-size: 14px;
+  font-weight: 820;
+  margin: 0;
+}
+
+.onboarding-features p {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 570;
+  line-height: 1.42;
+  margin: 3px 0 0;
+}
+
+.onboarding-location-note {
+  align-items: center;
+  color: rgba(16, 44, 76, 0.66);
+  display: flex;
+  font-size: 11.5px;
+  font-weight: 640;
+  gap: 8px;
+  margin: 18px 4px 0;
+}
+
+.onboarding-location-note ion-icon {
+  color: #278c79;
+  flex: 0 0 auto;
+  font-size: 18px;
+}
+
+.onboarding-location-note p {
+  margin: 0;
+}
+
+.onboarding-actions {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.onboarding-primary,
+.onboarding-skip {
+  border: 0;
+  font-family: inherit;
+  font-weight: 800;
+}
+
+.onboarding-primary {
+  align-items: center;
+  background: linear-gradient(145deg, #2289dd, #176fbd);
+  border-radius: 20px;
+  box-shadow: 0 16px 32px rgba(25, 119, 201, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: white;
+  display: flex;
+  font-size: 14px;
+  gap: 8px;
+  justify-content: center;
+  min-height: 54px;
+}
+
+.onboarding-primary ion-icon,
+.onboarding-primary ion-spinner {
+  font-size: 19px;
+}
+
+.onboarding-skip {
+  background: transparent;
+  color: rgba(16, 44, 76, 0.58);
+  font-size: 12px;
+  min-height: 38px;
+}
+
+.onboarding-primary:disabled,
+.onboarding-skip:disabled {
+  opacity: 0.62;
+}
+
+@media (max-width: 420px) {
+  .onboarding-shell {
+    padding-inline: 12px;
+  }
+
+  .onboarding-card {
+    border-radius: 32px;
+    padding: 22px;
+  }
+
+  .onboarding-bus {
+    right: -38px;
+    top: -50px;
+    width: 164px;
+  }
+
+  .onboarding-copy {
+    margin-top: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

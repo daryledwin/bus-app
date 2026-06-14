@@ -51,7 +51,7 @@
         type="button"
         class="sticky-arrival-header__live-button"
         (click)="refreshLiveArrivals()"
-        [disabled]="isLoadingArrivals || isLiveRefreshCascadeRunning"
+        [disabled]="isLoadingArrivals"
       >
         <ion-icon name="refresh-outline"></ion-icon>
         live
@@ -88,7 +88,7 @@
         </span>
       </div>
 
-      <img #heroIllustration class="hero-illustration" src="assets/images/illustration.png" alt="" aria-hidden="true" />
+      <img class="hero-illustration" src="assets/images/illustration.png" alt="" aria-hidden="true" />
     </header>
 
     <section class="search-card pop-in" aria-label="Find a bus">
@@ -208,7 +208,7 @@
         <button
           type="button"
           (click)="refreshLiveArrivals()"
-          [disabled]="isLoadingArrivals || isLiveRefreshCascadeRunning"
+          [disabled]="isLoadingArrivals"
           *ngIf="hasSearchedArrivals"
         >
           <ion-icon name="refresh-outline"></ion-icon>
@@ -252,12 +252,8 @@
       <div class="live-list" *ngIf="liveBusServices.length">
         <article
           class="live-row"
-          *ngFor="let service of liveBusServices; let i = index; trackBy: trackLiveService"
+          *ngFor="let service of liveBusServices; trackBy: trackLiveService"
           [class.expanded]="expandedLiveServiceNo === service.serviceNo"
-          [class.float-up]="!suppressLiveRowFloatAnimation && !isLiveRefreshCascadeRunning"
-          [class.live-row--refresh-cascade]="isLiveRefreshCascadeRunning"
-          [style.animation-delay.ms]="35 * i"
-          [style.--cascade-delay]="cascadeDelay(i) + 'ms'"
         >
           <button
             type="button"

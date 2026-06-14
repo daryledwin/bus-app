@@ -43,7 +43,8 @@
       <ion-icon name="location-outline"></ion-icon>
       <div>
         <p>{{ nearbyError }}</p>
-        <button type="button" (click)="loadNearbyStops()">Try again</button>
+        <button type="button" *ngIf="locationAccessDeferred" (click)="enableLocation()">Enable location</button>
+        <button type="button" *ngIf="!locationAccessDeferred" (click)="loadNearbyStops()">Try again</button>
       </div>
     </section>
 

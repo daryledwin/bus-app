@@ -1,3 +1,10 @@
+ion-app.onboarding-startup,
+ion-app.onboarding-startup ion-router-outlet {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 215, 75, 0.28), transparent 28%),
+    linear-gradient(180deg, #d9f3ff 0%, #edf9ff 52%, #f8fcff 100%);
+}
+
 .skibidi-splash {
   align-items: center;
   background:

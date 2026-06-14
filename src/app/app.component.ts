@@ -1,9 +1,11 @@
 import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
+import { SplashScreen } from '@capacitor/splash-screen';
 import { IonRouterOutlet } from '@ionic/angular';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../environments/environment';
+import { OnboardingService } from './services/onboarding.service';
 import { SplashOverlayService } from './services/splash-overlay.service';
 import { WidgetBridgeService } from './services/widget-bridge.service';
 
@@ -107,13 +109,15 @@ export const SPLASH_TAGLINES = [
 export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('rootRouterOutlet') private readonly rootRouterOutlet?: IonRouterOutlet;
 
-  splashVisible = true;
+  splashVisible = false;
   splashLeaving = false;
   splashTagline = '';
+  onboardingPending = false;
 
-  private splashExitTimer?: ReturnType<typeof setTimeout>;
   private splashRemoveTimer?: ReturnType<typeof setTimeout>;
   private backendKeepAliveTimer?: ReturnType<typeof setInterval>;
+  private backgroundWorkStarted = false;
+  private nativeSplashHidden = false;
   private coldStartSplashSubscription?: Subscription;
   private routerSubscription?: Subscription;
   private readonly visibilityChangeHandler = () => {
@@ -125,18 +129,22 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(
     private readonly router: Router,
+    private readonly onboardingService: OnboardingService,
     private readonly splashOverlayService: SplashOverlayService,
     private readonly widgetBridgeService: WidgetBridgeService
   ) {}
 
   ngOnInit(): void {
-    this.splashTagline = this.randomTagline();
-    this.warmBackend();
-    this.widgetBridgeService.syncStoredFavouriteStop();
-    this.backendKeepAliveTimer = setInterval(() => this.warmBackend(), 240000);
-    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    console.info(`[Startup] onboarding check start ${Date.now()}`);
+    this.onboardingPending = !this.onboardingService.isComplete();
+    console.info(`[Startup] onboarding check end ${Date.now()} pending=${this.onboardingPending}`);
+
+    if (!this.onboardingPending) {
+      this.startBackgroundWork();
+    }
+
     this.coldStartSplashSubscription = this.splashOverlayService.coldStartLoading$.subscribe((isLoading) => {
-      if (isLoading) {
+      if (isLoading && !this.onboardingPending) {
         this.showColdStartSplash();
       } else {
         this.hideColdStartSplash();
@@ -144,15 +152,20 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     });
     this.routerSubscription = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
-      .subscribe((event) => this.updateRootSwipeGesture(event.urlAfterRedirects));
-    this.updateRootSwipeGesture(this.router.url);
+      .subscribe((event) => {
+        console.info(`[Startup] first route ready ${Date.now()} url=${event.urlAfterRedirects}`);
+        this.updateRootSwipeGesture(event.urlAfterRedirects);
 
-    this.splashExitTimer = setTimeout(() => {
-      this.splashLeaving = true;
-    }, 2450);
-    this.splashRemoveTimer = setTimeout(() => {
-      this.splashVisible = false;
-    }, 3050);
+        if (this.isOnboardingUrl(event.urlAfterRedirects)) {
+          this.hideSplashImmediately();
+        } else if (this.onboardingService.isComplete()) {
+          this.onboardingPending = false;
+          this.startBackgroundWork();
+        }
+
+        this.hideNativeSplashAfterPaint();
+      });
+    this.updateRootSwipeGesture(this.router.url);
   }
 
   ngAfterViewInit(): void {
@@ -160,10 +173,6 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.splashExitTimer) {
-      clearTimeout(this.splashExitTimer);
-    }
-
     if (this.splashRemoveTimer) {
       clearTimeout(this.splashRemoveTimer);
     }
@@ -190,11 +199,47 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     return route === '/tabs/tab1' || route === '/tabs/tab2';
   }
 
-  private showColdStartSplash(): void {
-    if (this.splashExitTimer) {
-      clearTimeout(this.splashExitTimer);
+  private isOnboardingUrl(url: string): boolean {
+    return url.split('?')[0].split('#')[0] === '/onboarding';
+  }
+
+  private startBackgroundWork(): void {
+    if (this.backgroundWorkStarted) {
+      return;
     }
 
+    this.backgroundWorkStarted = true;
+    this.warmBackend();
+    this.widgetBridgeService.syncStoredFavouriteStop();
+    this.backendKeepAliveTimer = setInterval(() => this.warmBackend(), 240000);
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+  }
+
+  private hideNativeSplashAfterPaint(): void {
+    if (this.nativeSplashHidden) {
+      return;
+    }
+
+    this.nativeSplashHidden = true;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        console.info(`[Startup] SplashScreen.hide ${Date.now()}`);
+        void SplashScreen.hide({ fadeOutDuration: 180 });
+      });
+    });
+  }
+
+  private hideSplashImmediately(): void {
+    if (this.splashRemoveTimer) {
+      clearTimeout(this.splashRemoveTimer);
+      this.splashRemoveTimer = undefined;
+    }
+
+    this.splashLeaving = false;
+    this.splashVisible = false;
+  }
+
+  private showColdStartSplash(): void {
     if (this.splashRemoveTimer) {
       clearTimeout(this.splashRemoveTimer);
     }

@@ -6,6 +6,8 @@ import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
 import { SameTabScrollService } from '../services/same-tab-scroll.service';
+import { OnboardingService } from '../services/onboarding.service';
+import { LocationService } from '../services/location.service';
 
 interface NearbyBusStop extends BusStop {
   distanceMeters: number;
@@ -49,6 +51,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   recentFavouriteAction: 'saved' | 'removed' | '' = '';
   isLoadingLocation = false;
   hasUserLocation = false;
+  locationAccessDeferred = false;
   nearbyError = '';
   private readonly singaporeCenter = { latitude: 1.3521, longitude: 103.8198 };
   private readonly lastLocationStorageKey = 'nearbyStopsLastLocation';
@@ -70,7 +73,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   constructor(
     private readonly ltaBusStopsService: LtaBusStopsService,
+    private readonly locationService: LocationService,
     private readonly ngZone: NgZone,
+    private readonly onboardingService: OnboardingService,
     private readonly refreshFeedbackService: RefreshFeedbackService,
     private readonly router: Router,
     private readonly sameTabScrollService: SameTabScrollService,
@@ -153,6 +158,26 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     if (shouldShowFeedback) {
       await this.refreshFeedbackService.success('Nearby stops updated ✨');
     }
+  }
+
+  async enableLocation(): Promise<void> {
+    if (this.isLoadingLocation) {
+      return;
+    }
+
+    this.isLoadingLocation = true;
+    const locationChoice = await this.onboardingService.requestLocation();
+    this.locationAccessDeferred = locationChoice !== 'granted';
+
+    if (locationChoice === 'granted') {
+      await this.loadNearbyStops();
+      return;
+    }
+
+    this.isLoadingLocation = false;
+    this.nearbyError = locationChoice === 'denied'
+      ? 'Location is off. You can enable it in Settings whenever you are ready.'
+      : 'We could not get your location just yet. You can try again anytime.';
   }
 
   viewBuses(stop: NearbyBusStop): void {
@@ -280,23 +305,26 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private currentLocation(options: PositionOptions): Promise<GeolocationCoordinates> {
-    if (!navigator.geolocation) {
-      return Promise.reject(new Error('geolocation-unavailable'));
+  private async locationOrFallback(): Promise<NearbyLocation> {
+    if (!this.onboardingService.shouldRequestLocationAutomatically()) {
+      this.locationAccessDeferred = true;
+      const lastLocation = this.loadLastLocation();
+
+      if (lastLocation) {
+        this.hasUserLocation = false;
+        this.nearbyError = 'Using your last known area. Enable location for nearby updates.';
+        return lastLocation;
+      }
+
+      this.hasUserLocation = false;
+      this.nearbyError = 'Enable location to see stops around you. Showing Singapore for now.';
+      return this.singaporeCenter;
     }
 
-    return new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => resolve(position.coords),
-        reject,
-        options
-      );
-    });
-  }
+    this.locationAccessDeferred = false;
 
-  private async locationOrFallback(): Promise<NearbyLocation> {
     try {
-      const location = await this.currentLocation({
+      const location = await this.locationService.currentLocation({
         enableHighAccuracy: false,
         maximumAge: 1000 * 60 * 15,
         timeout: 2800
@@ -328,7 +356,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private refreshLocationInBackground(stops: BusStop[], currentLocation: NearbyLocation): void {
-    this.currentLocation({
+    if (!this.onboardingService.shouldRequestLocationAutomatically()) {
+      return;
+    }
+
+    this.locationService.currentLocation({
       enableHighAccuracy: true,
       maximumAge: 0,
       timeout: 7000

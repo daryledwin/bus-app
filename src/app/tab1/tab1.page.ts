@@ -53,7 +53,6 @@ interface ArrivalSearchOptions {
 export class Tab1Page implements OnInit, OnDestroy {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
-  @ViewChild('heroIllustration') private readonly heroIllustration?: ElementRef<HTMLImageElement>;
   @ViewChildren('routeStopRow') private readonly routeStopRows?: QueryList<ElementRef<HTMLElement>>;
 
   readonly greeting = this.currentGreeting();
@@ -70,8 +69,6 @@ export class Tab1Page implements OnInit, OnDestroy {
   isLoadingBusStops = false;
   hasSearchedArrivals = false;
   showStickyArrivalHeader = false;
-  isLiveRefreshCascadeRunning = false;
-  suppressLiveRowFloatAnimation = false;
   recentlyAnimatedFavouriteCode = '';
   recentFavouriteAction: 'saved' | 'removed' | '' = '';
   arrivalError = '';
@@ -90,15 +87,13 @@ export class Tab1Page implements OnInit, OnDestroy {
   private coldStartSplashTimer?: ReturnType<typeof setTimeout>;
   private heroTaglineTimer?: ReturnType<typeof setInterval>;
   private heroTaglineTypingTimer?: ReturnType<typeof setTimeout>;
-  private heroIllustrationFrame?: number;
-  private pendingHeroScrollTop = 0;
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
   private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
-  private liveRefreshCascadeTimer?: ReturnType<typeof setTimeout>;
   private favouriteAnimationTimer?: ReturnType<typeof setTimeout>;
   private selectedStopSubscription?: Subscription;
   private arrivalRequestId = 0;
   private coldStartSplashRequestId = 0;
+  private refreshInProgress = false;
   private lastNavTapAt = 0;
   private lastNavRoute = '';
   private readonly favouritesStorageKey = 'favouriteBusStops';
@@ -162,7 +157,6 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
 
     this.clearColdStartSplashTimer();
-    this.clearLiveRefreshCascadeTimer();
     this.clearFavouriteAnimationTimer();
     this.hideColdStartSplashIfNeeded();
 
@@ -171,7 +165,6 @@ export class Tab1Page implements OnInit, OnDestroy {
     }
 
     this.clearHeroTaglineTypingTimer();
-    this.clearHeroIllustrationFrame();
 
     if (this.routePrefetchTimer) {
       clearTimeout(this.routePrefetchTimer);
@@ -377,7 +370,6 @@ export class Tab1Page implements OnInit, OnDestroy {
     this.arrivalError = '';
     if (!options.preserveScrollPosition) {
       this.liveBusServices = [];
-      this.suppressLiveRowFloatAnimation = false;
     }
     if (!options.preserveRouteState) {
       this.resetRouteState();
@@ -427,12 +419,6 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   async refreshLiveArrivals(event?: CustomEvent<{ complete: () => Promise<void> | void }>): Promise<void> {
-    const isButtonRefresh = !event;
-
-    if (isButtonRefresh && (this.isLoadingArrivals || this.isLiveRefreshCascadeRunning)) {
-      return;
-    }
-
     const completeRefresh = () => {
       const completion = event?.detail?.complete?.();
 
@@ -441,11 +427,13 @@ export class Tab1Page implements OnInit, OnDestroy {
       }
     };
 
-    if (!this.searchedBusStopCode.trim()) {
+    if (this.refreshInProgress || this.isLoadingArrivals || !this.searchedBusStopCode.trim()) {
       completeRefresh();
       return;
     }
 
+    this.refreshInProgress = true;
+    const isButtonRefresh = !event;
     const shouldPreserveScroll = isButtonRefresh;
     const savedScrollTop = shouldPreserveScroll ? await this.currentScrollTop() : null;
 
@@ -456,13 +444,10 @@ export class Tab1Page implements OnInit, OnDestroy {
           this.restoreScrollPosition(savedScrollTop);
         }
 
-        if (isButtonRefresh && !this.arrivalError && this.liveBusServices.length) {
-          this.startLiveRefreshCascade();
-        }
-
+        this.refreshInProgress = false;
         completeRefresh();
 
-        if (event && !this.arrivalError) {
+        if (!this.arrivalError) {
           void this.refreshFeedbackService.success('Arrivals refreshed ✨');
         }
       },
@@ -475,58 +460,14 @@ export class Tab1Page implements OnInit, OnDestroy {
   }
 
   onHomeScroll(event: CustomEvent<{ scrollTop: number }>): void {
-    const scrollTop = event.detail.scrollTop || 0;
-    this.scheduleHeroIllustrationUpdate(scrollTop);
-
     if (!this.hasSearchedArrivals || !this.searchedBusStopCode) {
       this.showStickyArrivalHeader = false;
       return;
     }
 
+    const scrollTop = event.detail.scrollTop || 0;
     const arrivalsTop = this.arrivalsSection?.nativeElement.offsetTop || 0;
     this.showStickyArrivalHeader = scrollTop > arrivalsTop + 70;
-  }
-
-  private scheduleHeroIllustrationUpdate(scrollTop: number): void {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      this.clearHeroIllustrationFrame();
-
-      const illustration = this.heroIllustration?.nativeElement;
-      if (illustration?.style.transform) {
-        illustration.style.removeProperty('transform');
-        illustration.style.removeProperty('opacity');
-      }
-
-      return;
-    }
-
-    this.pendingHeroScrollTop = scrollTop;
-
-    if (this.heroIllustrationFrame !== undefined) {
-      return;
-    }
-
-    this.heroIllustrationFrame = requestAnimationFrame(() => {
-      this.heroIllustrationFrame = undefined;
-
-      const illustration = this.heroIllustration?.nativeElement;
-      if (!illustration) {
-        return;
-      }
-
-      const progress = Math.min(Math.max(this.pendingHeroScrollTop / 180, 0), 1);
-      illustration.style.transform = `translate3d(${-90 * progress}px, 0, 0) rotate(${-2 * progress}deg)`;
-      illustration.style.opacity = `${1 - 0.2 * progress}`;
-    });
-  }
-
-  private clearHeroIllustrationFrame(): void {
-    if (this.heroIllustrationFrame === undefined) {
-      return;
-    }
-
-    cancelAnimationFrame(this.heroIllustrationFrame);
-    this.heroIllustrationFrame = undefined;
   }
 
   retryArrivals(): void {
@@ -551,10 +492,6 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   trackLiveService(index: number, service: BusServiceArrival): string {
     return service.serviceNo;
-  }
-
-  cascadeDelay(index: number): number {
-    return Math.min(index, 8) * 55;
   }
 
   trackFavouriteBusStop(index: number, stop: FavouriteBusStop): string {
@@ -654,10 +591,6 @@ export class Tab1Page implements OnInit, OnDestroy {
 
   toggleLiveService(service: BusServiceArrival): void {
     this.expandedLiveServiceNo = this.expandedLiveServiceNo === service.serviceNo ? '' : service.serviceNo;
-
-    if (this.expandedLiveServiceNo) {
-      this.loadRouteProgression(service.serviceNo);
-    }
   }
 
   openRouteModal(service: BusServiceArrival): void {
@@ -1254,26 +1187,6 @@ export class Tab1Page implements OnInit, OnDestroy {
     setTimeout(() => {
       this.content?.scrollToPoint(0, scrollTop, 0);
     }, 90);
-  }
-
-  private startLiveRefreshCascade(): void {
-    this.clearLiveRefreshCascadeTimer();
-    this.suppressLiveRowFloatAnimation = true;
-    this.isLiveRefreshCascadeRunning = true;
-
-    this.liveRefreshCascadeTimer = setTimeout(() => {
-      this.isLiveRefreshCascadeRunning = false;
-      this.liveRefreshCascadeTimer = undefined;
-    }, Math.min(this.liveBusServices.length, 9) * 55 + 340);
-  }
-
-  private clearLiveRefreshCascadeTimer(): void {
-    if (this.liveRefreshCascadeTimer) {
-      clearTimeout(this.liveRefreshCascadeTimer);
-      this.liveRefreshCascadeTimer = undefined;
-    }
-
-    this.isLiveRefreshCascadeRunning = false;
   }
 
   private markFavouriteAnimation(busStopCode: string, action: 'saved' | 'removed'): void {

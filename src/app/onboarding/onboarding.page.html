@@ -1,0 +1,66 @@
+<ion-content [fullscreen]="true" class="onboarding-page">
+  <main class="onboarding-shell">
+    <section class="onboarding-card" aria-labelledby="onboarding-title">
+      <div class="onboarding-glow" aria-hidden="true"></div>
+      <img class="onboarding-bus" src="assets/images/illustration.png" alt="" aria-hidden="true" />
+
+      <div class="onboarding-chip">
+        <ion-icon name="sparkles-outline"></ion-icon>
+        Your calmer commute starts here
+      </div>
+
+      <header class="onboarding-copy">
+        <h1 id="onboarding-title">Welcome to My Bus SG</h1>
+        <p>Bus timings, nearby stops, and smoother commutes.</p>
+      </header>
+
+      <div class="onboarding-features">
+        <article>
+          <span class="onboarding-feature-icon onboarding-feature-icon--blue">
+            <ion-icon name="time-outline"></ion-icon>
+          </span>
+          <div>
+            <h2>Live bus arrivals</h2>
+            <p>See when your next bus is reaching, without digging around.</p>
+          </div>
+        </article>
+
+        <article>
+          <span class="onboarding-feature-icon onboarding-feature-icon--yellow">
+            <ion-icon name="navigate-outline"></ion-icon>
+          </span>
+          <div>
+            <h2>Nearby stops</h2>
+            <p>Allow location so we can show bus stops around you.</p>
+          </div>
+        </article>
+
+        <article>
+          <span class="onboarding-feature-icon onboarding-feature-icon--heart">
+            <ion-icon name="heart-outline"></ion-icon>
+          </span>
+          <div>
+            <h2>Favourite stops</h2>
+            <p>Save the stops you use often and check them faster.</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="onboarding-location-note">
+        <ion-icon name="shield-checkmark-outline"></ion-icon>
+        <p>Your location is only used to find nearby bus stops.</p>
+      </div>
+
+      <div class="onboarding-actions">
+        <button type="button" class="onboarding-primary" [disabled]="isRequestingLocation" (click)="allowLocation()">
+          <ion-spinner name="crescent" *ngIf="isRequestingLocation"></ion-spinner>
+          <ion-icon name="location-outline" *ngIf="!isRequestingLocation"></ion-icon>
+          {{ isRequestingLocation ? 'Asking your phone…' : 'Allow location' }}
+        </button>
+        <button type="button" class="onboarding-skip" [disabled]="isRequestingLocation" (click)="skipLocation()">
+          Skip for now
+        </button>
+      </div>
+    </section>
+  </main>
+</ion-content>

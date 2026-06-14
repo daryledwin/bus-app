@@ -8,5 +8,6 @@ if (environment.production) {
   enableProdMode();
 }
 
+console.info(`[Startup] Angular bootstrap start ${Date.now()}`);
 platformBrowserDynamic().bootstrapModule(AppModule)
   .catch(err => console.log(err));

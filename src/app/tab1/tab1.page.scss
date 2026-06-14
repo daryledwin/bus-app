@@ -334,8 +334,6 @@ ion-content.bus-home {
   pointer-events: none;
   position: absolute;
   right: clamp(34px, 7vw, 70px);
-  transform-origin: center bottom;
-  will-change: opacity, transform;
   width: clamp(274px, 51vw, 424px);
   z-index: 3;
 }
@@ -1117,7 +1115,6 @@ ion-content.bus-home {
   cursor: pointer;
   overflow: hidden;
   position: relative;
-  transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .live-row + .live-row::before {
@@ -1468,7 +1465,7 @@ ion-content.bus-home {
 .live-row__details-shell {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: grid-template-rows 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .live-row.expanded .live-row__details-shell {
@@ -1483,21 +1480,14 @@ ion-content.bus-home {
 .live-row__details-inner {
   display: grid;
   gap: 9px;
-  opacity: 0;
   padding: 0 12px 12px 76px;
   pointer-events: none;
   position: relative;
-  transform: translate3d(0, 4px, 0);
-  transition:
-    opacity 200ms ease,
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 1;
 }
 
 .live-row.expanded .live-row__details-inner {
-  opacity: 1;
   pointer-events: auto;
-  transform: translate3d(0, 0, 0);
 }
 
 .live-row__origin {
@@ -2656,28 +2646,6 @@ ion-modal.route-modal::part(content) {
 
 .pop-in {
   animation: popIn 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.float-up {
-  animation: slideUp 580ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.live-row--refresh-cascade {
-  animation: liveRefreshCascade 260ms cubic-bezier(0.18, 0.86, 0.28, 1) both;
-  animation-delay: var(--cascade-delay, 0ms) !important;
-  will-change: opacity, transform;
-}
-
-@keyframes liveRefreshCascade {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 @keyframes favouriteSavePop {
