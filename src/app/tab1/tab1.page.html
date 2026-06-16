@@ -82,10 +82,9 @@
 
       <div class="header-copy">
         <div class="morning-chip">
-          <ion-icon name="sunny-outline"></ion-icon>
-          ready to go?
+          <ion-icon [name]="heroTimeOfDay.icon" aria-hidden="true"></ion-icon>
+          {{ heroTimeOfDay.label }}
         </div>
-        <p>{{ greeting }}</p>
         <h1>Where are we heading today?</h1>
         <span class="hero-tagline" [attr.aria-label]="heroTagline">
           <span class="hero-tagline__sizer" aria-hidden="true">{{ heroTagline }}</span>

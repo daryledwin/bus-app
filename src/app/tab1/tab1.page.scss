@@ -308,7 +308,6 @@ ion-content.bus-home {
   font-size: 16px;
 }
 
-.header-copy p,
 .section-heading p,
 .search-card label {
   color: var(--muted);
@@ -317,11 +316,6 @@ ion-content.bus-home {
   letter-spacing: 0;
   margin: 0;
   text-transform: uppercase;
-}
-
-.header-copy p {
-  margin-top: 24px;
-  text-transform: lowercase;
 }
 
 .header-copy h1 {
@@ -561,12 +555,15 @@ ion-content.bus-home {
   appearance: none;
   background: transparent;
   border: 0;
+  box-sizing: border-box;
   color: #152f4d;
   font: inherit;
-  font-size: 16px;
+  font-size: clamp(14px, 3.8vw, 16px);
   font-weight: 620;
+  max-width: 100%;
   min-width: 0;
   outline: 0;
+  width: 100%;
 }
 
 .search-bar input::placeholder {
@@ -590,7 +587,9 @@ ion-content.bus-home {
   box-shadow: 0 10px 20px rgba(238, 174, 35, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   color: #17304a;
   display: grid;
+  flex-shrink: 0;
   height: 46px;
+  justify-self: end;
   place-items: center;
   transition: transform 180ms ease, box-shadow 180ms ease;
   width: 46px;
@@ -2766,10 +2765,6 @@ ion-modal.route-modal::part(content) {
     padding-bottom: 150px;
   }
 
-  .header-copy p {
-    margin-top: 24px;
-  }
-
   .header-copy {
     max-width: min(100%, 372px);
   }
@@ -2825,13 +2820,18 @@ ion-modal.route-modal::part(content) {
   }
 
   .search-bar {
+    gap: 6px;
     min-height: 58px;
-    padding-left: 14px;
+    padding: 7px 6px 7px 11px;
+  }
+
+  .search-bar > ion-icon {
+    font-size: 20px;
   }
 
   .search-bar button {
-    height: 46px;
-    width: 46px;
+    height: 44px;
+    width: 44px;
   }
 
   .arrival-card__bottom {

@@ -46,6 +46,11 @@ interface ArrivalSearchOptions {
   scrollToArrivals?: boolean;
 }
 
+interface HeroTimeOfDay {
+  icon: string;
+  label: string;
+}
+
 @Component({
   selector: 'app-tab1',
   templateUrl: 'tab1.page.html',
@@ -56,7 +61,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
   @ViewChildren('routeStopRow') private readonly routeStopRows?: QueryList<ElementRef<HTMLElement>>;
 
-  readonly greeting = this.currentGreeting();
+  readonly heroTimeOfDay = this.currentHeroTimeOfDay();
   heroTagline = this.randomHeroTagline();
   displayedHeroTagline = '';
   searchTerm = '';
@@ -1188,26 +1193,41 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     return /^\d{5}$/.test(value);
   }
 
-  private currentGreeting(): string {
+  private currentHeroTimeOfDay(): HeroTimeOfDay {
     const hour = new Date().getHours();
 
     if (hour < 5) {
-      return 'burning the midnight oil?';
+      return {
+        icon: 'sparkles-outline',
+        label: 'late night ride'
+      };
     }
 
     if (hour < 12) {
-      return 'good morning';
+      return {
+        icon: 'partly-sunny-outline',
+        label: 'morning commute'
+      };
     }
 
     if (hour < 17) {
-      return 'good afternoon';
+      return {
+        icon: 'sunny-outline',
+        label: 'afternoon travels'
+      };
     }
 
     if (hour < 22) {
-      return 'good evening';
+      return {
+        icon: 'moon-outline',
+        label: 'evening ride'
+      };
     }
 
-    return 'still out and about?';
+    return {
+      icon: 'sparkles-outline',
+      label: 'late night ride'
+    };
   }
 
   private logSearchQuery(query: string): void {
