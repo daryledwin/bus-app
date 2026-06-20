@@ -66,7 +66,7 @@ ion-content.nearby-page {
   gap: 16px;
   margin: 0 auto;
   max-width: 760px;
-  padding: max(18px, env(safe-area-inset-top)) 18px calc(188px + env(safe-area-inset-bottom));
+  padding: max(18px, env(safe-area-inset-top)) 18px calc(158px + env(safe-area-inset-bottom));
 }
 
 .nearby-header {
@@ -401,7 +401,7 @@ ion-content.nearby-page {
 
 .nearby-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .nearby-stop-card {
@@ -414,11 +414,11 @@ ion-content.nearby-page {
   content-visibility: auto;
   cursor: pointer;
   display: grid;
-  gap: 10px;
+  gap: 9px;
   grid-template-columns: auto minmax(0, 1fr);
-  min-height: 72px;
-  padding: 10px 11px;
-  padding-right: 48px;
+  min-height: 64px;
+  padding: 8px 10px;
+  padding-right: 46px;
   position: relative;
   transition: box-shadow 180ms ease, transform 180ms ease;
 }
@@ -438,30 +438,30 @@ ion-content.nearby-page {
 .nearby-stop-card__marker {
   align-items: center;
   background: rgba(25, 119, 201, 0.12);
-  border-radius: 18px;
+  border-radius: 16px;
   color: #1977c9;
   display: grid;
-  height: 44px;
+  height: 40px;
   place-items: center;
-  width: 44px;
+  width: 40px;
 }
 
 .nearby-stop-card__marker ion-icon {
-  font-size: 23px;
+  font-size: 21px;
 }
 
 .nearby-stop-card__copy {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
 .nearby-stop-card h2 {
   color: var(--ink);
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 820;
   letter-spacing: 0;
-  line-height: 1.18;
+  line-height: 1.14;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -470,9 +470,9 @@ ion-content.nearby-page {
 
 .nearby-stop-card p {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -482,16 +482,16 @@ ion-content.nearby-page {
 .nearby-stop-card__footer {
   align-items: center;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   justify-content: flex-start;
-  margin-top: 3px;
+  margin-top: 1px;
   min-width: 0;
 }
 
 .nearby-stop-card .nearby-distance {
   color: #1977c9;
   display: block;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 820;
   margin-top: 0;
   min-width: 0;
@@ -516,10 +516,10 @@ ion-content.nearby-page {
   color: #17304a;
   flex: 0 0 auto;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 820;
-  min-height: 32px;
-  padding: 0 11px;
+  min-height: 30px;
+  padding: 0 10px;
   white-space: nowrap;
 }
 
@@ -658,18 +658,18 @@ ion-content.nearby-page {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(235, 248, 255, 0.94));
   backdrop-filter: blur(24px) saturate(1.08);
   border: 1px solid var(--line);
-  border-radius: 34px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  border-radius: 30px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
   box-shadow: 0 22px 58px rgba(29, 108, 168, 0.22), 0 8px 18px rgba(29, 108, 168, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.94);
   display: grid;
-  gap: 4px;
+  gap: 3px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   left: 50%;
-  max-width: 360px;
-  padding: 8px;
+  max-width: 342px;
+  padding: 6px;
   position: fixed;
   transform: translate3d(-50%, 0, 0);
-  width: min(360px, calc(100% - 36px));
+  width: min(342px, calc(100% - 36px));
   z-index: 1000;
 }
 
@@ -677,20 +677,20 @@ ion-content.nearby-page {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 25px;
+  border-radius: 23px;
   color: #8da6b7;
   display: grid;
   font: inherit;
   font-size: 10px;
   font-weight: 780;
-  gap: 4px;
+  gap: 3px;
   justify-items: center;
-  min-height: 58px;
-  padding: 8px 3px;
+  min-height: 51px;
+  padding: 6px 3px;
 }
 
 .bottom-nav ion-icon {
-  font-size: 21px;
+  font-size: 20px;
 }
 
 .bottom-nav button.active {

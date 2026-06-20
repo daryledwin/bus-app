@@ -257,7 +257,10 @@
         aria-live="polite"
       >
         <ion-icon name="bus-outline"></ion-icon>
-        <p>Pick a stop above to see what’s arriving.</p>
+        <div>
+          <h3>No stop selected yet</h3>
+          <p>Pick a nearby or saved stop to view arrivals.</p>
+        </div>
       </div>
 
       <div class="live-list" *ngIf="liveBusServices.length">
