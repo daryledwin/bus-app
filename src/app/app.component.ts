@@ -1,105 +1,106 @@
 import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
+import { App, URLOpenListenerEvent } from '@capacitor/app';
+import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { IonRouterOutlet } from '@ionic/angular';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../environments/environment';
 import { OnboardingService } from './services/onboarding.service';
-import { SplashOverlayService } from './services/splash-overlay.service';
+import { ReviewService } from './services/review.service';
 import { WidgetBridgeService } from './services/widget-bridge.service';
 
 export const SPLASH_TAGLINES = [
   'hope your bus timing is accurate today 🚌',
-  'hope you get a seat before the next stop 🪑',
-  'hope your morning starts gently ☀️',
-  'hope your lecture starts late today 🎓',
-  'hope your meeting could have been an email 📧',
-  'hope your coffee works overtime today ☕',
-  'hope your bus driver catches every green light 🚦',
-  'hope your journey feels shorter today 🌤️',
-  'hope your transfer is somehow perfect ✨',
-  'hope your battery percentage stops dropping 🔋',
-  'hope your aircon bus actually has aircon ❄️',
-  'hope your train and bus timings cooperate today 🤝',
-  'hope your next ride is a quiet one 🤫',
-  'hope you never miss a bus by 2 seconds today ⏱️',
-  'hope your lunch is worth looking forward to 🍜',
-  'hope today has fewer surprises 📅',
-  'hope your journey home feels quick 🌆',
-  'hope someone moves their bag off the seat 🪑',
-  'hope your queue moves fast today 🚶',
-  'hope your group project replies instantly 💬',
-  'hope your attendance gets taken early 📝',
-  'hope your tutorial ends on time 🎓',
-  'hope your presentation goes smoothly 🎤',
-  'hope your prof is in a good mood today 😌',
-  'hope your deadline feels manageable today 📚',
-  'hope your assignment somehow writes itself ✍️',
-  'hope your exam venue is easy to find 🧭',
-  'hope your GPA likes you back 📈',
-  'hope your project group is responsive today 📱',
-  'hope your work inbox behaves today 📧',
-  'hope your boss says good job today 👍',
-  'hope your lunch break feels long enough 🍱',
-  'hope your calendar stays merciful today 📅',
-  'hope your meetings stay short 💻',
-  'hope nobody schedules a 5pm meeting 🕔',
-  'hope your work ends on time today 🏠',
-  'hope your commute home feels lighter 🌇',
-  'hope your shift goes by quickly ⏳',
-  'hope your grab prices stay reasonable 🚕',
-  'hope your umbrella remains unused today ☂️',
-  'hope the weather picks a side 🌦️',
-  'hope the rain waits until you get home 🌧️',
-  'hope today comes with a nice breeze 🍃',
-  'hope your shoes avoid every puddle 💧',
-  'hope the sun is feeling generous today ☀️',
-  'hope your hair survives the humidity 🌴',
-  'hope your outfit matches the weather today 👕',
-  'hope your bus stop has shade today 🌳',
-  'hope your playlist picks all the right songs 🎵',
-  'hope your snack hits the spot today 🍪',
-  'hope your favourite seat is available 🪑',
-  'hope you remember why you walked into the room 🚪',
-  'hope your phone survives until bedtime 📱',
-  'hope your charger is where you left it 🔌',
-  'hope your wallet is exactly where you expect it 👛',
-  'hope your keys don\'t play hide and seek 🔑',
-  'hope your alarm was accurate today ⏰',
-  'hope your water bottle stays cold 💧',
-  'hope your to-do list gets shorter today ✅',
-  'hope your bus arrives before you start checking again 👀',
-  'hope your next connection is waiting for you ✨',
-  'hope your ride is smoother than the roads 🚍',
-  'hope your stop comes at exactly the right time 🛑',
-  'hope today\'s detours are only the fun kind 🗺️',
-  'hope your destination is worth the trip 📍',
-  'hope the person beside you isn\'t watching videos loudly 🎧',
-  'hope nobody blocks the bus door today 🚪',
-  'hope the bus isn\'t already packed when it pulls up 🚌',
-  'hope your transfer doesn\'t become an adventure 🧭',
-  'hope the next bus isn\'t 18 minutes away ⏱️',
-  'hope your waiting time feels shorter today 🌿',
-  'hope your ride comes with good vibes ✨',
-  'hope your commute is mostly uneventful 😌',
+  'may you get a seat before the next stop 🪑',
+  'wishing you a gentle start to the day ☀️',
+  'manifesting a slightly later lecture 🎓',
+  'may your meeting have been an email 📧',
+  'let the coffee do the heavy lifting today ☕',
+  'may every traffic light be green 🚦',
+  'wishing you a shorter-feeling journey 🌤️',
+  'manifesting the perfect transfer ✨',
+  'may your battery percentage hold steady 🔋',
+  'here’s to an air-conditioned bus ❄️',
+  'may your train and bus timings cooperate 🤝',
+  'wishing you a peaceful ride today 🤫',
+  'may no bus leave 2 seconds before you arrive ⏱️',
+  'today’s tiny win: a good lunch 🍜',
+  'manifesting fewer surprises today 📅',
+  'wishing you a smooth trip home 🌆',
+  'may someone free up that seat 🪑',
+  'here’s to a fast-moving queue 🚶',
+  'manifesting instant group project replies 💬',
+  'may attendance be taken early today 📝',
+  'wishing you an on-time tutorial ending 🎓',
+  'good luck with your presentation today 🎤',
+  'may your prof be in a good mood 😌',
+  'one deadline at a time 📚',
+  'manifesting self-writing assignments ✍️',
+  'may your exam venue be easy to find 🧭',
+  'wishing you and your GPA a healthy relationship 📈',
+  'manifesting responsive project mates 📱',
+  'may your inbox behave today 📧',
+  'here’s hoping for a well-deserved compliment 👍',
+  'enjoy that lunch break 🍱',
+  'may your calendar stay merciful 📅',
+  'wishing you short meetings and long breaks 💻',
+  'manifesting a meeting-free 5pm 🕔',
+  'may work end on time today 🏠',
+  'wishing you a lighter commute home 🌇',
+  'may your shift fly by ⏳',
+  'manifesting reasonable Grab prices 🚕',
+  'may your umbrella stay unused ☂️',
+  'wishing the weather would make up its mind 🌦️',
+  'may the rain wait until you get home 🌧️',
+  'enjoy the breeze today 🍃',
+  'may every puddle miss your shoes 💧',
+  'wishing you kind weather ☀️',
+  'may your hair survive the humidity 🌴',
+  'hope your outfit matches the weather 👕',
+  'may there be shade at your bus stop 🌳',
+  'wishing you the perfect playlist 🎵',
+  'today’s tiny win: a good snack 🍪',
+  'manifesting your favourite seat 🪑',
+  'may you remember why you entered the room 🚪',
+  'wishing your phone enough battery until bedtime 📱',
+  'may your charger be exactly where you left it 🔌',
+  'hope your wallet is where you expect it 👛',
+  'may your keys cooperate today 🔑',
+  'looks like your alarm did its job ⏰',
+  'wishing your water stays cold 💧',
+  'may your to-do list shrink today ✅',
+  'manifesting a bus before the next refresh 👀',
+  'may your connection be waiting for you ✨',
+  'wishing you a smoother ride than the roads 🚍',
+  'may your stop arrive at the perfect moment 🛑',
+  'today’s detour should be the fun kind 🗺️',
+  'hope the destination is worth the journey 📍',
+  'may nobody blast videos beside you 🎧',
+  'manifesting clear bus doors 🚪',
+  'may the arriving bus have space inside 🚌',
+  'wishing you an uneventful transfer 🧭',
+  'may the next bus not be 18 minutes away ⏱️',
+  'wishing your waiting time feels shorter 🌿',
+  'good vibes are on the next ride ✨',
+  'may your commute be pleasantly uneventful 😌',
   'hope your bus card has enough value 💳',
-  'hope your phone signal behaves underground 📶',
-  'hope your day starts on the right foot 👟',
+  'may your signal survive underground 📶',
+  'wishing you a strong start to the day 👟',
   'hope your evening feels earned 🌇',
-  'hope you get where you\'re going comfortably 🚌',
-  'hope your timing is lucky today 🍀',
-  'hope your commute is calm and air-conditioned ❄️',
-  'hope something makes you smile today 🌤️',
-  'hope your next stop brings something good 🌤️',
-  'hope your route doesn\'t have any funny business today 🗺️',
-  'hope your bus is actually on time and not just "on time" ⏱️',
-  'hope you get a corner seat today 🪑',
-  'hope your EZ-Link doesn\'t beep twice at the gantry 💳',
-  'hope your morning kopi hits different today ☕',
-  'hope the lift at your MRT station is actually working 🛗',
-  'safe travels and good vibes 🚌✨',
-];
+  'safe travels to wherever you’re headed 🚌',
+  'today feels lucky 🍀',
+  'wishing you a calm, air-conditioned commute ❄️',
+  'may something make you smile today 🌤️',
+  'good things await at the next stop 🌤️',
+  'may your route stay drama-free 🗺️',
+  'manifesting genuinely on-time buses ⏱️',
+  'today feels like a corner-seat day 🪑',
+  'may your EZ-Link behave at the gantry 💳',
+  'wishing your morning kopi hits different ☕',
+  'may the MRT lift actually be working 🛗',
+  'safe travels and good vibes']
 
 @Component({
   selector: 'app-root',
@@ -109,17 +110,13 @@ export const SPLASH_TAGLINES = [
 export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('rootRouterOutlet') private readonly rootRouterOutlet?: IonRouterOutlet;
 
-  splashVisible = false;
-  splashLeaving = false;
-  splashTagline = '';
   onboardingPending = false;
 
-  private splashRemoveTimer?: ReturnType<typeof setTimeout>;
   private backendKeepAliveTimer?: ReturnType<typeof setInterval>;
   private backgroundWorkStarted = false;
   private nativeSplashHidden = false;
-  private coldStartSplashSubscription?: Subscription;
   private routerSubscription?: Subscription;
+  private appUrlOpenListener?: PluginListenerHandle;
   private readonly visibilityChangeHandler = () => {
     if (!document.hidden) {
       this.warmBackend();
@@ -130,11 +127,13 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   constructor(
     private readonly router: Router,
     private readonly onboardingService: OnboardingService,
-    private readonly splashOverlayService: SplashOverlayService,
+    private readonly reviewService: ReviewService,
     private readonly widgetBridgeService: WidgetBridgeService
   ) {}
 
   ngOnInit(): void {
+    void this.registerDeepLinkHandler();
+    this.reviewService.recordLaunch();
     console.info(`[Startup] onboarding check start ${Date.now()}`);
     this.onboardingPending = !this.onboardingService.isComplete();
     console.info(`[Startup] onboarding check end ${Date.now()} pending=${this.onboardingPending}`);
@@ -143,22 +142,13 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
       this.startBackgroundWork();
     }
 
-    this.coldStartSplashSubscription = this.splashOverlayService.coldStartLoading$.subscribe((isLoading) => {
-      if (isLoading && !this.onboardingPending) {
-        this.showColdStartSplash();
-      } else {
-        this.hideColdStartSplash();
-      }
-    });
     this.routerSubscription = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => {
         console.info(`[Startup] first route ready ${Date.now()} url=${event.urlAfterRedirects}`);
         this.updateRootSwipeGesture(event.urlAfterRedirects);
 
-        if (this.isOnboardingUrl(event.urlAfterRedirects)) {
-          this.hideSplashImmediately();
-        } else if (this.onboardingService.isComplete()) {
+        if (!this.isOnboardingUrl(event.urlAfterRedirects) && this.onboardingService.isComplete()) {
           this.onboardingPending = false;
           this.startBackgroundWork();
         }
@@ -173,17 +163,73 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.splashRemoveTimer) {
-      clearTimeout(this.splashRemoveTimer);
-    }
-
     if (this.backendKeepAliveTimer) {
       clearInterval(this.backendKeepAliveTimer);
     }
 
-    this.coldStartSplashSubscription?.unsubscribe();
     this.routerSubscription?.unsubscribe();
+    this.appUrlOpenListener?.remove();
     document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+  }
+
+  private async registerDeepLinkHandler(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    this.appUrlOpenListener = await App.addListener('appUrlOpen', (event) => {
+      this.handleAppUrlOpen(event);
+    });
+
+    const launchUrl = await App.getLaunchUrl();
+
+    if (launchUrl?.url) {
+      this.handleAppUrlOpen({ url: launchUrl.url });
+    }
+  }
+
+  private handleAppUrlOpen(event: URLOpenListenerEvent): void {
+    const targetUrl = this.routeFromDeepLink(event.url);
+
+    if (!targetUrl) {
+      return;
+    }
+
+    void this.router.navigateByUrl(targetUrl);
+  }
+
+  private routeFromDeepLink(url: string): string | undefined {
+    try {
+      const parsedUrl = new URL(url);
+
+      if (parsedUrl.protocol !== 'skibidi:') {
+        return undefined;
+      }
+
+      if (parsedUrl.hostname === 'stop') {
+        const busStopCode = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, '')).trim();
+
+        if (!busStopCode) {
+          return '/tabs/tab1';
+        }
+
+        const params = new URLSearchParams({
+          busStopCode,
+          source: 'widget',
+          t: String(Date.now())
+        });
+
+        return `/tabs/tab1?${params.toString()}`;
+      }
+
+      if (parsedUrl.hostname === 'home') {
+        return '/tabs/tab1';
+      }
+    } catch {
+      return undefined;
+    }
+
+    return undefined;
   }
 
   private updateRootSwipeGesture(url: string): void {
@@ -227,45 +273,6 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
         void SplashScreen.hide({ fadeOutDuration: 180 });
       });
     });
-  }
-
-  private hideSplashImmediately(): void {
-    if (this.splashRemoveTimer) {
-      clearTimeout(this.splashRemoveTimer);
-      this.splashRemoveTimer = undefined;
-    }
-
-    this.splashLeaving = false;
-    this.splashVisible = false;
-  }
-
-  private showColdStartSplash(): void {
-    if (this.splashRemoveTimer) {
-      clearTimeout(this.splashRemoveTimer);
-    }
-
-    this.splashTagline = this.randomTagline();
-    this.splashLeaving = false;
-    this.splashVisible = true;
-  }
-
-  private hideColdStartSplash(): void {
-    if (!this.splashVisible) {
-      return;
-    }
-
-    if (this.splashRemoveTimer) {
-      clearTimeout(this.splashRemoveTimer);
-    }
-
-    this.splashLeaving = true;
-    this.splashRemoveTimer = setTimeout(() => {
-      this.splashVisible = false;
-    }, 620);
-  }
-
-  private randomTagline(): string {
-    return SPLASH_TAGLINES[Math.floor(Math.random() * SPLASH_TAGLINES.length)];
   }
 
   private warmBackend(): void {

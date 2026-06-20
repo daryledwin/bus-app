@@ -1,5 +1,6 @@
 import { Component, Optional } from '@angular/core';
 import { IonRouterOutlet, NavController } from '@ionic/angular';
+import { ReviewService } from '../services/review.service';
 
 @Component({
   selector: 'app-about-me',
@@ -9,6 +10,7 @@ import { IonRouterOutlet, NavController } from '@ionic/angular';
 export class AboutMePage {
   constructor(
     private readonly navController: NavController,
+    private readonly reviewService: ReviewService,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {}
 
@@ -25,5 +27,9 @@ export class AboutMePage {
     }
 
     this.navController.navigateBack('/tabs/tab1');
+  }
+
+  openReviewPage(): void {
+    this.reviewService.openAppStoreReviewPage();
   }
 }

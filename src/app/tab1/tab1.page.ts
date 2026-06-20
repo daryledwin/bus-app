@@ -1,16 +1,16 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { IonContent, IonRouterOutlet, ItemReorderEventDetail } from '@ionic/angular';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SPLASH_TAGLINES } from '../app.component';
 import { BusRoute, LtaBusRoutesService } from '../services/lta-bus-routes.service';
 import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
-import { SplashOverlayService } from '../services/splash-overlay.service';
 import { WidgetBridgeService } from '../services/widget-bridge.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
+import { ReviewService } from '../services/review.service';
 import { SameTabScrollService } from '../services/same-tab-scroll.service';
 
 interface NavItem {
@@ -24,6 +24,8 @@ interface FavouriteBusStop {
   Description: string;
   RoadName: string;
   nickname?: string;
+  Latitude?: number;
+  Longitude?: number;
 }
 
 interface RouteProgressStop {
@@ -88,11 +90,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   isRouteModalOpen = false;
   selectedRouteServiceNo = '';
   selectedRouteService?: BusServiceArrival;
+  lastArrivalsRefreshedLabel = '';
   private busStops: BusStop[] = [];
   private busStopLookup = new Map<string, BusStop>();
   private busStopsLoadPromise?: Promise<BusStop[]>;
   private searchTimer?: ReturnType<typeof setTimeout>;
-  private coldStartSplashTimer?: ReturnType<typeof setTimeout>;
   private heroTaglineTimer?: ReturnType<typeof setInterval>;
   private heroTaglineTypingTimer?: ReturnType<typeof setTimeout>;
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
@@ -100,9 +102,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private routePrefetchRunId = 0;
   private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
   private favouriteAnimationTimer?: ReturnType<typeof setTimeout>;
+  private lastArrivalsRefreshedAt = 0;
+  private lastArrivalsRefreshedTimer?: ReturnType<typeof setInterval>;
   private selectedStopSubscription?: Subscription;
+  private routeQuerySubscription?: Subscription;
   private arrivalRequestId = 0;
-  private coldStartSplashRequestId = 0;
   private refreshInProgress = false;
   private arrivalStickyThreshold = 0;
   private homeScrollElement?: HTMLElement;
@@ -120,10 +124,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     private readonly ltaBusService: LtaBusService,
     private readonly ltaBusRoutesService: LtaBusRoutesService,
     private readonly ltaBusStopsService: LtaBusStopsService,
+    private readonly activatedRoute: ActivatedRoute,
     private readonly router: Router,
     private readonly selectedBusStopService: SelectedBusStopService,
-    private readonly splashOverlayService: SplashOverlayService,
     private readonly refreshFeedbackService: RefreshFeedbackService,
+    private readonly reviewService: ReviewService,
     private readonly sameTabScrollService: SameTabScrollService,
     private readonly widgetBridgeService: WidgetBridgeService,
     private readonly ngZone: NgZone,
@@ -145,6 +150,15 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
       this.selectedBusStopService.clearSelection();
       this.selectBusStop(stop);
+    });
+    this.routeQuerySubscription = this.activatedRoute.queryParamMap.subscribe((params) => {
+      const busStopCode = params.get('busStopCode')?.trim();
+
+      if (!busStopCode) {
+        return;
+      }
+
+      this.openBusStopFromDeepLink(busStopCode);
     });
 
     try {
@@ -169,15 +183,14 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.selectedStopSubscription?.unsubscribe();
+    this.routeQuerySubscription?.unsubscribe();
     this.detachHomeScrollListener();
 
     if (this.searchTimer) {
       clearTimeout(this.searchTimer);
     }
 
-    this.clearColdStartSplashTimer();
     this.clearFavouriteAnimationTimer();
-    this.hideColdStartSplashIfNeeded();
 
     if (this.heroTaglineTimer) {
       clearInterval(this.heroTaglineTimer);
@@ -192,6 +205,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     if (this.routeModalScrollTimer) {
       clearTimeout(this.routeModalScrollTimer);
     }
+
+    this.clearLastArrivalsRefreshedTimer();
   }
 
   private rotateHeroTagline(): void {
@@ -263,36 +278,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    void this.refreshFeedbackService.lightImpact();
     this.router.navigateByUrl(route);
-  }
-
-  private scheduleColdStartSplash(requestId: number): void {
-    this.clearColdStartSplashTimer();
-
-    this.coldStartSplashTimer = setTimeout(() => {
-      if (!this.isLoadingArrivals || requestId !== this.arrivalRequestId) {
-        return;
-      }
-
-      this.coldStartSplashRequestId = requestId;
-      this.splashOverlayService.showColdStartLoading();
-    }, 4200);
-  }
-
-  private clearColdStartSplashTimer(): void {
-    if (this.coldStartSplashTimer) {
-      clearTimeout(this.coldStartSplashTimer);
-      this.coldStartSplashTimer = undefined;
-    }
-  }
-
-  private hideColdStartSplashIfNeeded(): void {
-    if (this.coldStartSplashRequestId !== this.arrivalRequestId) {
-      return;
-    }
-
-    this.coldStartSplashRequestId = 0;
-    this.splashOverlayService.hideColdStartLoading();
   }
 
   get isTextSearchActive(): boolean {
@@ -346,12 +333,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       clearTimeout(this.searchTimer);
     }
 
-    this.clearColdStartSplashTimer();
-    if (this.coldStartSplashRequestId) {
-      this.coldStartSplashRequestId = 0;
-      this.splashOverlayService.hideColdStartLoading();
-    }
-
     this.arrivalRequestId++;
     this.searchTerm = '';
     this.busStopResults = [];
@@ -364,6 +345,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.isLoadingArrivals = false;
     this.arrivalError = '';
     this.liveBusServices = [];
+    this.resetLastArrivalsRefreshed();
     this.resetRouteState();
     this.logMatchesFound(0);
   }
@@ -373,12 +355,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     onComplete?: () => void,
     options: ArrivalSearchOptions = {}
   ): void {
-    this.clearColdStartSplashTimer();
-    if (this.coldStartSplashRequestId) {
-      this.coldStartSplashRequestId = 0;
-      this.splashOverlayService.hideColdStartLoading();
-    }
-
     const normalizedBusStopCode = busStopCode.trim();
     if (!normalizedBusStopCode) {
       onComplete?.();
@@ -399,7 +375,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
     this.searchedBusStopCode = normalizedBusStopCode;
     this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
-    this.scheduleColdStartSplash(requestId);
 
     this.ltaBusService.getBusArrivals(normalizedBusStopCode).subscribe({
       next: (arrivalLookup) => {
@@ -412,10 +387,10 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         this.resolveSelectedBusStopForCode(arrivalLookup.busStopCode, requestId);
         this.liveBusServices = this.sortLiveServices(arrivalLookup.services);
         this.isLoadingArrivals = false;
-        this.clearColdStartSplashTimer();
-        this.hideColdStartSplashIfNeeded();
+        this.markArrivalsRefreshed();
         this.syncExpandedServiceAfterRefresh();
         this.settleArrivalResults(requestId, options.scrollToArrivals !== false);
+        void this.reviewService.requestAutomaticReviewIfEligible();
         onComplete?.();
       },
       error: (error) => {
@@ -428,8 +403,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
         this.arrivalError = this.errorMessage(error);
         this.isLoadingArrivals = false;
-        this.clearColdStartSplashTimer();
-        this.hideColdStartSplashIfNeeded();
         this.settleArrivalResults(requestId, options.scrollToArrivals !== false);
         onComplete?.();
       }
@@ -504,10 +477,45 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   selectBusStop(stop: BusStop): void {
     this.selectedBusStop = stop;
+    this.widgetBridgeService.syncSelectedBusStop({
+      BusStopCode: stop.BusStopCode,
+      Description: stop.Description,
+      RoadName: stop.RoadName,
+      Latitude: stop.Latitude,
+      Longitude: stop.Longitude
+    });
     this.searchTerm = `${stop.Description} (${stop.BusStopCode})`;
     this.busStopResults = [];
     this.rememberBusStop(stop);
     this.searchArrivals(stop.BusStopCode);
+  }
+
+  private openBusStopFromDeepLink(busStopCode: string): void {
+    const knownStop = this.busStopLookup.get(busStopCode)
+      || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
+
+    if (knownStop) {
+      this.selectBusStop(knownStop);
+      return;
+    }
+
+    const favouriteStop = this.favouriteBusStops.find((stop) => stop.BusStopCode === busStopCode);
+
+    if (favouriteStop) {
+      this.selectBusStop({
+        BusStopCode: favouriteStop.BusStopCode,
+        Description: favouriteStop.Description,
+        RoadName: favouriteStop.RoadName,
+        Latitude: favouriteStop.Latitude || 0,
+        Longitude: favouriteStop.Longitude || 0
+      });
+      return;
+    }
+
+    this.searchTerm = busStopCode;
+    this.busStopResults = [];
+    this.selectedBusStop = undefined;
+    this.searchArrivals(busStopCode);
   }
 
   trackBusStop(index: number, stop: BusStop): string {
@@ -550,20 +558,17 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.saveFavouriteBusStops();
     this.markFavouriteAnimation(currentStop.BusStopCode, 'saved');
     void this.refreshFeedbackService.favouriteSaved();
+    void this.reviewService.requestAutomaticReviewIfEligible();
   }
 
   viewFavouriteStop(stop: FavouriteBusStop): void {
-    this.selectedBusStop = {
+    this.selectBusStop({
       BusStopCode: stop.BusStopCode,
       Description: stop.Description,
       RoadName: stop.RoadName,
       Latitude: 0,
       Longitude: 0
-    };
-    this.searchTerm = `${stop.Description} (${stop.BusStopCode})`;
-    this.busStopResults = [];
-    this.rememberBusStop(this.selectedBusStop);
-    this.searchArrivals(stop.BusStopCode);
+    });
   }
 
   removeFavouriteStop(busStopCode: string): void {
@@ -576,6 +581,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.markFavouriteAnimation(busStopCode, 'removed');
+    void this.refreshFeedbackService.lightImpact();
 
     setTimeout(() => {
       this.favouriteBusStops = this.favouriteBusStops.filter((stop) => stop.BusStopCode !== busStopCode);
@@ -622,7 +628,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
     this.favouriteBusStops = reorderedStops;
     this.saveFavouriteBusStops();
-    void this.refreshFeedbackService.lightImpact();
   }
 
   toggleLiveService(service: BusServiceArrival): void {
@@ -1103,7 +1108,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     return {
       BusStopCode: busStopCode,
       Description: knownStop?.Description || `Stop ${busStopCode}`,
-      RoadName: knownStop?.RoadName || 'Road unavailable'
+      RoadName: knownStop?.RoadName || 'Road unavailable',
+      Latitude: knownStop?.Latitude,
+      Longitude: knownStop?.Longitude
     };
   }
 
@@ -1325,9 +1332,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.deferRoutePrefetchAfterCardAnimation();
 
     try {
-      if (await this.sameTabScrollService.toTop(this.content)) {
-        void this.refreshFeedbackService.lightImpact();
-      }
+      await this.sameTabScrollService.toTop(this.content);
     } finally {
       this.isProgrammaticScroll = false;
     }
@@ -1337,6 +1342,52 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => {
       this.content?.scrollToPoint(0, scrollTop, 0);
     }, 90);
+  }
+
+  private markArrivalsRefreshed(): void {
+    this.lastArrivalsRefreshedAt = Date.now();
+    this.updateLastArrivalsRefreshedLabel();
+
+    if (!this.lastArrivalsRefreshedTimer) {
+      this.lastArrivalsRefreshedTimer = setInterval(() => this.updateLastArrivalsRefreshedLabel(), 5000);
+    }
+  }
+
+  private updateLastArrivalsRefreshedLabel(): void {
+    if (!this.lastArrivalsRefreshedAt) {
+      this.lastArrivalsRefreshedLabel = '';
+      return;
+    }
+
+    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - this.lastArrivalsRefreshedAt) / 1000));
+
+    if (elapsedSeconds < 10) {
+      this.lastArrivalsRefreshedLabel = 'Updated just now';
+      return;
+    }
+
+    if (elapsedSeconds < 60) {
+      this.lastArrivalsRefreshedLabel = `Updated ${elapsedSeconds}s ago`;
+      return;
+    }
+
+    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+    this.lastArrivalsRefreshedLabel = elapsedMinutes === 1
+      ? 'Updated 1 min ago'
+      : `Updated ${elapsedMinutes} min ago`;
+  }
+
+  private resetLastArrivalsRefreshed(): void {
+    this.lastArrivalsRefreshedAt = 0;
+    this.lastArrivalsRefreshedLabel = '';
+    this.clearLastArrivalsRefreshedTimer();
+  }
+
+  private clearLastArrivalsRefreshedTimer(): void {
+    if (this.lastArrivalsRefreshedTimer) {
+      clearInterval(this.lastArrivalsRefreshedTimer);
+      this.lastArrivalsRefreshedTimer = undefined;
+    }
   }
 
   private markFavouriteAnimation(busStopCode: string, action: 'saved' | 'removed'): void {
@@ -1420,19 +1471,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private syncWidgetFavouriteStop(): void {
-    const firstFavourite = this.favouriteBusStops[0];
-
-    if (!firstFavourite) {
-      this.widgetBridgeService.syncFavouriteStop();
-      return;
-    }
-
-    this.widgetBridgeService.syncFavouriteStop({
-      busStopCode: firstFavourite.BusStopCode,
-      name: firstFavourite.Description,
-      roadName: firstFavourite.RoadName,
-      nickname: firstFavourite.nickname
-    });
+    this.widgetBridgeService.syncWidgetData();
   }
 
   private errorMessage(error: unknown): string {

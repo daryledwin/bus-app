@@ -1,4 +1,5 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Optional, ViewChild } from '@angular/core';
+import { Capacitor } from '@capacitor/core';
 import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { Router } from '@angular/router';
 import * as L from 'leaflet';
@@ -8,6 +9,8 @@ import { SelectedBusStopService } from '../services/selected-bus-stop.service';
 import { SameTabScrollService } from '../services/same-tab-scroll.service';
 import { OnboardingService } from '../services/onboarding.service';
 import { LocationService } from '../services/location.service';
+import { ReviewService } from '../services/review.service';
+import { WidgetBridgeService } from '../services/widget-bridge.service';
 
 interface NearbyBusStop extends BusStop {
   distanceMeters: number;
@@ -27,6 +30,8 @@ interface FavouriteBusStop {
   Description: string;
   RoadName: string;
   nickname?: string;
+  Latitude?: number;
+  Longitude?: number;
 }
 
 interface NavItem {
@@ -64,6 +69,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   private stopMarkers = new Map<string, L.Marker>();
   private selectedStopPopup?: L.Popup;
   private favouritePopTimer?: ReturnType<typeof setTimeout>;
+  private nearbyLoadRequestId = 0;
   private lastNavTapAt = 0;
   private lastNavRoute = '';
 
@@ -78,9 +84,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     private readonly ngZone: NgZone,
     private readonly onboardingService: OnboardingService,
     private readonly refreshFeedbackService: RefreshFeedbackService,
+    private readonly reviewService: ReviewService,
     private readonly router: Router,
     private readonly sameTabScrollService: SameTabScrollService,
     private readonly selectedBusStopService: SelectedBusStopService,
+    private readonly widgetBridgeService: WidgetBridgeService,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
     this.favouriteBusStops = this.loadFavouriteBusStops();
@@ -109,6 +117,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.nearbyLoadRequestId++;
     this.map?.remove();
     this.stopMarkers.clear();
     if (this.favouritePopTimer) {
@@ -117,7 +126,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async loadNearbyStops(): Promise<void> {
+    const requestId = ++this.nearbyLoadRequestId;
     const startedAt = performance.now();
+    console.info(`[Nearby] load start request=${requestId}`);
     this.isLoadingLocation = true;
     this.nearbyError = '';
     const shouldPreserveCurrentStops = this.nearbyStops.length > 0;
@@ -129,31 +140,66 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     this.selectedNearbyStop = undefined;
 
     try {
-      const stopsPromise = this.ltaBusStopsService.getBusStops().toPromise();
       const location = await this.locationOrFallback();
+      if (!this.isActiveNearbyRequest(requestId)) {
+        console.info(`[Nearby] stale location result ignored request=${requestId}`);
+        return;
+      }
+
       this.mapCenter = location;
-      const stops = await stopsPromise || [];
+      console.info(`[Nearby] bus stops API start request=${requestId}`);
+      const stops = await this.withTimeout(
+        this.ltaBusStopsService.getBusStops().toPromise(),
+        10000,
+        'nearby-bus-stops-timeout'
+      ) || [];
+      if (!this.isActiveNearbyRequest(requestId)) {
+        console.info(`[Nearby] stale bus stops result ignored request=${requestId}`);
+        return;
+      }
+
+      console.info(`[Nearby] bus stops API success request=${requestId} count=${stops.length}`);
 
       this.renderNearbyStops(stops, location);
       this.refreshLocationInBackground(stops, location);
-      console.log('Nearby stops loaded in ms:', Math.round(performance.now() - startedAt));
+      console.info(`[Nearby] load success request=${requestId} ms=${Math.round(performance.now() - startedAt)}`);
     } catch (error) {
+      if (!this.isActiveNearbyRequest(requestId)) {
+        console.info(`[Nearby] stale error ignored request=${requestId}`, error);
+        return;
+      }
+
+      console.warn(`[Nearby] load failed request=${requestId}`, error);
+      if (!this.hasUserLocation) {
+        this.nearbyStops = [];
+        this.selectedNearbyStop = undefined;
+      }
       this.nearbyError = this.nearbyErrorMessage(error);
     } finally {
-      this.isLoadingLocation = false;
-      setTimeout(() => this.map?.invalidateSize(), 80);
+      if (this.isActiveNearbyRequest(requestId)) {
+        this.isLoadingLocation = false;
+        setTimeout(() => this.map?.invalidateSize(), 80);
+        console.info(`[Nearby] load settled request=${requestId} loading=${this.isLoadingLocation}`);
+      }
     }
   }
 
   async refreshNearbyStops(event: Event): Promise<void> {
     const refresher = event.target as HTMLIonRefresherElement;
     let shouldShowFeedback = false;
+    console.info('[Nearby] pull-to-refresh start');
 
     try {
       await this.loadNearbyStops();
       shouldShowFeedback = this.nearbyStops.length > 0;
+    } catch (error) {
+      console.warn('[Nearby] pull-to-refresh failed', error);
     } finally {
-      await refresher.complete();
+      try {
+        await refresher.complete();
+      } finally {
+        console.info('[Nearby] pull-to-refresh complete');
+      }
     }
 
     if (shouldShowFeedback) {
@@ -163,32 +209,56 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   async enableLocation(): Promise<void> {
     if (this.isLoadingLocation) {
+      console.info('[Nearby] enableLocation ignored while loading');
       return;
     }
 
     this.isLoadingLocation = true;
-    const locationChoice = await this.onboardingService.requestLocation();
-    this.locationAccessDeferred = locationChoice !== 'granted';
+    console.info('[Nearby] enableLocation permission request start');
 
-    if (locationChoice === 'granted') {
-      await this.loadNearbyStops();
+    try {
+      const locationChoice = await this.onboardingService.requestLocation();
+      console.info(`[Nearby] enableLocation permission result=${locationChoice}`);
+      this.locationAccessDeferred = locationChoice !== 'granted';
+
+      if (locationChoice === 'granted') {
+        this.isLoadingLocation = false;
+        await this.loadNearbyStops();
+        return;
+      }
+
+      this.nearbyStops = [];
+      this.nearbyError = locationChoice === 'denied'
+        ? 'Location is off. Search and favourites still work, and you can enable location in Settings later.'
+        : 'We could not get your location just yet. You can try again anytime.';
+    } catch (error) {
+      console.warn('[Nearby] enableLocation failed', error);
+      this.nearbyError = this.nearbyErrorMessage(error);
+    } finally {
+      this.isLoadingLocation = false;
+    }
+  }
+
+  openLocationSettings(): void {
+    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios') {
+      window.location.href = 'app-settings:';
       return;
     }
 
-    this.isLoadingLocation = false;
-    this.nearbyError = locationChoice === 'denied'
-      ? 'Location is off. You can enable it in Settings whenever you are ready.'
-      : 'We could not get your location just yet. You can try again anytime.';
+    this.enableLocation();
   }
 
   viewBuses(stop: NearbyBusStop): void {
-    this.selectedBusStopService.selectStop({
+    const selectedStop = {
       BusStopCode: stop.BusStopCode,
       Description: stop.Description,
       RoadName: stop.RoadName,
       Latitude: stop.Latitude,
       Longitude: stop.Longitude
-    });
+    };
+
+    this.widgetBridgeService.syncSelectedBusStop(selectedStop);
+    this.selectedBusStopService.selectStop(selectedStop);
     this.router.navigate(['/tabs/tab1']);
   }
 
@@ -213,6 +283,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    void this.refreshFeedbackService.lightImpact();
     this.router.navigateByUrl(route);
   }
 
@@ -230,7 +301,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       const favouriteStop: FavouriteBusStop = {
         BusStopCode: stop.BusStopCode,
         Description: stop.Description,
-        RoadName: stop.RoadName
+        RoadName: stop.RoadName,
+        Latitude: stop.Latitude,
+        Longitude: stop.Longitude
       };
 
       this.favouriteBusStops = [
@@ -244,6 +317,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
     if (becameFavourite) {
       void this.refreshFeedbackService.favouriteSaved();
+      void this.reviewService.requestAutomaticReviewIfEligible();
+    } else {
+      void this.refreshFeedbackService.lightImpact();
     }
 
     this.recentlyToggledFavouriteCode = stop.BusStopCode;
@@ -307,39 +383,39 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private async locationOrFallback(): Promise<NearbyLocation> {
+    const locationChoice = this.onboardingService.locationChoice();
+    console.info(`[Nearby] location permission choice=${locationChoice || 'unknown'}`);
+
     if (!this.onboardingService.shouldRequestLocationAutomatically()) {
+      console.info('[Nearby] location deferred by onboarding choice');
       this.locationAccessDeferred = true;
-      const lastLocation = this.loadLastLocation();
-
-      if (lastLocation) {
-        this.hasUserLocation = false;
-        this.nearbyError = 'Using your last known area. Enable location for nearby updates.';
-        return lastLocation;
-      }
-
       this.hasUserLocation = false;
-      this.nearbyError = 'Enable location to see stops around you. Showing Singapore for now.';
-      return this.singaporeCenter;
+      this.nearbyStops = [];
+      throw this.permissionDeferredError();
     }
 
     this.locationAccessDeferred = false;
 
     try {
+      console.info('[Nearby] foreground geolocation start');
       const location = await this.locationService.currentLocation({
         enableHighAccuracy: false,
         maximumAge: 1000 * 60 * 15,
-        timeout: 2800
+        timeout: 6500
       });
+      console.info('[Nearby] foreground geolocation success');
 
       this.hasUserLocation = true;
       const currentLocation = { latitude: location.latitude, longitude: location.longitude };
       this.saveLastLocation(currentLocation);
       return currentLocation;
     } catch (error) {
+      console.warn('[Nearby] foreground geolocation failed', error);
       if (this.isPermissionDenied(error)) {
         this.hasUserLocation = false;
-        this.nearbyError = 'Location is off. Showing stops around Singapore for now.';
-        return this.singaporeCenter;
+        this.locationAccessDeferred = true;
+        this.nearbyStops = [];
+        throw error;
       }
 
       const lastLocation = this.loadLastLocation();
@@ -351,8 +427,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       }
 
       this.hasUserLocation = false;
-      this.nearbyError = 'Finding your location is taking longer than usual. Showing Singapore for now.';
-      return this.singaporeCenter;
+      throw error;
     }
   }
 
@@ -361,12 +436,14 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    console.info('[Nearby] background geolocation start');
     this.locationService.currentLocation({
       enableHighAccuracy: true,
       maximumAge: 0,
       timeout: 7000
     })
       .then((location) => {
+        console.info('[Nearby] background geolocation success');
         const freshLocation = { latitude: location.latitude, longitude: location.longitude };
 
         if (this.distanceMeters(
@@ -386,7 +463,8 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
           this.renderNearbyStops(stops, freshLocation);
         });
       })
-      .catch(() => {
+      .catch((error) => {
+        console.warn('[Nearby] background geolocation failed', error);
         // Keep the fast cached/fallback result visible if precise location wakes slowly.
       });
   }
@@ -418,9 +496,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     this.isProgrammaticScroll = true;
 
     try {
-      if (await this.sameTabScrollService.toTop(this.content)) {
-        void this.refreshFeedbackService.lightImpact();
-      }
+      await this.sameTabScrollService.toTop(this.content);
     } finally {
       this.isProgrammaticScroll = false;
     }
@@ -431,6 +507,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       ...location,
       savedAt: Date.now()
     }));
+    this.widgetBridgeService.syncWidgetData();
   }
 
   private loadLastLocation(): NearbyLocation | undefined {
@@ -477,6 +554,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   private saveFavouriteBusStops(): void {
     localStorage.setItem(this.favouritesStorageKey, JSON.stringify(this.favouriteBusStops));
+    this.widgetBridgeService.syncWidgetData();
   }
 
   private initializeMap(): void {
@@ -636,10 +714,22 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   private nearbyErrorMessage(error: unknown): string {
     if (this.isPermissionDenied(error)) {
-      return 'Location is off. Search by stop name or code instead.';
+      return 'Location is off. Search and favourites still work, and you can enable location in Settings later.';
+    }
+
+    if (this.isPermissionDeferred(error)) {
+      return 'Nearby stops need location to work. Search and favourites still work, and you can enable location in Settings later.';
+    }
+
+    if (this.isTimeoutError(error)) {
+      return 'Finding your location is taking longer than expected. Pull down to try again.';
     }
 
     return 'Nearby stops are taking a quiet pause. Try again in a moment.';
+  }
+
+  private isActiveNearbyRequest(requestId: number): boolean {
+    return requestId === this.nearbyLoadRequestId;
   }
 
   private isPermissionDenied(error: unknown): boolean {
@@ -647,5 +737,38 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       && error !== null
       && 'code' in error
       && Number((error as GeolocationPositionError).code) === 1;
+  }
+
+  private isPermissionDeferred(error: unknown): boolean {
+    return error instanceof Error && error.message === 'location-permission-deferred';
+  }
+
+  private isTimeoutError(error: unknown): boolean {
+    return error instanceof Error && (
+      error.message.includes('timeout')
+      || ('code' in error && Number((error as GeolocationPositionError).code) === 3)
+    );
+  }
+
+  private permissionDeferredError(): Error & { code: number } {
+    return Object.assign(new Error('location-permission-deferred'), { code: 0 });
+  }
+
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const timeoutPromise = new Promise<T>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        console.warn(`[Nearby] timeout ${message} after ${timeoutMs}ms`);
+        reject(Object.assign(new Error(message), { code: 3 }));
+      }, timeoutMs);
+    });
+
+    return Promise.race([promise, timeoutPromise])
+      .finally(() => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      });
   }
 }

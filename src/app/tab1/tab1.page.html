@@ -52,21 +52,24 @@
         </span>
       </button>
 
-      <button
-        type="button"
-        class="sticky-arrival-header__live-button"
-        (click)="refreshLiveArrivals()"
-        [disabled]="isLoadingArrivals"
-      >
-        <ion-icon name="refresh-outline"></ion-icon>
-        live
-      </button>
+      <div class="sticky-arrival-header__live-status">
+        <button
+          type="button"
+          class="sticky-arrival-header__live-button"
+          (click)="refreshLiveArrivals()"
+          [disabled]="isLoadingArrivals"
+        >
+          <ion-icon name="refresh-outline"></ion-icon>
+          live
+        </button>
+        <small *ngIf="lastArrivalsRefreshedLabel">{{ lastArrivalsRefreshedLabel }}</small>
+      </div>
     </div>
   </div>
 
   <main class="home-shell">
     <header class="commute-header fade-in">
-      <button type="button" class="about-home-button" routerLink="/about-me" aria-label="About My Bus">
+      <button type="button" class="about-home-button" routerLink="/about-me" aria-label="About MyBus SG">
         <ion-icon name="sparkles-outline"></ion-icon>
       </button>
 
@@ -96,7 +99,7 @@
     </header>
 
     <section class="search-card pop-in" aria-label="Find a bus">
-      <label for="bus-search">Search by bus stop code, name, or road</label>
+      <label for="bus-search">Search bus stop, road, or code</label>
       <form class="search-bar" (ngSubmit)="submitSearch()">
         <ion-icon name="search-outline"></ion-icon>
         <input
@@ -209,15 +212,19 @@
             </button>
           </div>
         </div>
-        <button
-          type="button"
-          (click)="refreshLiveArrivals()"
-          [disabled]="isLoadingArrivals"
-          *ngIf="hasSearchedArrivals"
-        >
-          <ion-icon name="refresh-outline"></ion-icon>
-          live
-        </button>
+        <div class="arrival-live-status" *ngIf="hasSearchedArrivals">
+          <button
+            type="button"
+            (click)="refreshLiveArrivals()"
+            [disabled]="isLoadingArrivals"
+          >
+            <ion-icon name="refresh-outline"></ion-icon>
+            live
+          </button>
+          <small class="arrival-updated" *ngIf="lastArrivalsRefreshedLabel">
+            {{ lastArrivalsRefreshedLabel }}
+          </small>
+        </div>
       </div>
 
       <div class="arrival-state" *ngIf="isLoadingArrivals" aria-live="polite">
@@ -278,7 +285,7 @@
                   [class.metadata-line--accessible]="service.nextBus.wheelchairAccessible"
                   [class.metadata-line--not-accessible]="!service.nextBus.wheelchairAccessible"
                 >
-                  <ion-icon name="accessibility-outline"></ion-icon>
+                  <i class="wheelchair-access-icon" aria-hidden="true">♿︎</i>
                   {{ service.nextBus.wheelchairAccessible ? 'Wheelchair accessible' : 'No wheelchair access' }}
                 </span>
                 <span class="metadata-line load-pill" [ngClass]="'load-pill--' + loadTone(service.nextBus.load)">
@@ -495,8 +502,13 @@
                     aria-hidden="true"
                   ></ion-icon>
                 </div>
-                <small>{{ stop.status === 'terminal' ? 'Terminal' : stop.status }} · {{ stop.roadName }} · {{ stop.code }}</small>
+                <small>{{ stop.code }}</small>
               </div>
+              <ion-icon
+                class="route-progress__chevron"
+                name="chevron-forward-outline"
+                aria-hidden="true"
+              ></ion-icon>
             </button>
           </div>
         </div>

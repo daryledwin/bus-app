@@ -109,10 +109,10 @@ ion-content.bus-home {
 }
 
 .sticky-arrival-header__actions {
-  align-items: center;
+  align-items: flex-start;
   display: flex;
   flex: 0 0 auto;
-  gap: 7px;
+  gap: 6px;
 }
 
 .sticky-arrival-header__icon-button,
@@ -150,6 +150,24 @@ ion-content.bus-home {
   min-height: 38px;
   padding: 0 12px;
   text-transform: uppercase;
+}
+
+.sticky-arrival-header__live-status {
+  align-items: flex-end;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 3px;
+  justify-items: end;
+  min-width: max-content;
+}
+
+.sticky-arrival-header__live-status small {
+  color: rgba(83, 109, 132, 0.66);
+  font-size: clamp(8.75px, 2.35vw, 9.5px);
+  font-weight: 720;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .sticky-arrival-header__icon-button .favourite-icon-pop {
@@ -875,6 +893,24 @@ ion-content.bus-home {
   opacity: 0.82;
 }
 
+.arrival-live-status {
+  align-items: flex-end;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 4px;
+  justify-items: end;
+}
+
+.arrival-updated {
+  color: rgba(83, 109, 132, 0.68);
+  display: block;
+  font-size: 11px;
+  font-weight: 720;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .favourite-stop-button {
   align-items: center;
   background: rgba(255, 255, 255, 0.72);
@@ -1162,10 +1198,12 @@ ion-content.bus-home {
 
 .service-badge--compact {
   border-radius: 17px;
-  font-size: 21px;
-  height: 52px;
-  min-width: 52px;
-  padding: 0 10px;
+  font-size: 22px;
+  font-weight: 880;
+  height: 55px;
+  line-height: 1;
+  min-width: 55px;
+  padding: 0 11px;
 }
 
 .live-row__main {
@@ -1340,7 +1378,7 @@ ion-content.bus-home {
 }
 
 .live-row__meta--stacked {
-  align-items: start;
+  align-items: flex-start;
   display: grid;
   flex-wrap: nowrap;
   gap: 5px;
@@ -1371,6 +1409,16 @@ ion-content.bus-home {
   color: currentColor;
   font-size: 13px;
   justify-self: center;
+}
+
+.live-row__meta--stacked .wheelchair-access-icon {
+  color: currentColor;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 20px;
+  font-style: normal;
+  font-weight: 800;
+  justify-self: center;
+  line-height: 1;
 }
 
 .live-row__meta--stacked .metadata-line--bus-type {
@@ -1610,18 +1658,23 @@ ion-content.bus-home {
 }
 
 .timing-row {
+  box-sizing: border-box;
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 100%;
+  min-width: 0;
 }
 
 .timing-row div {
   background: rgba(255, 249, 238, 0.66);
   border: 1px solid rgba(255, 255, 255, 0.58);
   border-radius: 20px;
+  box-sizing: border-box;
   display: grid;
   gap: 5px;
   min-height: 76px;
+  min-width: 0;
   padding: 13px;
 }
 
@@ -1683,6 +1736,7 @@ ion-content.bus-home {
 .timing-row--compact {
   gap: 7px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
 }
 
 .timing-row--compact div {
@@ -1869,6 +1923,15 @@ ion-content.bus-home {
   font-size: 15px;
 }
 
+.accessibility .wheelchair-access-icon {
+  color: currentColor;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .accessibility.available {
   background: rgba(25, 119, 201, 0.12);
   color: var(--sage-deep);
@@ -2049,15 +2112,17 @@ ion-modal.route-modal::part(content) {
 }
 
 .route-progress--modal .route-progress__stop {
+  align-items: center;
   gap: 12px;
-  grid-template-columns: 17px minmax(0, 1fr);
+  grid-template-columns: 17px minmax(0, 1fr) 16px;
   min-height: 50px;
   padding: 8px 10px 8px 0;
-  transition: background 180ms ease, transform 180ms ease;
+  transition: background-color 120ms ease, opacity 120ms ease;
 }
 
 .route-progress--modal .route-progress__stop:active {
-  transform: scale(0.992);
+  background-color: rgba(25, 119, 201, 0.06);
+  opacity: 0.82;
 }
 
 .route-progress--modal .route-progress__stop:not(:last-child)::after {
@@ -2075,6 +2140,12 @@ ion-modal.route-modal::part(content) {
 
 .route-progress--modal .route-progress__copy {
   min-width: 0;
+}
+
+.route-progress__chevron {
+  color: rgba(100, 124, 145, 0.5);
+  font-size: 15px;
+  justify-self: end;
 }
 
 .route-progress__name-row {
@@ -2892,9 +2963,10 @@ ion-modal.route-modal::part(content) {
   }
 
   .service-badge--compact {
-    font-size: 19px;
-    height: 48px;
-    min-width: 48px;
+    font-size: 20px;
+    height: 50px;
+    min-width: 50px;
+    padding: 0 9px;
   }
 
   .live-row__times strong {
@@ -2903,6 +2975,27 @@ ion-modal.route-modal::part(content) {
 
   .live-row__details-inner {
     padding-left: 70px;
+  }
+
+  .timing-row--compact {
+    gap: 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .timing-row--compact div {
+    border-radius: 13px;
+    gap: 4px;
+    min-height: 50px;
+    padding: 7px 4px;
+  }
+
+  .timing-row--compact span {
+    font-size: clamp(8px, 2.25vw, 10px);
+    letter-spacing: -0.01em;
+  }
+
+  .timing-row--compact strong {
+    font-size: clamp(12px, 3.45vw, 14px);
   }
 
   .bottom-nav span {

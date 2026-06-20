@@ -15,7 +15,7 @@ export class OnboardingPage {
     private readonly router: Router
   ) {}
 
-  async allowLocation(): Promise<void> {
+  async continueToLocationPermission(): Promise<void> {
     if (this.isRequestingLocation) {
       return;
     }
@@ -23,10 +23,6 @@ export class OnboardingPage {
     this.isRequestingLocation = true;
     const locationChoice = await this.onboardingService.requestLocation();
     this.finish(locationChoice);
-  }
-
-  skipLocation(): void {
-    this.finish('deferred');
   }
 
   private finish(locationChoice: 'granted' | 'deferred' | 'denied'): void {

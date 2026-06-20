@@ -2,47 +2,58 @@
   <main class="onboarding-shell">
     <section class="onboarding-card" aria-labelledby="onboarding-title">
       <div class="onboarding-glow" aria-hidden="true"></div>
-      <img class="onboarding-bus" src="assets/images/illustration.png" alt="" aria-hidden="true" />
 
       <div class="onboarding-chip">
         <ion-icon name="sparkles-outline"></ion-icon>
         Your calmer commute starts here
       </div>
 
-      <header class="onboarding-copy">
-        <h1 id="onboarding-title">Welcome to My Bus SG</h1>
-        <p>Bus timings, nearby stops, and smoother commutes.</p>
-      </header>
+      <div class="onboarding-hero">
+        <header class="onboarding-copy">
+          <h1 id="onboarding-title">
+            <span>Welcome to</span>
+            <strong>MyBus SG</strong>
+          </h1>
+          <p>Bus timings, nearby stops, and smoother commutes.</p>
+        </header>
+
+        <div class="onboarding-visual" aria-hidden="true">
+          <img class="onboarding-bus" src="assets/images/onboarding.png" alt="" />
+        </div>
+      </div>
 
       <div class="onboarding-features">
         <article>
           <span class="onboarding-feature-icon onboarding-feature-icon--blue">
             <ion-icon name="time-outline"></ion-icon>
           </span>
-          <div>
+          <div class="onboarding-feature-copy">
             <h2>Live bus arrivals</h2>
             <p>See when your next bus is reaching, without digging around.</p>
           </div>
+          <ion-icon class="onboarding-feature-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
         </article>
 
         <article>
           <span class="onboarding-feature-icon onboarding-feature-icon--yellow">
             <ion-icon name="navigate-outline"></ion-icon>
           </span>
-          <div>
+          <div class="onboarding-feature-copy">
             <h2>Nearby stops</h2>
-            <p>Allow location so we can show bus stops around you.</p>
+            <p>Use location to find bus stops around you.</p>
           </div>
+          <ion-icon class="onboarding-feature-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
         </article>
 
         <article>
           <span class="onboarding-feature-icon onboarding-feature-icon--heart">
             <ion-icon name="heart-outline"></ion-icon>
           </span>
-          <div>
+          <div class="onboarding-feature-copy">
             <h2>Favourite stops</h2>
             <p>Save the stops you use often and check them faster.</p>
           </div>
+          <ion-icon class="onboarding-feature-chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
         </article>
       </div>
 
@@ -52,13 +63,10 @@
       </div>
 
       <div class="onboarding-actions">
-        <button type="button" class="onboarding-primary" [disabled]="isRequestingLocation" (click)="allowLocation()">
+        <button type="button" class="onboarding-primary" [disabled]="isRequestingLocation" (click)="continueToLocationPermission()">
           <ion-spinner name="crescent" *ngIf="isRequestingLocation"></ion-spinner>
-          <ion-icon name="location-outline" *ngIf="!isRequestingLocation"></ion-icon>
-          {{ isRequestingLocation ? 'Asking your phone…' : 'Allow location' }}
-        </button>
-        <button type="button" class="onboarding-skip" [disabled]="isRequestingLocation" (click)="skipLocation()">
-          Skip for now
+          <ion-icon name="arrow-forward-outline" *ngIf="!isRequestingLocation"></ion-icon>
+          {{ isRequestingLocation ? 'Continuing…' : 'Continue' }}
         </button>
       </div>
     </section>

@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>My Bus</string>
+	<string>MyBus SG</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -41,9 +41,9 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>My Bus uses your location while the app is open to find nearby bus stops.</string>
+	<string>MyBus SG uses your location while the app is open to find nearby bus stops.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>My Bus uses your location while the app is open to find nearby bus stops.</string>
+	<string>MyBus SG uses your location while the app is open to find nearby bus stops.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

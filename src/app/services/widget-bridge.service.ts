@@ -6,6 +6,8 @@ interface WidgetFavouriteStop {
   name: string;
   roadName: string;
   nickname?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface StoredFavouriteStop {
@@ -13,10 +15,23 @@ interface StoredFavouriteStop {
   Description: string;
   RoadName: string;
   nickname?: string;
+  Latitude?: number;
+  Longitude?: number;
 }
 
 interface WidgetBridgePlugin {
-  syncFavouriteStop(stop: WidgetFavouriteStop | Record<string, never>): Promise<void>;
+  syncWidgetData(payload: { payload: string }): Promise<void>;
+}
+
+interface WidgetDataPayload {
+  favourites: WidgetFavouriteStop[];
+  selectedBusStop?: WidgetFavouriteStop;
+  nearestBusStop?: WidgetFavouriteStop;
+  lastLocation?: {
+    latitude: number;
+    longitude: number;
+    savedAt?: number;
+  };
 }
 
 const WidgetBridge = registerPlugin<WidgetBridgePlugin>('WidgetBridge');
@@ -26,24 +41,32 @@ const WidgetBridge = registerPlugin<WidgetBridgePlugin>('WidgetBridge');
 })
 export class WidgetBridgeService {
   private readonly favouritesStorageKey = 'favouriteBusStops';
+  private readonly lastLocationStorageKey = 'nearbyStopsLastLocation';
+  private readonly selectedBusStopStorageKey = 'widgetSelectedBusStop';
 
-  syncFavouriteStop(stop?: WidgetFavouriteStop): void {
+  syncWidgetData(): void {
     if (!Capacitor.isNativePlatform()) {
       return;
     }
 
-    const isPluginAvailable = Capacitor.isPluginAvailable('WidgetBridge');
-    console.log('Widget favourite sync starting:', {
-      isPluginAvailable,
-      stop: stop?.busStopCode ?? 'none'
-    });
+    const favourites = this.loadStoredFavouriteStops().map((stop) => this.toWidgetFavouriteStop(stop));
+    const lastLocation = this.loadLastLocation();
+    const payload: WidgetDataPayload = {
+      favourites,
+      selectedBusStop: this.loadSelectedBusStop(),
+      nearestBusStop: this.nearestFavouriteStop(favourites, lastLocation),
+      lastLocation
+    };
 
-    WidgetBridge.syncFavouriteStop(stop ?? {})
+    WidgetBridge.syncWidgetData({ payload: JSON.stringify(payload) })
       .then(() => {
-        console.log('Widget favourite sync complete:', stop?.busStopCode ?? 'none');
+        console.log('Widget data sync complete:', {
+          favourites: payload.favourites.length,
+          nearestBusStop: payload.nearestBusStop?.busStopCode
+        });
       })
       .catch((error) => {
-        console.warn('Widget favourite sync failed:', error);
+        console.warn('Widget data sync failed:', error);
       });
   }
 
@@ -52,38 +75,125 @@ export class WidgetBridgeService {
       return;
     }
 
-    const firstFavourite = this.loadFirstStoredFavouriteStop();
-
-    if (!firstFavourite) {
-      this.syncFavouriteStop();
-      return;
-    }
-
-    this.syncFavouriteStop({
-      busStopCode: firstFavourite.BusStopCode,
-      name: firstFavourite.Description,
-      roadName: firstFavourite.RoadName,
-      nickname: firstFavourite.nickname
-    });
+    this.syncWidgetData();
   }
 
-  private loadFirstStoredFavouriteStop(): StoredFavouriteStop | undefined {
+  syncSelectedBusStop(stop: StoredFavouriteStop): void {
+    const selectedStop = this.toWidgetFavouriteStop(stop);
+    localStorage.setItem(this.selectedBusStopStorageKey, JSON.stringify(selectedStop));
+    this.syncWidgetData();
+  }
+
+  private loadStoredFavouriteStops(): StoredFavouriteStop[] {
     const storedStops = localStorage.getItem(this.favouritesStorageKey);
 
     if (!storedStops) {
-      return undefined;
+      return [];
     }
 
     try {
       const parsedStops = JSON.parse(storedStops) as StoredFavouriteStop[];
 
       if (!Array.isArray(parsedStops)) {
+        return [];
+      }
+
+      return parsedStops.filter((stop) => stop?.BusStopCode && stop.Description);
+    } catch {
+      return [];
+    }
+  }
+
+  private loadLastLocation(): WidgetDataPayload['lastLocation'] {
+    const storedLocation = localStorage.getItem(this.lastLocationStorageKey);
+
+    if (!storedLocation) {
+      return undefined;
+    }
+
+    try {
+      const parsedLocation = JSON.parse(storedLocation) as WidgetDataPayload['lastLocation'];
+
+      if (!parsedLocation
+        || !Number.isFinite(parsedLocation.latitude)
+        || !Number.isFinite(parsedLocation.longitude)) {
         return undefined;
       }
 
-      return parsedStops.find((stop) => stop?.BusStopCode && stop.Description);
+      return parsedLocation;
     } catch {
       return undefined;
     }
+  }
+
+  private loadSelectedBusStop(): WidgetFavouriteStop | undefined {
+    const storedStop = localStorage.getItem(this.selectedBusStopStorageKey);
+
+    if (!storedStop) {
+      return undefined;
+    }
+
+    try {
+      const parsedStop = JSON.parse(storedStop) as WidgetFavouriteStop;
+
+      if (!parsedStop?.busStopCode || !parsedStop.name) {
+        return undefined;
+      }
+
+      return parsedStop;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private nearestFavouriteStop(
+    favourites: WidgetFavouriteStop[],
+    location: WidgetDataPayload['lastLocation']
+  ): WidgetFavouriteStop | undefined {
+    if (!location || !favourites.length) {
+      return undefined;
+    }
+
+    return favourites
+      .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
+      .map((stop) => ({
+        stop,
+        distanceMeters: this.distanceMeters(
+          location.latitude,
+          location.longitude,
+          stop.latitude as number,
+          stop.longitude as number
+        )
+      }))
+      .sort((a, b) => a.distanceMeters - b.distanceMeters)[0]?.stop;
+  }
+
+  private toWidgetFavouriteStop(stop: StoredFavouriteStop): WidgetFavouriteStop {
+    return {
+      busStopCode: stop.BusStopCode,
+      name: stop.Description,
+      roadName: stop.RoadName,
+      nickname: stop.nickname,
+      latitude: Number.isFinite(Number(stop.Latitude)) ? Number(stop.Latitude) : undefined,
+      longitude: Number.isFinite(Number(stop.Longitude)) ? Number(stop.Longitude) : undefined
+    };
+  }
+
+  private distanceMeters(fromLatitude: number, fromLongitude: number, toLatitude: number, toLongitude: number): number {
+    const earthRadius = 6371000;
+    const latitudeDelta = this.degreesToRadians(toLatitude - fromLatitude);
+    const longitudeDelta = this.degreesToRadians(toLongitude - fromLongitude);
+    const fromLatitudeRadians = this.degreesToRadians(fromLatitude);
+    const toLatitudeRadians = this.degreesToRadians(toLatitude);
+    const a = Math.sin(latitudeDelta / 2) ** 2
+      + Math.cos(fromLatitudeRadians) * Math.cos(toLatitudeRadians)
+      * Math.sin(longitudeDelta / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  private degreesToRadians(degrees: number): number {
+    return degrees * Math.PI / 180;
   }
 }

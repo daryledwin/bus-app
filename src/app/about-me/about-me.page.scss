@@ -303,6 +303,64 @@ ion-content.about-page {
   z-index: 3;
 }
 
+.about-review-card {
+  align-items: center;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 215, 75, 0.18), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(235, 248, 255, 0.78));
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: var(--shadow-soft);
+  color: inherit;
+  display: grid;
+  gap: 13px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 15px 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.about-review-card__icon {
+  align-items: center;
+  background: rgba(255, 215, 75, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  color: #d79a12;
+  display: grid;
+  height: 44px;
+  place-items: center;
+  width: 44px;
+}
+
+.about-review-card__icon ion-icon {
+  font-size: 22px;
+}
+
+.about-review-card__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.about-review-card__copy strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1.2;
+}
+
+.about-review-card__copy small {
+  color: rgba(83, 109, 132, 0.78);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.25;
+}
+
+.about-review-card__chevron {
+  color: rgba(83, 109, 132, 0.52);
+  font-size: 18px;
+}
+
 .about-footer {
   color: rgba(7, 26, 68, 0.62);
   font-size: 13px;

@@ -18,5 +18,6 @@ class MainViewController: CAPBridgeViewController {
         webView?.scrollView.backgroundColor = .clear
         print("[Startup] Capacitor loaded \(Date().timeIntervalSince1970)")
         bridge?.registerPluginInstance(WidgetBridgePlugin())
+        bridge?.registerPluginInstance(AppReviewPlugin())
     }
 }
