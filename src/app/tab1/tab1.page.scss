@@ -711,6 +711,10 @@ ion-content.bus-home {
   margin: 0;
 }
 
+.mini-stop-row strong {
+  font-size: 13.5px;
+}
+
 .mini-stop-row span,
 .stop-result-card p {
   color: var(--muted);
@@ -863,6 +867,14 @@ ion-content.bus-home {
   letter-spacing: 0;
   line-height: 1.08;
   margin: 5px 0 0;
+}
+
+#nearby-title {
+  font-size: clamp(19px, 3.4vw, 24px);
+}
+
+#saved-title {
+  font-size: clamp(20px, 3.7vw, 26px);
 }
 
 .arrival-title-row {
