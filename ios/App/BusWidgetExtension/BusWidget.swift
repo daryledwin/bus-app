@@ -314,11 +314,11 @@ enum WidgetStore {
     private static func loadText(from value: String?) -> String {
         switch value {
         case "SEA":
-            return "Seats available"
+            return "Seats Available"
         case "SDA":
-            return "Standing room"
+            return "Few Seats Left"
         case "LSD":
-            return "Crowded"
+            return "No Chance of a Seat"
         default:
             return "Load unavailable"
         }
@@ -345,8 +345,8 @@ struct BusWidgetProvider: AppIntentTimelineProvider {
             date: Date(),
             stop: FavouriteStop(busStopCode: "59009", name: "Opp Blk 932", roadName: "Yishun Ctrl 1", nickname: "Home", latitude: nil, longitude: nil),
             buses: [
-                WidgetBus(serviceNo: "156", timing: "3 min", load: "Seats available", wheelchairAccessible: true, type: "Double deck"),
-                WidgetBus(serviceNo: "53", timing: "Arr", load: "Standing room", wheelchairAccessible: true, type: "Single deck")
+                WidgetBus(serviceNo: "156", timing: "3 min", load: "Seats Available", wheelchairAccessible: true, type: "Double deck"),
+                WidgetBus(serviceNo: "53", timing: "Arr", load: "Few Seats Left", wheelchairAccessible: true, type: "Single deck")
             ],
             lastUpdatedAt: Date(),
             message: "",
@@ -641,20 +641,24 @@ struct BusWidgetView: View {
     private var busList: some View {
         VStack(spacing: family == .systemMedium ? 3 : 3) {
             ForEach(visibleBuses) { bus in
-                HStack(spacing: 8) {
+                HStack(spacing: family == .systemMedium ? 4 : 6) {
                     Text(bus.serviceNo)
                         .font(.system(size: family == .systemMedium ? 14 : 13, weight: .heavy, design: .rounded))
                         .foregroundColor(Color(red: 0.10, green: 0.47, blue: 0.79))
-                        .frame(minWidth: family == .systemMedium ? 33 : 30, alignment: .leading)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(width: family == .systemMedium ? 34 : 30, alignment: .leading)
+                        .layoutPriority(3)
 
                     mediumBusIndicators(for: bus)
 
                     Spacer(minLength: 6)
 
                     Text(bus.timing)
-                        .font(.system(size: family == .systemMedium ? 14 : 13, weight: .heavy, design: .rounded))
+                        .font(.system(size: family == .systemMedium ? 15 : 13, weight: .heavy, design: .rounded))
                         .foregroundColor(Color(red: 0.08, green: 0.18, blue: 0.30))
                         .lineLimit(1)
+                        .layoutPriority(2)
                 }
                 .padding(.vertical, family == .systemMedium ? 3 : 2)
                 .padding(.horizontal, family == .systemMedium ? 7 : 6)
@@ -720,39 +724,77 @@ struct BusWidgetView: View {
     }
 
     private func mediumBusIndicators(for bus: WidgetBus) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             if bus.type != "Type unavailable" {
-                Text(busTypeShortLabel(bus.type))
-                    .font(.system(size: 8, weight: .heavy, design: .rounded))
-                    .foregroundColor(busTypeColor(bus.type))
-                    .lineLimit(1)
-                    .padding(.vertical, 3)
-                    .padding(.horizontal, 5)
-                    .background(busTypeColor(bus.type).opacity(0.10))
-                    .clipShape(Capsule())
-                    .accessibilityLabel(bus.type)
+                busTypeMetadataChip(for: bus.type)
             }
 
-            Image(systemName: "figure.roll")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(bus.wheelchairAccessible ? appAccessibleColor : appNotAccessibleColor)
-                .frame(width: 13)
-                .accessibilityLabel(bus.wheelchairAccessible ? "Wheelchair accessible" : "No wheelchair access")
+            systemMetadataChip(
+                systemName: "figure.roll",
+                text: bus.wheelchairAccessible ? "Wheelchair" : "Not Wheelchair",
+                color: bus.wheelchairAccessible ? appAccessibleColor : appNotAccessibleColor,
+                background: (bus.wheelchairAccessible ? appAccessibleColor : appNotAccessibleColor).opacity(0.10),
+                accessibilityLabel: bus.wheelchairAccessible ? "Wheelchair Accessible" : "Not Wheelchair Accessible"
+            )
 
             if bus.load != "Load unavailable" {
-                Text(bus.load)
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .foregroundColor(loadColor(bus.load))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.66)
-                    .padding(.vertical, 3)
-                    .padding(.horizontal, 5)
-                    .background(loadBackgroundColor(bus.load))
-                    .clipShape(Capsule())
-                    .layoutPriority(-1)
+                systemMetadataChip(
+                    systemName: "chair.fill",
+                    text: loadCompactLabel(bus.load),
+                    color: loadColor(bus.load),
+                    background: loadBackgroundColor(bus.load),
+                    accessibilityLabel: bus.load
+                )
             }
         }
-        .frame(maxWidth: 118, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(0)
+    }
+
+    private func busTypeMetadataChip(for type: String) -> some View {
+        HStack(alignment: .center, spacing: 3.5) {
+            WidgetBusTypeGlyph(type: type, color: busTypeColor(type))
+                .frame(width: 12, height: 10, alignment: .center)
+                .accessibilityHidden(true)
+
+            Text(busTypeCompactLabel(type))
+                .font(.system(size: 7.6, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .layoutPriority(-1)
+        }
+        .foregroundColor(busTypeColor(type))
+        .padding(.vertical, 2.4)
+        .padding(.horizontal, 3)
+        .background(busTypeColor(type).opacity(0.10))
+        .clipShape(Capsule())
+        .accessibilityLabel(busTypeDisplayLabel(type))
+    }
+
+    private func systemMetadataChip(
+        systemName: String,
+        text: String,
+        color: Color,
+        background: Color,
+        accessibilityLabel: String
+    ) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: systemName)
+                .font(.system(size: 7.4, weight: .bold))
+                .accessibilityHidden(true)
+
+            Text(text)
+                .font(.system(size: 7.6, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .layoutPriority(-1)
+        }
+        .foregroundColor(color)
+        .padding(.vertical, 2.4)
+        .padding(.horizontal, 3)
+        .background(background)
+        .clipShape(Capsule())
+        .accessibilityLabel(accessibilityLabel)
     }
 
     private var visibleBusLimit: Int {
@@ -871,11 +913,11 @@ struct BusWidgetView: View {
 
     private func loadColor(_ load: String) -> Color {
         switch load {
-        case "Seats available":
+        case "Seats Available":
             return appAccessibleColor
-        case "Standing room":
+        case "Few Seats Left":
             return appStandingColor
-        case "Crowded":
+        case "No Chance of a Seat":
             return appCrowdedColor
         default:
             return appMutedColor
@@ -884,27 +926,14 @@ struct BusWidgetView: View {
 
     private func loadBackgroundColor(_ load: String) -> Color {
         switch load {
-        case "Seats available":
+        case "Seats Available":
             return Color(red: 30 / 255, green: 190 / 255, blue: 149 / 255).opacity(0.14)
-        case "Standing room":
+        case "Few Seats Left":
             return Color(red: 255 / 255, green: 215 / 255, blue: 75 / 255).opacity(0.28)
-        case "Crowded":
+        case "No Chance of a Seat":
             return Color(red: 255 / 255, green: 167 / 255, blue: 107 / 255).opacity(0.22)
         default:
             return Color(red: 132 / 255, green: 115 / 255, blue: 100 / 255).opacity(0.10)
-        }
-    }
-
-    private func busTypeShortLabel(_ type: String) -> String {
-        switch type {
-        case "Single deck":
-            return "SD"
-        case "Double deck":
-            return "DD"
-        case "Bendy bus":
-            return "BD"
-        default:
-            return ""
         }
     }
 
@@ -918,6 +947,41 @@ struct BusWidgetView: View {
             return appBendyBusColor
         default:
             return appMutedColor
+        }
+    }
+
+    private func busTypeDisplayLabel(_ type: String) -> String {
+        switch type {
+        case "Single deck":
+            return "Single Decker"
+        case "Double deck":
+            return "Double Decker"
+        case "Bendy bus":
+            return "Bendy Bus"
+        default:
+            return type
+        }
+    }
+
+    private func busTypeCompactLabel(_ type: String) -> String {
+        switch type {
+        case "Single deck":
+            return "Single"
+        case "Double deck":
+            return "Double"
+        case "Bendy bus":
+            return "Bendy"
+        default:
+            return type
+        }
+    }
+
+    private func loadCompactLabel(_ load: String) -> String {
+        switch load {
+        case "No Chance of a Seat":
+            return "No Seats"
+        default:
+            return load
         }
     }
 
@@ -951,6 +1015,130 @@ struct BusWidgetView: View {
 
     private var appCrowdedColor: Color {
         Color(red: 166 / 255, green: 84 / 255, blue: 56 / 255)
+    }
+}
+
+private struct WidgetBusTypeGlyph: View {
+    let type: String
+    let color: Color
+
+    var body: some View {
+        Group {
+            switch type {
+            case "Double deck":
+                doubleDeck
+            case "Bendy bus":
+                bendyBus
+            default:
+                singleDeck
+            }
+        }
+        .foregroundColor(color)
+    }
+
+    private var singleDeck: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                .stroke(color, lineWidth: 1)
+                .frame(width: 16.5, height: 7.5)
+
+            HStack(spacing: 1.5) {
+                ForEach(0..<3, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 0.8, style: .continuous)
+                        .fill(color)
+                        .frame(width: 3, height: 1.5)
+                }
+            }
+            .offset(y: -0.8)
+
+            HStack(spacing: 7.5) {
+                Circle().fill(color).frame(width: 1.9, height: 1.9)
+                Circle().fill(color).frame(width: 1.9, height: 1.9)
+            }
+            .offset(y: 4)
+        }
+    }
+
+    private var doubleDeck: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 2.6, style: .continuous)
+                .stroke(color, lineWidth: 1)
+                .frame(width: 15.5, height: 10.5)
+
+            Rectangle()
+                .fill(color.opacity(0.72))
+                .frame(width: 12.4, height: 0.8)
+
+            VStack(spacing: 1.5) {
+                HStack(spacing: 1.2) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 0.7, style: .continuous)
+                            .fill(color)
+                            .frame(width: 2.6, height: 1.35)
+                    }
+                }
+
+                HStack(spacing: 1.2) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 0.7, style: .continuous)
+                            .fill(color)
+                            .frame(width: 2.6, height: 1.35)
+                    }
+                }
+            }
+            .offset(y: -0.8)
+
+            HStack(spacing: 6.8) {
+                Circle().fill(color).frame(width: 1.8, height: 1.8)
+                Circle().fill(color).frame(width: 1.8, height: 1.8)
+            }
+            .offset(y: 5.3)
+        }
+    }
+
+    private var bendyBus: some View {
+        ZStack {
+            HStack(spacing: 1.3) {
+                RoundedRectangle(cornerRadius: 2.3, style: .continuous)
+                    .stroke(color, lineWidth: 1)
+                    .frame(width: 8, height: 7.6)
+
+                ZStack {
+                    Rectangle().fill(color.opacity(0.68)).frame(width: 0.8, height: 6.8)
+                    Rectangle().fill(color.opacity(0.42)).frame(width: 0.8, height: 6.8).offset(x: 1.5)
+                    Rectangle().fill(color.opacity(0.42)).frame(width: 0.8, height: 6.8).offset(x: -1.5)
+                }
+                .frame(width: 3.8, height: 7.6)
+
+                RoundedRectangle(cornerRadius: 2.3, style: .continuous)
+                    .stroke(color, lineWidth: 1)
+                    .frame(width: 8, height: 7.6)
+            }
+
+            HStack(spacing: 1.4) {
+                RoundedRectangle(cornerRadius: 0.7, style: .continuous)
+                    .fill(color)
+                    .frame(width: 2.4, height: 1.4)
+                RoundedRectangle(cornerRadius: 0.7, style: .continuous)
+                    .fill(color)
+                    .frame(width: 2.4, height: 1.4)
+                Spacer().frame(width: 3.8)
+                RoundedRectangle(cornerRadius: 0.7, style: .continuous)
+                    .fill(color)
+                    .frame(width: 2.4, height: 1.4)
+                RoundedRectangle(cornerRadius: 0.7, style: .continuous)
+                    .fill(color)
+                    .frame(width: 2.4, height: 1.4)
+            }
+            .frame(width: 20)
+            .offset(y: -1.1)
+
+            HStack(spacing: 12.5) {
+                Circle().fill(color).frame(width: 1.8, height: 1.8)
+                Circle().fill(color).frame(width: 1.8, height: 1.8)
+            }
+            .offset(y: 4)
+        }
     }
 }
 

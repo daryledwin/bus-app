@@ -1431,6 +1431,49 @@ ion-content.bus-home {
   justify-self: center;
 }
 
+.bus-type-icon {
+  align-items: center;
+  color: currentColor;
+  display: inline-flex;
+  height: 17px;
+  justify-content: center;
+  justify-self: center;
+  width: 17px;
+}
+
+.bus-type-icon svg {
+  display: block;
+  height: 17px;
+  overflow: visible;
+  width: 19px;
+}
+
+.bus-type-icon__body,
+.bus-type-icon__line,
+.bus-type-icon__window {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bus-type-icon__body {
+  stroke-width: 2.2;
+}
+
+.bus-type-icon__line,
+.bus-type-icon__window {
+  stroke-width: 1.8;
+}
+
+.bus-type-icon__wheel {
+  fill: currentColor;
+}
+
+.live-row__meta--stacked .load-availability-icon {
+  font-size: 15px;
+}
+
 .live-row__meta--stacked .wheelchair-access-icon {
   color: currentColor;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;

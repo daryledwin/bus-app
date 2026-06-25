@@ -148,11 +148,11 @@ export class LtaBusService {
   private loadLabel(load?: string): string {
     switch (load) {
       case 'SEA':
-        return 'Seats available';
+        return 'Seats Available';
       case 'SDA':
-        return 'Standing room';
+        return 'Few Seats Left';
       case 'LSD':
-        return 'Crowded';
+        return 'No Chance of a Seat';
       default:
         return 'Load unavailable';
     }

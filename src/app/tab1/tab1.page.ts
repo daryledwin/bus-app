@@ -46,6 +46,7 @@ interface ArrivalSearchOptions {
   preserveRouteState?: boolean;
   preserveScrollPosition?: boolean;
   scrollToArrivals?: boolean;
+  confirmLoadedHaptic?: boolean;
 }
 
 interface HeroTimeOfDay {
@@ -386,6 +387,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         this.searchedBusStopCode = arrivalLookup.busStopCode;
         this.resolveSelectedBusStopForCode(arrivalLookup.busStopCode, requestId);
         this.liveBusServices = this.sortLiveServices(arrivalLookup.services);
+        if (options.confirmLoadedHaptic === true) {
+          void this.refreshFeedbackService.lightImpact();
+        }
         this.isLoadingArrivals = false;
         this.markArrivalsRefreshed();
         this.syncExpandedServiceAfterRefresh();
@@ -487,7 +491,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.searchTerm = `${stop.Description} (${stop.BusStopCode})`;
     this.busStopResults = [];
     this.rememberBusStop(stop);
-    this.searchArrivals(stop.BusStopCode);
+    this.searchArrivals(stop.BusStopCode, undefined, { confirmLoadedHaptic: true });
   }
 
   private openBusStopFromDeepLink(busStopCode: string): void {
@@ -747,11 +751,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   loadTone(load: string): string {
     switch (load) {
-      case 'Seats available':
+      case 'Seats Available':
         return 'seats';
-      case 'Standing room':
+      case 'Few Seats Left':
         return 'standing';
-      case 'Crowded':
+      case 'No Chance of a Seat':
         return 'crowded';
       default:
         return 'unknown';
