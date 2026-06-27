@@ -397,3 +397,1900 @@ ion-content.about-page {
     max-width: 94%;
   }
 }
+
+/* Cute native iOS refresh: same warm glass system as Home/Nearby. */
+:host {
+  --blue: #1977c9;
+  --blue-soft: #d9f1ff;
+  --sun: #ffe69b;
+  --ink: #10243a;
+  --muted: #687b8f;
+  --line: rgba(74, 126, 168, 0.045);
+  --paper: rgba(255, 255, 255, 0.76);
+  --shadow-float: none;
+  --shadow-soft: none;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+}
+
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, rgba(221, 242, 255, 0.98) 0%, rgba(241, 249, 255, 0.96) 42%, #fbfdff 100%);
+}
+
+.about-shell {
+  gap: 18px;
+  padding-inline: 22px;
+}
+
+.about-back-button {
+  backdrop-filter: blur(28px) saturate(1.35);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+  background: rgba(255, 255, 255, 0.56);
+  border-color: rgba(74, 126, 168, 0.04);
+  border-radius: 14px;
+  box-shadow: none;
+  color: #267db9;
+  height: 38px;
+  width: 38px;
+}
+
+.about-back-button ion-icon {
+  font-size: 20px;
+}
+
+.about-hero {
+  background:
+    linear-gradient(180deg, rgba(249, 253, 255, 0.74), rgba(234, 247, 255, 0.58)),
+    linear-gradient(135deg, rgba(255, 246, 219, 0.54), rgba(232, 247, 255, 0.18) 48%, rgba(255, 255, 255, 0.5));
+  border-color: rgba(74, 126, 168, 0.05);
+  border-radius: 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  min-height: 324px;
+  padding: 26px 26px 30px;
+}
+
+.about-hero::before {
+  background:
+    radial-gradient(ellipse at 54% 56%, rgba(255, 231, 154, 0.42), transparent 58%),
+    radial-gradient(ellipse at 52% 52%, rgba(180, 225, 255, 0.58), transparent 66%);
+  border-radius: 44% 56% 50% 44%;
+  filter: blur(18px);
+  height: 166px;
+  left: auto;
+  opacity: 0.7;
+  right: 8px;
+  top: 34px;
+  transform: rotate(-8deg);
+  width: clamp(180px, 32vw, 270px);
+}
+
+.about-chip {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: rgba(74, 126, 168, 0.05);
+  border-radius: 18px;
+  color: rgba(42, 88, 125, 0.78);
+  font-weight: 560;
+  padding: 7px 10px;
+}
+
+.about-chip ion-icon {
+  color: #d9a928;
+  font-size: 14px;
+}
+
+.about-hero h1 {
+  color: #0f2440;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(34px, 8vw, 52px);
+  font-weight: 720;
+  letter-spacing: -0.05em;
+  line-height: 0.96;
+  margin-top: 36px;
+  max-width: 390px;
+}
+
+.about-hero p {
+  color: rgba(35, 70, 101, 0.56);
+  font-size: 15px;
+  font-weight: 450;
+  max-width: 260px;
+}
+
+.about-story {
+  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid rgba(74, 126, 168, 0.04);
+  border-radius: 18px;
+  color: rgba(16, 36, 58, 0.68);
+  font-size: 14px;
+  font-weight: 450;
+  line-height: 1.45;
+  margin-top: 28px;
+  max-width: 430px;
+  padding: 14px 15px;
+  position: relative;
+  z-index: 3;
+}
+
+.about-skyline {
+  opacity: 0.1;
+}
+
+.about-bus-illustration {
+  filter: drop-shadow(0 14px 18px rgba(73, 129, 170, 0.1));
+  mask-image: none;
+  opacity: 0.76;
+  right: clamp(2px, 2vw, 18px);
+  top: 16px;
+  width: clamp(156px, 27vw, 228px);
+  z-index: 2;
+}
+
+.about-mini-grid article,
+.about-review-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 251, 255, 0.64));
+  border-color: rgba(74, 126, 168, 0.04);
+  box-shadow: none;
+}
+
+.about-mini-grid article {
+  border-radius: 18px;
+}
+
+.about-mini-grid article::before {
+  background: rgba(218, 241, 255, 0.62);
+}
+
+.about-mini-grid span,
+.about-review-card__copy strong {
+  color: #10243a;
+  font-weight: 600;
+}
+
+.about-review-card {
+  border-radius: 18px;
+  padding: 14px 15px;
+}
+
+.about-review-card__icon {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 169, 0.68), rgba(255, 246, 219, 0.54));
+  border-color: rgba(201, 152, 38, 0.08);
+  border-radius: 13px;
+  box-shadow: none;
+}
+
+.about-review-card__copy small,
+.about-footer {
+  color: rgba(44, 78, 107, 0.5);
+  font-weight: 450;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    padding-inline: 18px;
+  }
+
+  .about-hero {
+    border-radius: 26px;
+    min-height: 342px;
+    padding: 24px 20px 24px;
+  }
+
+  .about-hero h1 {
+    max-width: 270px;
+  }
+
+  .about-hero p {
+    max-width: 220px;
+  }
+
+  .about-bus-illustration {
+    right: -12px;
+    top: 32px;
+    width: min(44vw, 172px);
+  }
+}
+
+/* Final consistency pass: stable cute-iOS grouped surfaces. */
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, #dff3ff 0%, #eef9ff 38%, #fbfdff 100%);
+}
+
+.about-hero {
+  background:
+    radial-gradient(ellipse at 78% 42%, rgba(255, 233, 151, 0.22), transparent 34%),
+    radial-gradient(ellipse at 78% 48%, rgba(177, 224, 255, 0.34), transparent 46%),
+    linear-gradient(180deg, rgba(250, 254, 255, 0.78), rgba(234, 248, 255, 0.64));
+  border-color: rgba(96, 146, 184, 0.052);
+  border-radius: 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  min-height: 318px;
+}
+
+.about-chip,
+.about-back-button {
+  backdrop-filter: blur(28px) saturate(1.28);
+  -webkit-backdrop-filter: blur(28px) saturate(1.28);
+}
+
+.about-story,
+.about-review-card,
+.about-mini-grid article {
+  background: rgba(250, 254, 255, 0.68);
+  border-color: rgba(96, 146, 184, 0.045);
+  box-shadow: none;
+}
+
+.about-review-card,
+.about-story {
+  border-radius: 18px;
+}
+
+@media (max-width: 520px) {
+  .about-hero {
+    min-height: 330px;
+  }
+}
+
+/* Warm iOS correction shared with Home. */
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, #f7f1e8 0%, #fbf7f0 42%, #fffdf9 100%);
+}
+
+.about-hero {
+  background:
+    radial-gradient(ellipse at 78% 42%, rgba(255, 220, 126, 0.18), transparent 34%),
+    radial-gradient(ellipse at 78% 48%, rgba(186, 222, 240, 0.22), transparent 46%),
+    linear-gradient(180deg, rgba(255, 253, 247, 0.82), rgba(248, 244, 236, 0.66));
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.about-chip,
+.about-back-button,
+.about-story,
+.about-review-card,
+.about-mini-grid article {
+  background: rgba(255, 253, 248, 0.72);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.about-hero p,
+.about-story,
+.about-review-card__copy small,
+.about-footer {
+  color: rgba(88, 101, 112, 0.58);
+}
+
+.about-review-card__icon {
+  background: rgba(255, 236, 181, 0.52);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+/* Expressive warm system to match the new Home hero direction. */
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, #f8f1e7 0%, #fbf7ef 36%, #fffdf9 100%);
+}
+
+.about-shell {
+  max-width: 820px;
+  padding-inline: 22px;
+}
+
+.about-back-button {
+  background: rgba(255, 255, 255, 0.72);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 10px 26px rgba(73, 61, 43, 0.07);
+}
+
+.about-hero {
+  background:
+    radial-gradient(ellipse at 80% 30%, rgba(255, 216, 87, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 247, 0.78), rgba(248, 244, 236, 0.58));
+  border: 0;
+  border-radius: 28px;
+  box-shadow: none;
+  min-height: 340px;
+  padding: 32px;
+}
+
+.about-chip {
+  background: rgba(255, 255, 255, 0.72);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(73, 61, 43, 0.055);
+  color: #2b77bd;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.about-hero h1 {
+  color: #08090b;
+  font-size: clamp(42px, 8vw, 64px);
+  font-weight: 780;
+  letter-spacing: -0.055em;
+}
+
+.about-hero p,
+.about-story,
+.about-review-card__copy small,
+.about-footer {
+  color: rgba(45, 49, 58, 0.56);
+}
+
+.about-bus-illustration {
+  opacity: 0.82;
+  width: clamp(180px, 30vw, 260px);
+}
+
+.about-story,
+.about-review-card,
+.about-mini-grid article {
+  background: rgba(255, 255, 255, 0.74);
+  border: 0;
+  box-shadow: 0 12px 30px rgba(72, 61, 44, 0.045);
+}
+
+.about-review-card__icon,
+.about-mini-grid article::before {
+  background: rgba(255, 236, 181, 0.52);
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    padding-inline: 18px;
+  }
+
+  .about-hero {
+    min-height: 334px;
+    padding: 28px;
+  }
+}
+
+/* Final blue iOS system, matching Home. */
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, #eef8ff 0%, #f3faff 46%, #fbfdff 100%);
+}
+
+.about-shell {
+  max-width: 820px;
+  padding-inline: 22px;
+}
+
+.about-back-button {
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  box-shadow: 0 10px 26px rgba(52, 98, 132, 0.08);
+  color: #1977c9;
+}
+
+.about-hero {
+  background:
+    radial-gradient(ellipse at 78% 28%, rgba(25, 119, 201, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(238, 248, 255, 0.68));
+  border: 0;
+  border-radius: 28px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+}
+
+.about-chip {
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  box-shadow: 0 8px 24px rgba(52, 98, 132, 0.06);
+  color: #1977c9;
+}
+
+.about-chip ion-icon {
+  color: #1977c9;
+}
+
+.about-hero h1,
+.about-review-card__copy strong,
+.about-mini-grid span {
+  color: #10243a;
+}
+
+.about-hero p,
+.about-story,
+.about-review-card__copy small,
+.about-footer {
+  color: rgba(74, 91, 108, 0.62);
+}
+
+.about-story,
+.about-review-card,
+.about-mini-grid article {
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+}
+
+.about-review-card__icon,
+.about-mini-grid article::before {
+  background: rgba(25, 119, 201, 0.1);
+  color: #1977c9;
+}
+
+.about-review-card__icon ion-icon {
+  color: #1977c9;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    padding-inline: 20px;
+  }
+}
+
+/* About layout fix: protect heading, lower the bus, keep Home's blue iOS system. */
+.about-shell {
+  gap: 18px;
+  max-width: 820px;
+  padding: max(18px, env(safe-area-inset-top)) 22px 48px;
+}
+
+.about-hero {
+  background:
+    radial-gradient(ellipse at 78% 52%, rgba(25, 119, 201, 0.07), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(238, 248, 255, 0.72));
+  border-radius: 28px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px 26px 26px;
+}
+
+.about-chip,
+.about-hero h1,
+.about-hero > p {
+  max-width: min(100%, 420px);
+  position: relative;
+  z-index: 4;
+}
+
+.about-chip {
+  font-size: 12px;
+  font-weight: 650;
+  padding: 8px 12px;
+}
+
+.about-hero h1 {
+  color: #10243a;
+  font-size: clamp(36px, 6.5vw, 52px);
+  line-height: 1;
+  margin: 28px 0 8px;
+}
+
+.about-hero > p {
+  color: rgba(74, 91, 108, 0.62);
+  font-size: 15px;
+  font-weight: 520;
+  margin: 0;
+}
+
+.about-bus-illustration {
+  opacity: 0.58;
+  right: clamp(-14px, -1vw, -4px);
+  top: auto;
+  bottom: 96px;
+  width: clamp(150px, 25vw, 220px);
+  z-index: 1;
+}
+
+.about-story {
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  color: rgba(74, 91, 108, 0.68);
+  font-size: 13.5px;
+  line-height: 1.45;
+  margin-top: 32px;
+  max-width: 470px;
+  padding: 14px 16px;
+}
+
+.about-review-card {
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 22px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  padding: 14px 16px;
+}
+
+.about-review-card__icon {
+  background: rgba(25, 119, 201, 0.1);
+  border-radius: 14px;
+  color: #1977c9;
+  height: 40px;
+  width: 40px;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    padding-inline: 20px;
+  }
+
+  .about-hero {
+    border-radius: 26px;
+    padding: 22px 22px 24px;
+  }
+
+  .about-hero h1 {
+    font-size: clamp(34px, 10vw, 42px);
+    max-width: 260px;
+  }
+
+  .about-hero > p {
+    max-width: 230px;
+  }
+
+  .about-bus-illustration {
+    bottom: 108px;
+    opacity: 0.46;
+    right: -24px;
+    width: min(42vw, 154px);
+  }
+
+  .about-story {
+    margin-top: 28px;
+    max-width: 100%;
+  }
+}
+
+/* About illustration Option A: larger bus uncle tucked into the bottom-right. */
+.about-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.about-hero::before {
+  background:
+    radial-gradient(ellipse at 82% 76%, rgba(25, 119, 201, 0.08), transparent 38%);
+  filter: blur(10px);
+  inset: auto -20px -28px auto;
+  height: 190px;
+  left: auto;
+  opacity: 0.72;
+  top: auto;
+  transform: none;
+  width: 250px;
+  z-index: 0;
+}
+
+.about-chip,
+.about-hero h1,
+.about-hero > p,
+.about-story {
+  position: relative;
+  z-index: 4;
+}
+
+.about-bus-illustration {
+  bottom: -12px;
+  opacity: 0.88;
+  right: -16px;
+  top: auto;
+  width: clamp(190px, 30vw, 230px);
+  z-index: 1;
+}
+
+.about-story {
+  max-width: min(430px, calc(100% - 130px));
+}
+
+@media (max-width: 520px) {
+  .about-bus-illustration {
+    bottom: -10px;
+    opacity: 0.86;
+    right: -18px;
+    width: min(48vw, 204px);
+  }
+
+  .about-story {
+    max-width: calc(100% - 72px);
+  }
+}
+
+/* Portrait-led About page: cozy, personal, aligned with the blue iOS system. */
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, #eef8ff 0%, #f3faff 46%, #fbfdff 100%);
+}
+
+.about-shell {
+  gap: 16px;
+  max-width: 820px;
+  padding: max(18px, env(safe-area-inset-top)) 22px 48px;
+}
+
+.about-skyline,
+.about-bus-illustration {
+  display: none;
+}
+
+.about-hero {
+  background:
+    radial-gradient(ellipse at 82% 18%, rgba(255, 215, 75, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(238, 248, 255, 0.72));
+  border: 0;
+  border-radius: 28px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px 26px 26px;
+  position: relative;
+}
+
+.about-hero::before,
+.about-hero::after {
+  display: none;
+}
+
+.about-chip {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(52, 98, 132, 0.06);
+  color: #1977c9;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 650;
+  gap: 7px;
+  padding: 8px 12px;
+}
+
+.about-chip ion-icon {
+  color: #1977c9;
+}
+
+.about-hero h1 {
+  color: #10243a;
+  font-size: clamp(38px, 7vw, 56px);
+  font-weight: 780;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  margin: 28px 0 8px;
+  max-width: 520px;
+}
+
+.about-hero > p {
+  color: rgba(74, 91, 108, 0.62);
+  font-size: 15px;
+  font-weight: 520;
+  margin: 0;
+}
+
+.about-portrait-card {
+  background:
+    radial-gradient(ellipse at 78% 12%, rgba(255, 215, 75, 0.16), transparent 32%),
+    rgba(255, 255, 255, 0.78);
+  border-radius: 30px;
+  box-shadow: 0 16px 38px rgba(52, 98, 132, 0.1);
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.about-portrait-card img {
+  aspect-ratio: 1.1 / 1;
+  display: block;
+  height: auto;
+  object-fit: cover;
+  object-position: center center;
+  width: 100%;
+}
+
+.about-story {
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  color: rgba(74, 91, 108, 0.68);
+  font-size: 14px;
+  font-weight: 450;
+  line-height: 1.48;
+  margin: 0;
+  max-width: none;
+  padding: 16px 17px;
+}
+
+.about-review-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  padding: 14px 16px;
+}
+
+.about-review-card__icon {
+  background: rgba(25, 119, 201, 0.1);
+  border: 0;
+  border-radius: 14px;
+  color: #1977c9;
+  height: 40px;
+  width: 40px;
+}
+
+.about-review-card__copy strong {
+  color: #10243a;
+}
+
+.about-review-card__copy small,
+.about-footer {
+  color: rgba(74, 91, 108, 0.62);
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    padding-inline: 20px;
+  }
+
+  .about-hero {
+    border-radius: 26px;
+    padding: 22px 22px 24px;
+  }
+
+  .about-hero h1 {
+    font-size: clamp(36px, 10vw, 44px);
+  }
+
+  .about-portrait-card {
+    border-radius: 28px;
+  }
+
+  .about-portrait-card img {
+    aspect-ratio: 0.96 / 1;
+    object-position: center center;
+  }
+}
+
+/* Editorial About composition: page heading plus one connected portrait/story card. */
+.about-shell {
+  gap: 18px;
+  padding-top: max(18px, env(safe-area-inset-top));
+}
+
+.about-hero {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+  padding: 18px 2px 10px;
+}
+
+.about-hero h1 {
+  font-size: clamp(38px, 7vw, 54px);
+  line-height: 0.98;
+  margin: 26px 0 8px;
+  max-width: 560px;
+}
+
+.about-hero > p {
+  color: rgba(74, 91, 108, 0.66);
+  font-size: 16px;
+}
+
+.about-editorial-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.9)),
+    radial-gradient(ellipse at 72% 6%, rgba(255, 218, 109, 0.14), transparent 34%);
+  border: 0;
+  border-radius: 30px;
+  box-shadow: 0 16px 38px rgba(52, 98, 132, 0.1);
+  margin: 2px 0 0;
+  overflow: hidden;
+}
+
+.about-editorial-card .about-portrait-card {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+}
+
+.about-editorial-card .about-portrait-card img {
+  aspect-ratio: 1.18 / 1;
+  display: block;
+  height: auto;
+  object-fit: cover;
+  object-position: center center;
+  width: 100%;
+}
+
+.about-editorial-card .about-story {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 0;
+  box-shadow: none;
+  color: rgba(74, 91, 108, 0.72);
+  font-size: 14.5px;
+  line-height: 1.52;
+  padding: 18px 20px 20px;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    gap: 16px;
+  }
+
+  .about-hero {
+    padding: 16px 0 8px;
+  }
+
+  .about-hero h1 {
+    font-size: clamp(36px, 10vw, 44px);
+    margin-top: 24px;
+  }
+
+  .about-editorial-card {
+    border-radius: 28px;
+  }
+
+  .about-editorial-card .about-portrait-card img {
+    aspect-ratio: 0.98 / 1;
+    object-position: center center;
+  }
+
+  .about-editorial-card .about-story {
+    font-size: 14px;
+    padding: 16px 17px 18px;
+  }
+}
+
+/* Image-free cute About page: small transit badge, airy cards, blue iOS system. */
+ion-content.about-page {
+  --background:
+    radial-gradient(circle at 18% 4%, rgba(255, 220, 112, 0.12), transparent 24%),
+    linear-gradient(180deg, #eef8ff 0%, #f4fbff 48%, #fbfdff 100%);
+}
+
+.about-shell {
+  gap: 16px;
+  max-width: 760px;
+  padding: max(18px, env(safe-area-inset-top)) 20px 48px;
+}
+
+.about-back-button {
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  background: rgba(255, 255, 255, 0.78);
+  border: 0;
+  border-radius: 15px;
+  box-shadow: 0 10px 26px rgba(52, 98, 132, 0.08);
+  color: #1977c9;
+  height: 42px;
+  width: 42px;
+}
+
+.about-back-button ion-icon {
+  font-size: 22px;
+}
+
+.about-hero {
+  align-items: center;
+  background:
+    radial-gradient(circle at 84% 22%, rgba(255, 217, 84, 0.18), transparent 28%),
+    radial-gradient(circle at 86% 76%, rgba(25, 119, 201, 0.1), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(238, 248, 255, 0.76));
+  border: 1px solid rgba(96, 146, 184, 0.06);
+  border-radius: 30px;
+  box-shadow: 0 16px 38px rgba(52, 98, 132, 0.08);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px;
+  position: relative;
+}
+
+.about-hero::before,
+.about-hero::after,
+.about-skyline,
+.about-bus-illustration,
+.about-portrait-card,
+.about-editorial-card {
+  display: none;
+}
+
+.about-hero__copy {
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.about-chip {
+  align-items: center;
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(96, 146, 184, 0.06);
+  border-radius: 999px;
+  box-shadow: none;
+  color: #1977c9;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 650;
+  gap: 7px;
+  padding: 8px 12px;
+}
+
+.about-chip ion-icon {
+  color: #f1b91d;
+  font-size: 15px;
+}
+
+.about-hero h1 {
+  color: #10243a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(38px, 7vw, 54px);
+  font-weight: 780;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  margin: 24px 0 8px;
+  max-width: 440px;
+}
+
+.about-hero > p,
+.about-hero__copy > p {
+  color: rgba(74, 91, 108, 0.66);
+  font-size: 15px;
+  font-weight: 520;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.about-bus-badge {
+  align-items: center;
+  background:
+    radial-gradient(circle at 68% 22%, rgba(255, 222, 102, 0.5), transparent 30%),
+    linear-gradient(180deg, rgba(232, 246, 255, 0.95), rgba(214, 237, 252, 0.86));
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 14px 28px rgba(52, 98, 132, 0.1);
+  color: #1977c9;
+  display: grid;
+  height: 74px;
+  place-items: center;
+  position: relative;
+  width: 74px;
+  z-index: 2;
+}
+
+.about-bus-badge::after {
+  background: rgba(255, 212, 74, 0.72);
+  border-radius: 999px;
+  content: "";
+  height: 9px;
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  width: 9px;
+}
+
+.about-bus-badge ion-icon {
+  font-size: 36px;
+}
+
+.about-story {
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(96, 146, 184, 0.055);
+  border-radius: 24px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  color: rgba(74, 91, 108, 0.72);
+  font-size: 14.5px;
+  font-weight: 450;
+  line-height: 1.52;
+  margin: 0;
+  max-width: none;
+  padding: 18px 19px;
+}
+
+.about-info-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.about-info-chips span {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(242, 250, 255, 0.78));
+  border: 1px solid rgba(96, 146, 184, 0.055);
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(52, 98, 132, 0.055);
+  color: rgba(25, 93, 145, 0.78);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0;
+  padding: 9px 12px;
+}
+
+.about-info-chips span:nth-child(1) {
+  background: rgba(255, 246, 218, 0.78);
+  color: rgba(147, 101, 7, 0.76);
+}
+
+.about-review-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(96, 146, 184, 0.055);
+  border-radius: 24px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  padding: 15px 16px;
+}
+
+.about-review-card__icon {
+  background: rgba(25, 119, 201, 0.1);
+  border: 0;
+  border-radius: 14px;
+  color: #1977c9;
+  height: 40px;
+  width: 40px;
+}
+
+.about-review-card__copy strong {
+  color: #10243a;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.about-review-card__copy small,
+.about-footer {
+  color: rgba(74, 91, 108, 0.62);
+}
+
+.about-footer {
+  padding-top: 4px;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    gap: 15px;
+    padding-inline: 20px;
+  }
+
+  .about-hero {
+    border-radius: 28px;
+    gap: 14px;
+    padding: 22px;
+  }
+
+  .about-hero h1 {
+    font-size: clamp(36px, 10vw, 44px);
+    margin-top: 22px;
+  }
+
+  .about-bus-badge {
+    border-radius: 19px;
+    height: 62px;
+    width: 62px;
+  }
+
+  .about-bus-badge ion-icon {
+    font-size: 31px;
+  }
+
+  .about-story {
+    font-size: 14px;
+    padding: 16px 17px;
+  }
+}
+
+/* Classic editorial About page: clean header, story card, values rows. */
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, #eef8ff 0%, #f5fbff 52%, #fbfdff 100%);
+}
+
+.about-shell {
+  gap: 16px;
+  max-width: 720px;
+  padding: max(18px, env(safe-area-inset-top)) 22px 48px;
+}
+
+.about-back-button {
+  background: rgba(255, 255, 255, 0.82);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(52, 98, 132, 0.08);
+  color: #1977c9;
+  height: 42px;
+  width: 42px;
+}
+
+.about-hero {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: block;
+  min-height: 0;
+  overflow: visible;
+  padding: 24px 2px 12px;
+}
+
+.about-hero::before,
+.about-hero::after,
+.about-bus-badge,
+.about-info-chips,
+.about-portrait-card,
+.about-editorial-card,
+.about-skyline,
+.about-bus-illustration {
+  display: none;
+}
+
+.about-chip {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: rgba(25, 119, 201, 0.82);
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  padding: 0;
+}
+
+.about-chip ion-icon {
+  display: none;
+}
+
+.about-hero h1 {
+  color: #10243a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(42px, 8vw, 58px);
+  font-weight: 780;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+  margin: 12px 0 8px;
+  max-width: 560px;
+}
+
+.about-hero > p {
+  color: rgba(74, 91, 108, 0.66);
+  font-size: 16px;
+  font-weight: 520;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.about-story,
+.about-values,
+.about-review-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(96, 146, 184, 0.055);
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.065);
+}
+
+.about-story {
+  border-radius: 26px;
+  color: rgba(74, 91, 108, 0.74);
+  font-size: 15px;
+  font-weight: 450;
+  line-height: 1.56;
+  margin: 0;
+  max-width: none;
+  padding: 22px 22px 23px;
+  position: relative;
+}
+
+.about-story > ion-icon {
+  color: rgba(25, 119, 201, 0.28);
+  font-size: 22px;
+  position: absolute;
+  right: 20px;
+  top: 19px;
+}
+
+.about-values {
+  border-radius: 26px;
+  overflow: hidden;
+  padding: 4px 0;
+}
+
+.about-values article {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 15px 18px;
+}
+
+.about-values article + article {
+  border-top: 1px solid rgba(96, 146, 184, 0.07);
+}
+
+.about-value-icon {
+  align-items: center;
+  background: rgba(25, 119, 201, 0.09);
+  border-radius: 13px;
+  color: #1977c9;
+  display: grid;
+  height: 38px;
+  place-items: center;
+  width: 38px;
+}
+
+.about-value-icon ion-icon {
+  font-size: 20px;
+}
+
+.about-values article > span:last-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.about-values strong {
+  color: #10243a;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.about-values small {
+  color: rgba(74, 91, 108, 0.66);
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.35;
+}
+
+.about-review-card {
+  border-radius: 24px;
+  padding: 14px 16px;
+}
+
+.about-review-card__icon {
+  background: rgba(25, 119, 201, 0.09);
+  border-radius: 13px;
+  color: #1977c9;
+  height: 40px;
+  width: 40px;
+}
+
+.about-review-card__copy strong {
+  color: #10243a;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.about-review-card__copy small {
+  color: rgba(74, 91, 108, 0.62);
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.about-footer {
+  color: rgba(74, 91, 108, 0.5);
+  font-size: 12px;
+  font-weight: 520;
+  padding-top: 6px;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    gap: 15px;
+    padding-inline: 20px;
+  }
+
+  .about-hero {
+    padding: 22px 0 10px;
+  }
+
+  .about-hero h1 {
+    font-size: clamp(38px, 11vw, 48px);
+  }
+
+  .about-story {
+    border-radius: 24px;
+    font-size: 14.5px;
+    padding: 20px 20px 21px;
+  }
+
+  .about-values {
+    border-radius: 24px;
+  }
+
+  .about-values article {
+    gap: 13px;
+    padding: 14px 16px;
+  }
+}
+
+/* Apple-style informational sheet adapted to MyBus SG. */
+ion-content.about-page {
+  --background:
+    linear-gradient(180deg, #eef8ff 0%, #f6fbff 52%, #fbfdff 100%);
+}
+
+.about-shell {
+  gap: 18px;
+  max-width: 720px;
+  padding: max(24px, env(safe-area-inset-top)) 22px 52px;
+}
+
+.about-back-button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.84);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(52, 98, 132, 0.08);
+  color: #0f1f33;
+  display: grid;
+  height: 48px;
+  place-items: center;
+  width: 48px;
+}
+
+.about-back-button ion-icon {
+  font-size: 25px;
+}
+
+.about-hero {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: block;
+  min-height: 0;
+  overflow: visible;
+  padding: 30px 0 20px;
+}
+
+.about-hero::before,
+.about-hero::after,
+.about-chip,
+.about-bus-badge,
+.about-info-chips,
+.about-portrait-card,
+.about-editorial-card,
+.about-skyline,
+.about-bus-illustration {
+  display: none;
+}
+
+.about-hero h1 {
+  color: #07182f;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(42px, 8.5vw, 60px);
+  font-weight: 760;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+  margin: 0 0 12px;
+  max-width: 620px;
+}
+
+.about-hero > p {
+  color: rgba(88, 96, 108, 0.72);
+  font-size: clamp(22px, 5vw, 34px);
+  font-weight: 420;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+  margin: 0;
+  max-width: 640px;
+}
+
+.about-values {
+  background: rgba(255, 255, 255, 0.82);
+  border: 0;
+  border-radius: 28px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.065);
+  overflow: hidden;
+  padding: 0;
+}
+
+.about-values article {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 92px;
+  padding: 18px 20px;
+}
+
+.about-values article + article {
+  border-top: 1px solid rgba(96, 146, 184, 0.08);
+}
+
+.about-value-icon {
+  align-items: center;
+  background: rgba(25, 119, 201, 0.1);
+  border-radius: 16px;
+  color: #1684e2;
+  display: grid;
+  height: 46px;
+  place-items: center;
+  width: 46px;
+}
+
+.about-value-icon ion-icon {
+  font-size: 25px;
+}
+
+.about-values article > span:last-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.about-values strong {
+  color: #07182f;
+  font-size: 18px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.16;
+}
+
+.about-values small {
+  color: rgba(88, 96, 108, 0.72);
+  font-size: 15px;
+  font-weight: 420;
+  line-height: 1.35;
+}
+
+.about-story {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: rgba(88, 96, 108, 0.74);
+  font-size: 15px;
+  font-weight: 420;
+  line-height: 1.52;
+  margin: 0;
+  max-width: 660px;
+  padding: 2px 4px 4px;
+}
+
+.about-story > ion-icon {
+  display: none;
+}
+
+.about-review-card {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.84);
+  border: 0;
+  border-radius: 26px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.065);
+  display: grid;
+  gap: 15px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 17px 18px;
+}
+
+.about-review-card__icon {
+  background: rgba(25, 119, 201, 0.1);
+  border: 0;
+  border-radius: 15px;
+  color: #1684e2;
+  height: 44px;
+  width: 44px;
+}
+
+.about-review-card__icon ion-icon {
+  font-size: 23px;
+}
+
+.about-review-card__copy strong {
+  color: #07182f;
+  font-size: 17px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+}
+
+.about-review-card__copy small {
+  color: rgba(88, 96, 108, 0.68);
+  font-size: 14px;
+  font-weight: 420;
+}
+
+.about-review-card__chevron {
+  color: rgba(88, 96, 108, 0.42);
+  font-size: 21px;
+}
+
+.about-footer {
+  color: rgba(88, 96, 108, 0.48);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 4px 0;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    gap: 17px;
+    padding-inline: 22px;
+    padding-top: max(22px, env(safe-area-inset-top));
+  }
+
+  .about-back-button {
+    height: 46px;
+    width: 46px;
+  }
+
+  .about-hero {
+    padding: 28px 0 18px;
+  }
+
+  .about-hero h1 {
+    font-size: clamp(40px, 11vw, 50px);
+  }
+
+  .about-hero > p {
+    font-size: clamp(22px, 7vw, 30px);
+  }
+
+  .about-values {
+    border-radius: 26px;
+  }
+
+  .about-values article {
+    min-height: 86px;
+    padding: 16px 17px;
+  }
+
+  .about-value-icon {
+    border-radius: 15px;
+    height: 42px;
+    width: 42px;
+  }
+
+  .about-values strong {
+    font-size: 17px;
+  }
+
+  .about-values small {
+    font-size: 14px;
+  }
+}
+
+/* Official iOS sheet polish: off-white surface, tighter type, slimmer groups. */
+ion-content.about-page {
+  --background: #f8f8fb;
+}
+
+.about-shell {
+  gap: 14px;
+  max-width: 680px;
+  padding: max(16px, env(safe-area-inset-top)) 22px 42px;
+}
+
+.about-back-button {
+  background: rgba(255, 255, 255, 0.92);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(20, 30, 44, 0.06);
+  color: #10141c;
+  height: 44px;
+  width: 44px;
+}
+
+.about-back-button ion-icon {
+  font-size: 23px;
+}
+
+.about-hero {
+  padding: 14px 0 12px;
+}
+
+.about-hero h1 {
+  color: #090b10;
+  font-size: clamp(34px, 7vw, 38px);
+  font-weight: 760;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin: 0 0 8px;
+  max-width: 560px;
+}
+
+.about-hero > p {
+  color: rgba(60, 60, 67, 0.62);
+  font-size: clamp(24px, 5.8vw, 28px);
+  font-weight: 420;
+  letter-spacing: -0.025em;
+  line-height: 1.18;
+  max-width: 620px;
+}
+
+.about-values {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 26px;
+  box-shadow: 0 8px 22px rgba(20, 30, 44, 0.045);
+}
+
+.about-values article {
+  gap: 13px;
+  min-height: 78px;
+  padding: 14px 17px;
+}
+
+.about-values article + article {
+  border-top: 1px solid rgba(60, 60, 67, 0.08);
+}
+
+.about-value-icon {
+  background: rgba(0, 122, 255, 0.1);
+  border-radius: 13px;
+  color: #007aff;
+  height: 38px;
+  width: 38px;
+}
+
+.about-value-icon ion-icon {
+  font-size: 21px;
+}
+
+.about-values strong {
+  color: #090b10;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+.about-values small {
+  color: rgba(60, 60, 67, 0.62);
+  font-size: 15px;
+  font-weight: 420;
+  line-height: 1.32;
+}
+
+.about-story {
+  color: rgba(60, 60, 67, 0.64);
+  font-size: 16px;
+  font-weight: 420;
+  line-height: 1.45;
+  max-width: 640px;
+  padding: 0 4px 4px;
+}
+
+.about-review-card {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 24px;
+  box-shadow: 0 8px 22px rgba(20, 30, 44, 0.045);
+  gap: 13px;
+  padding: 14px 17px;
+}
+
+.about-review-card__icon {
+  background: rgba(0, 122, 255, 0.1);
+  border-radius: 13px;
+  color: #007aff;
+  height: 38px;
+  width: 38px;
+}
+
+.about-review-card__icon ion-icon {
+  font-size: 21px;
+}
+
+.about-review-card__copy strong {
+  color: #090b10;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+.about-review-card__copy small {
+  color: rgba(60, 60, 67, 0.62);
+  font-size: 15px;
+  font-weight: 420;
+}
+
+.about-review-card__chevron {
+  color: rgba(60, 60, 67, 0.34);
+  font-size: 20px;
+}
+
+.about-footer {
+  color: rgba(60, 60, 67, 0.42);
+  font-size: 12px;
+  font-weight: 500;
+  padding-top: 4px;
+}
+
+@media (max-width: 520px) {
+  .about-shell {
+    gap: 14px;
+    padding-inline: 22px;
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+
+  .about-back-button {
+    height: 44px;
+    width: 44px;
+  }
+
+  .about-hero {
+    padding: 12px 0 10px;
+  }
+
+  .about-hero h1 {
+    font-size: clamp(34px, 9.5vw, 38px);
+  }
+
+  .about-hero > p {
+    font-size: clamp(24px, 6.6vw, 27px);
+  }
+
+  .about-values {
+    border-radius: 25px;
+  }
+
+  .about-values article {
+    min-height: 76px;
+    padding: 14px 16px;
+  }
+
+.about-story {
+  font-size: 16px;
+}
+}
+
+/* CTA section separation: make review feel actionable, not part of the info group. */
+.about-section-label {
+  color: rgba(60, 60, 67, 0.52);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0;
+  margin: 10px 4px -4px;
+  text-align: left;
+}
+
+.about-values + .about-section-label {
+  margin-top: 26px;
+}
+
+.about-review-card {
+  margin-top: 0;
+}
+
+.about-review-card__icon {
+  background: rgba(0, 122, 255, 0.11);
+  color: #007aff;
+}
+
+.about-review-card__icon ion-icon {
+  color: #007aff;
+}
+
+@media (max-width: 520px) {
+  .about-values + .about-section-label {
+    margin-top: 24px;
+  }
+}
+
+/* Final Connect section: monochrome iOS Settings-style group. */
+.about-section-label--connect {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  margin: 28px 4px -4px;
+  text-transform: uppercase;
+}
+
+.about-connect-card {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ececec;
+  border-radius: 24px;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.about-connect-row {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: grid;
+  gap: 13px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 68px;
+  padding: 13px 16px;
+  text-align: left;
+  transition: background-color 200ms ease, opacity 200ms ease;
+  width: 100%;
+}
+
+.about-connect-row + .about-connect-row {
+  border-top: 1px solid rgba(60, 60, 67, 0.08);
+}
+
+.about-connect-row:active {
+  background: rgba(0, 122, 255, 0.07);
+}
+
+.about-connect-row__icon {
+  align-items: center;
+  background: rgba(60, 60, 67, 0.06);
+  border-radius: 13px;
+  color: rgba(60, 60, 67, 0.74);
+  display: grid;
+  height: 38px;
+  place-items: center;
+  width: 38px;
+}
+
+.about-connect-row__icon ion-icon {
+  font-size: 22px;
+}
+
+.about-connect-row__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.about-connect-row__copy strong {
+  color: #090b10;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.18;
+}
+
+.about-connect-row__copy small {
+  color: rgba(60, 60, 67, 0.62);
+  font-size: 14px;
+  font-weight: 420;
+  line-height: 1.25;
+}
+
+.about-connect-row__chevron {
+  color: rgba(60, 60, 67, 0.32);
+  font-size: 20px;
+}
+
+.about-connect-row--linkedin .about-connect-row__icon {
+  background: #eaf4ff;
+  color: #0a66c2;
+}
+
+.about-connect-row--linkedin .about-connect-row__icon ion-icon,
+.about-connect-row--linkedin .about-connect-row__copy strong {
+  color: #0a66c2;
+}
+
+.about-connect-row--instagram .about-connect-row__icon {
+  background:
+    linear-gradient(135deg, #f58529 0%, #feda77 25%, #dd2a7b 55%, #8134af 80%, #515bd4 100%);
+  color: #ffffff;
+}
+
+.about-connect-row--instagram .about-connect-row__icon ion-icon {
+  color: #ffffff;
+}
+
+.about-connect-row--instagram .about-connect-row__copy strong {
+  background: linear-gradient(135deg, #f58529 0%, #feda77 25%, #dd2a7b 55%, #8134af 80%, #515bd4 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: #dd2a7b;
+  -webkit-text-fill-color: transparent;
+}
+
+@media (max-width: 520px) {
+  .about-section-label--connect {
+    margin-top: 26px;
+  }
+
+  .about-connect-row {
+    min-height: 66px;
+    padding: 13px 15px;
+  }
+}

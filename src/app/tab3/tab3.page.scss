@@ -1,0 +1,338 @@
+:host {
+  --ink: #10243a;
+  --muted: #687b8f;
+  --line: rgba(74, 126, 168, 0.045);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+}
+
+ion-content.routes-page {
+  --background:
+    linear-gradient(180deg, rgba(221, 242, 255, 0.98) 0%, rgba(241, 249, 255, 0.96) 42%, #fbfdff 100%);
+}
+
+.routes-shell {
+  display: grid;
+  gap: 18px;
+  margin: 0 auto;
+  max-width: 760px;
+  padding: max(18px, env(safe-area-inset-top)) 22px calc(118px + env(safe-area-inset-bottom));
+}
+
+.routes-hero {
+  align-items: end;
+  background:
+    linear-gradient(180deg, rgba(249, 253, 255, 0.74), rgba(234, 247, 255, 0.58)),
+    linear-gradient(135deg, rgba(255, 246, 219, 0.54), rgba(232, 247, 255, 0.18) 48%, rgba(255, 255, 255, 0.5));
+  border: 1px solid rgba(74, 126, 168, 0.05);
+  border-radius: 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 210px;
+  overflow: hidden;
+  padding: 26px;
+  position: relative;
+}
+
+.routes-hero::before {
+  background:
+    radial-gradient(ellipse at 54% 56%, rgba(255, 231, 154, 0.42), transparent 58%),
+    radial-gradient(ellipse at 52% 52%, rgba(180, 225, 255, 0.58), transparent 66%);
+  border-radius: 44% 56% 50% 44%;
+  content: "";
+  filter: blur(18px);
+  height: 148px;
+  pointer-events: none;
+  position: absolute;
+  right: 4px;
+  top: 38px;
+  transform: rotate(-8deg);
+  width: 220px;
+  z-index: 0;
+}
+
+.routes-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.routes-hero p {
+  color: rgba(37, 73, 103, 0.52);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+
+.routes-hero h1 {
+  color: #0f2440;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(32px, 7vw, 48px);
+  font-weight: 720;
+  letter-spacing: -0.05em;
+  line-height: 0.98;
+  margin: 0;
+  max-width: 440px;
+}
+
+.routes-hero span {
+  color: rgba(35, 70, 101, 0.56);
+  display: block;
+  font-size: 15px;
+  font-weight: 450;
+  line-height: 1.32;
+  margin-top: 12px;
+}
+
+.routes-hero__icon {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(218, 241, 255, 0.92), rgba(201, 234, 255, 0.78));
+  border: 1px solid rgba(74, 146, 200, 0.08);
+  border-radius: 18px;
+  color: #1977c9;
+  display: grid;
+  height: 62px;
+  place-items: center;
+  width: 62px;
+}
+
+.routes-hero__icon ion-icon {
+  font-size: 29px;
+}
+
+.routes-group {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(74, 126, 168, 0.04);
+  border-radius: 22px;
+  display: grid;
+  overflow: hidden;
+  padding: 6px;
+}
+
+.routes-row {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 251, 255, 0.64));
+  border: 1px solid rgba(74, 126, 168, 0.035);
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 74px;
+  padding: 12px 13px;
+}
+
+.routes-row + .routes-row {
+  margin-top: 10px;
+}
+
+.routes-row__icon {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(218, 241, 255, 0.92), rgba(201, 234, 255, 0.78));
+  border: 1px solid rgba(74, 146, 200, 0.08);
+  border-radius: 13px;
+  color: #1977c9;
+  display: grid;
+  height: 38px;
+  place-items: center;
+  width: 38px;
+}
+
+.routes-row__icon--warm {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 169, 0.68), rgba(255, 246, 219, 0.54));
+  color: #c58b12;
+}
+
+.routes-row__icon ion-icon {
+  font-size: 20px;
+}
+
+.routes-row h2 {
+  color: #10243a;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.18;
+  margin: 0;
+}
+
+.routes-row p {
+  color: rgba(44, 78, 107, 0.5);
+  font-size: 12px;
+  font-weight: 440;
+  line-height: 1.3;
+  margin: 4px 0 0;
+}
+
+.routes-row__chevron {
+  color: rgba(44, 78, 107, 0.28);
+  font-size: 17px;
+}
+
+@media (max-width: 520px) {
+  .routes-shell {
+    padding-inline: 18px;
+  }
+
+  .routes-hero {
+    border-radius: 26px;
+    grid-template-columns: 1fr;
+    min-height: 226px;
+    padding: 24px 20px;
+  }
+
+  .routes-hero__icon {
+    height: 54px;
+    justify-self: end;
+    width: 54px;
+  }
+}
+
+/* Final consistency pass: stable cute-iOS route page. */
+ion-content.routes-page {
+  --background:
+    linear-gradient(180deg, #dff3ff 0%, #eef9ff 38%, #fbfdff 100%);
+}
+
+.routes-hero {
+  background:
+    radial-gradient(ellipse at 78% 42%, rgba(255, 233, 151, 0.22), transparent 34%),
+    radial-gradient(ellipse at 78% 48%, rgba(177, 224, 255, 0.34), transparent 46%),
+    linear-gradient(180deg, rgba(250, 254, 255, 0.78), rgba(234, 248, 255, 0.64));
+  border-color: rgba(96, 146, 184, 0.052);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  min-height: 220px;
+}
+
+.routes-group,
+.routes-row {
+  box-shadow: none;
+}
+
+.routes-group {
+  background: rgba(255, 255, 255, 0.44);
+  border-color: rgba(96, 146, 184, 0.04);
+}
+
+.routes-row {
+  background: rgba(250, 254, 255, 0.68);
+  border-color: rgba(96, 146, 184, 0.04);
+}
+
+@media (max-width: 520px) {
+  .routes-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 220px;
+  }
+}
+
+/* Warm iOS correction shared with Home. */
+ion-content.routes-page {
+  --background:
+    linear-gradient(180deg, #f7f1e8 0%, #fbf7f0 42%, #fffdf9 100%);
+}
+
+.routes-hero {
+  background:
+    radial-gradient(ellipse at 78% 42%, rgba(255, 220, 126, 0.18), transparent 34%),
+    radial-gradient(ellipse at 78% 48%, rgba(186, 222, 240, 0.22), transparent 46%),
+    linear-gradient(180deg, rgba(255, 253, 247, 0.82), rgba(248, 244, 236, 0.66));
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.routes-group,
+.routes-row {
+  background: rgba(255, 253, 248, 0.72);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.routes-row__icon,
+.routes-hero__icon {
+  background: rgba(225, 240, 248, 0.78);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.routes-row__icon--warm {
+  background: rgba(255, 236, 181, 0.52);
+}
+
+.routes-hero span,
+.routes-row p {
+  color: rgba(88, 101, 112, 0.58);
+}
+
+/* Expressive warm system to match the new Home hero direction. */
+ion-content.routes-page {
+  --background:
+    linear-gradient(180deg, #f8f1e7 0%, #fbf7ef 36%, #fffdf9 100%);
+}
+
+.routes-shell {
+  max-width: 820px;
+}
+
+.routes-hero {
+  background:
+    radial-gradient(ellipse at 82% 30%, rgba(255, 216, 87, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 247, 0.78), rgba(248, 244, 236, 0.58));
+  border: 0;
+  border-radius: 28px;
+  box-shadow: none;
+  min-height: 236px;
+  padding: 32px;
+}
+
+.routes-hero h1 {
+  color: #08090b;
+  font-size: clamp(40px, 7vw, 60px);
+  font-weight: 780;
+  letter-spacing: -0.055em;
+}
+
+.routes-hero p,
+.routes-hero span,
+.routes-row p {
+  color: rgba(45, 49, 58, 0.56);
+}
+
+.routes-group {
+  background: transparent;
+  border: 0;
+  gap: 12px;
+  padding: 0;
+}
+
+.routes-row {
+  background: rgba(255, 255, 255, 0.74);
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 12px 30px rgba(72, 61, 44, 0.045);
+  min-height: 88px;
+  padding: 16px 18px;
+}
+
+.routes-row + .routes-row {
+  margin-top: 0;
+}
+
+.routes-row__icon,
+.routes-hero__icon {
+  background: rgba(46, 127, 175, 0.1);
+  border: 0;
+}
+
+.routes-row__icon--warm {
+  background: rgba(255, 216, 87, 0.22);
+}
+
+@media (max-width: 520px) {
+  .routes-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 28px;
+  }
+}

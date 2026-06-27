@@ -1,4 +1,5 @@
 import { Component, Optional } from '@angular/core';
+import { Browser } from '@capacitor/browser';
 import { IonRouterOutlet, NavController } from '@ionic/angular';
 import { ReviewService } from '../services/review.service';
 
@@ -8,6 +9,9 @@ import { ReviewService } from '../services/review.service';
   styleUrls: ['./about-me.page.scss']
 })
 export class AboutMePage {
+  private readonly linkedInUrl = 'https://www.linkedin.com/in/daryl-edwin-23375623a';
+  private readonly instagramUrl = 'https://www.instagram.com/daryl.com.sg/';
+
   constructor(
     private readonly navController: NavController,
     private readonly reviewService: ReviewService,
@@ -31,5 +35,25 @@ export class AboutMePage {
 
   openReviewPage(): void {
     this.reviewService.openAppStoreReviewPage();
+  }
+
+  openLinkedIn(): void {
+    void this.openConnectLink(this.linkedInUrl);
+  }
+
+  openInstagram(): void {
+    void this.openConnectLink(this.instagramUrl);
+  }
+
+  private async openConnectLink(url: string): Promise<void> {
+    try {
+      await Browser.open({ url });
+    } catch {
+      const openedWindow = window.open(url, '_blank', 'noopener,noreferrer');
+
+      if (!openedWindow) {
+        window.location.href = url;
+      }
+    }
   }
 }

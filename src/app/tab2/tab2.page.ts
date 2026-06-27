@@ -11,6 +11,7 @@ import { OnboardingService } from '../services/onboarding.service';
 import { LocationService } from '../services/location.service';
 import { ReviewService } from '../services/review.service';
 import { WidgetBridgeService } from '../services/widget-bridge.service';
+import { formatBusStopName as formatBusStopDisplayName } from '../utils/bus-stop-display';
 
 interface NearbyBusStop extends BusStop {
   distanceMeters: number;
@@ -359,6 +360,10 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     return `${(distanceMeters / 1000).toFixed(1)} km away`;
   }
 
+  formatBusStopName(stop: { Description?: string; RoadName?: string } | null | undefined, displayName?: string): string {
+    return formatBusStopDisplayName(stop, displayName);
+  }
+
   nearbyDistanceTone(distanceMeters: number): string {
     if (distanceMeters <= 120) {
       return 'near';
@@ -637,7 +642,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     const content = L.DomUtil.create('div', 'nearby-map-callout');
     const copy = L.DomUtil.create('div', 'nearby-map-callout__copy', content);
     const title = L.DomUtil.create('h2', '', copy);
-    title.textContent = stop.Description || `Bus Stop ${stop.BusStopCode}`;
+    title.textContent = this.formatBusStopName(stop, stop.Description || `Bus Stop ${stop.BusStopCode}`);
     const subtitle = L.DomUtil.create('p', '', copy);
     subtitle.textContent = `${stop.RoadName || 'Nearby stop'} · ${stop.BusStopCode}`;
     const distance = L.DomUtil.create('span', '', copy);

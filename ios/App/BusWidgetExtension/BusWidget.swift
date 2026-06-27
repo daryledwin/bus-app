@@ -314,11 +314,11 @@ enum WidgetStore {
     private static func loadText(from value: String?) -> String {
         switch value {
         case "SEA":
-            return "Seats Available"
+            return "Seats available"
         case "SDA":
-            return "Few Seats Left"
+            return "Few seats left"
         case "LSD":
-            return "No Chance of a Seat"
+            return "No chance of a seat"
         default:
             return "Load unavailable"
         }
@@ -345,8 +345,8 @@ struct BusWidgetProvider: AppIntentTimelineProvider {
             date: Date(),
             stop: FavouriteStop(busStopCode: "59009", name: "Opp Blk 932", roadName: "Yishun Ctrl 1", nickname: "Home", latitude: nil, longitude: nil),
             buses: [
-                WidgetBus(serviceNo: "156", timing: "3 min", load: "Seats Available", wheelchairAccessible: true, type: "Double deck"),
-                WidgetBus(serviceNo: "53", timing: "Arr", load: "Few Seats Left", wheelchairAccessible: true, type: "Single deck")
+                WidgetBus(serviceNo: "156", timing: "3 min", load: "Seats available", wheelchairAccessible: true, type: "Double deck"),
+                WidgetBus(serviceNo: "53", timing: "Arr", load: "Few seats left", wheelchairAccessible: true, type: "Single deck")
             ],
             lastUpdatedAt: Date(),
             message: "",
@@ -734,7 +734,7 @@ struct BusWidgetView: View {
                 text: bus.wheelchairAccessible ? "Wheelchair" : "Not Wheelchair",
                 color: bus.wheelchairAccessible ? appAccessibleColor : appNotAccessibleColor,
                 background: (bus.wheelchairAccessible ? appAccessibleColor : appNotAccessibleColor).opacity(0.10),
-                accessibilityLabel: bus.wheelchairAccessible ? "Wheelchair Accessible" : "Not Wheelchair Accessible"
+                accessibilityLabel: bus.wheelchairAccessible ? "Wheelchair accessible" : "Not wheelchair accessible"
             )
 
             if bus.load != "Load unavailable" {
@@ -913,11 +913,11 @@ struct BusWidgetView: View {
 
     private func loadColor(_ load: String) -> Color {
         switch load {
-        case "Seats Available":
+        case "Seats available":
             return appAccessibleColor
-        case "Few Seats Left":
+        case "Few seats left":
             return appStandingColor
-        case "No Chance of a Seat":
+        case "No chance of a seat":
             return appCrowdedColor
         default:
             return appMutedColor
@@ -926,11 +926,11 @@ struct BusWidgetView: View {
 
     private func loadBackgroundColor(_ load: String) -> Color {
         switch load {
-        case "Seats Available":
+        case "Seats available":
             return Color(red: 30 / 255, green: 190 / 255, blue: 149 / 255).opacity(0.14)
-        case "Few Seats Left":
+        case "Few seats left":
             return Color(red: 255 / 255, green: 215 / 255, blue: 75 / 255).opacity(0.28)
-        case "No Chance of a Seat":
+        case "No chance of a seat":
             return Color(red: 255 / 255, green: 167 / 255, blue: 107 / 255).opacity(0.22)
         default:
             return Color(red: 132 / 255, green: 115 / 255, blue: 100 / 255).opacity(0.10)
@@ -978,7 +978,7 @@ struct BusWidgetView: View {
 
     private func loadCompactLabel(_ load: String) -> String {
         switch load {
-        case "No Chance of a Seat":
+        case "No chance of a seat":
             return "No Seats"
         default:
             return load
@@ -994,7 +994,7 @@ struct BusWidgetView: View {
     }
 
     private var appAccessibleColor: Color {
-        Color(red: 23 / 255, green: 139 / 255, blue: 114 / 255)
+        Color(red: 47 / 255, green: 158 / 255, blue: 110 / 255)
     }
 
     private var appNotAccessibleColor: Color {
@@ -1010,11 +1010,11 @@ struct BusWidgetView: View {
     }
 
     private var appStandingColor: Color {
-        Color(red: 156 / 255, green: 114 / 255, blue: 21 / 255)
+        Color(red: 201 / 255, green: 138 / 255, blue: 31 / 255)
     }
 
     private var appCrowdedColor: Color {
-        Color(red: 166 / 255, green: 84 / 255, blue: 56 / 255)
+        Color(red: 214 / 255, green: 90 / 255, blue: 90 / 255)
     }
 }
 

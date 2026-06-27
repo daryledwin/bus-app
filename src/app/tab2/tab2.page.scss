@@ -567,10 +567,10 @@ ion-content.nearby-page {
 
 .nearby-stop-card .nearby-favourite-button .favourite-icon-pop::after {
   align-items: center;
-  background: linear-gradient(135deg, #ff8ba7 0%, #ffd166 28%, #70d6a6 52%, #5eb8ff 74%, #b8a4ff 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+  background: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  color: #ff5a5f;
   content: "♥";
   display: flex;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -610,7 +610,7 @@ ion-content.nearby-page {
 }
 
 .favourite-sparkles span {
-  background: radial-gradient(circle, rgba(25, 119, 201, 0.88), rgba(25, 119, 201, 0));
+  background: radial-gradient(circle, rgba(255, 90, 95, 0.72), rgba(255, 90, 95, 0));
   border-radius: 999px;
   height: 5px;
   left: -2.5px;
@@ -854,9 +854,464 @@ ion-content.nearby-page {
   }
 }
 
+/* Native iOS visual refresh for Nearby: grouped rows, flat surfaces, quieter chrome. */
+:host {
+  --cream: #edf7ff;
+  --cream-soft: #fafafa;
+  --sage: #6aaed8;
+  --sage-deep: #1479bd;
+  --ink: #10243a;
+  --muted: #627487;
+  --muted-soft: #8b9aaa;
+  --paper: rgba(255, 255, 255, 0.74);
+  --line: rgba(16, 36, 58, 0.08);
+  --shadow-float: 0 1px 2px rgba(16, 36, 58, 0.04);
+  --shadow-soft: 0 1px 2px rgba(16, 36, 58, 0.035);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+}
+
+ion-content.nearby-page {
+  --background:
+    linear-gradient(180deg, #eef8ff 0%, #f7fbfe 46%, #fafafa 100%);
+}
+
+.nearby-shell {
+  gap: 18px;
+  padding: max(18px, env(safe-area-inset-top)) 20px calc(118px + env(safe-area-inset-bottom));
+}
+
+.nearby-header {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 8px 2px 2px;
+}
+
+.nearby-header p {
+  color: rgba(16, 36, 58, 0.58);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+  text-transform: none;
+}
+
+.nearby-header h1 {
+  color: #10243a;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(31px, 7vw, 46px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.02;
+}
+
+.nearby-map-card {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(16, 36, 58, 0.08);
+  border-radius: 22px;
+  box-shadow: none;
+  min-height: 184px;
+  padding: 5px;
+}
+
+.nearby-map {
+  border: 0;
+  border-radius: 18px;
+  height: 176px;
+}
+
+.nearby-locate-button {
+  background: rgba(250, 250, 250, 0.82);
+  border: 1px solid rgba(16, 36, 58, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(16, 36, 58, 0.08);
+  color: #1479bd;
+  height: 38px;
+  width: 38px;
+}
+
+:host ::ng-deep .leaflet-control-zoom {
+  border: 1px solid rgba(16, 36, 58, 0.08);
+  box-shadow: 0 4px 14px rgba(16, 36, 58, 0.08);
+}
+
+:host ::ng-deep .nearby-stop-marker span {
+  background: #1479bd;
+  box-shadow: 0 4px 12px rgba(16, 36, 58, 0.14);
+}
+
+:host ::ng-deep .nearby-map-popup .leaflet-popup-content-wrapper,
+:host ::ng-deep .nearby-map-popup .leaflet-popup-tip {
+  border-color: rgba(16, 36, 58, 0.08);
+  box-shadow: 0 8px 22px rgba(16, 36, 58, 0.1);
+}
+
+:host ::ng-deep .nearby-map-callout h2 {
+  font-weight: 600;
+}
+
+:host ::ng-deep .nearby-map-callout p,
+:host ::ng-deep .nearby-map-callout span {
+  font-weight: 500;
+}
+
+:host ::ng-deep .nearby-map-callout__action {
+  background: rgba(20, 121, 189, 0.1);
+  border: 1px solid rgba(20, 121, 189, 0.08);
+  border-radius: 13px;
+  color: #1479bd;
+  font-weight: 600;
+}
+
+.nearby-state,
+.nearby-stop-card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(16, 36, 58, 0.08);
+  box-shadow: none;
+}
+
+.nearby-state {
+  background: rgba(255, 255, 255, 0.66);
+  border-radius: 18px;
+  min-height: 72px;
+  padding: 14px 15px;
+}
+
+.nearby-state ion-spinner,
+.nearby-state > ion-icon {
+  color: #1479bd;
+  font-size: 22px;
+  height: 24px;
+  width: 24px;
+}
+
+.nearby-state p {
+  color: rgba(16, 36, 58, 0.6);
+  font-weight: 500;
+}
+
+.nearby-state button,
+.nearby-stop-card button {
+  background: rgba(20, 121, 189, 0.1);
+  border: 1px solid rgba(20, 121, 189, 0.08);
+  border-radius: 13px;
+  box-shadow: none;
+  color: #1479bd;
+  font-weight: 600;
+}
+
+.nearby-list {
+  gap: 8px;
+}
+
+.nearby-stop-card {
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  gap: 10px;
+  min-height: 76px;
+  padding: 10px 12px;
+  padding-right: 48px;
+  transition: background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.nearby-stop-card.selected {
+  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(20, 121, 189, 0.18);
+  box-shadow: none;
+  transform: none;
+}
+
+.nearby-stop-card__marker {
+  background: rgba(20, 121, 189, 0.1);
+  border: 1px solid rgba(20, 121, 189, 0.08);
+  border-radius: 12px;
+  color: #1479bd;
+  height: 42px;
+  width: 42px;
+}
+
+.nearby-stop-card.selected .nearby-stop-card__marker {
+  background: rgba(20, 121, 189, 0.14);
+  color: #1479bd;
+}
+
+.nearby-stop-card h2 {
+  color: #10243a;
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+
+.nearby-stop-card p {
+  color: rgba(16, 36, 58, 0.55);
+  font-weight: 500;
+}
+
+.nearby-stop-card .nearby-distance {
+  font-weight: 600;
+}
+
+.nearby-stop-card .nearby-favourite-button {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #1479bd;
+  height: 32px;
+  right: 11px;
+  width: 32px;
+}
+
+.nearby-stop-card:hover,
+.nearby-header__actions button:hover,
+.nearby-state button:hover,
+.nearby-locate-button:hover,
+.nearby-stop-card button:not(.nearby-favourite-button):hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.nearby-stop-card:active,
+.nearby-header__actions button:active,
+.nearby-state button:active,
+.nearby-locate-button:active,
+.nearby-stop-card button:not(.nearby-favourite-button):active {
+  transform: none;
+}
+
+.bottom-nav {
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  background: rgba(250, 250, 250, 0.72);
+  border: 1px solid rgba(16, 36, 58, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 8px 22px rgba(16, 36, 58, 0.08);
+  max-width: 310px;
+  padding: 5px;
+  width: min(310px, calc(100% - 52px));
+}
+
+.bottom-nav button {
+  border-radius: 19px;
+  color: #8d99a6;
+  font-size: 10px;
+  font-weight: 500;
+  min-height: 46px;
+  padding: 5px 3px;
+}
+
+.bottom-nav ion-icon {
+  font-size: 19px;
+}
+
+.bottom-nav button.active {
+  background: rgba(20, 121, 189, 0.11);
+  box-shadow: none;
+  color: #1479bd;
+  font-weight: 600;
+}
+
+/* Second iOS polish pass: quieter chrome and lighter row hierarchy. */
+.nearby-shell {
+  padding-inline: 22px;
+}
+
+.nearby-header h1 {
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+.nearby-header p {
+  color: rgba(16, 36, 58, 0.5);
+  font-weight: 500;
+}
+
+.nearby-map-card,
+.nearby-state,
+.nearby-stop-card {
+  border-color: rgba(16, 36, 58, 0.055);
+}
+
+.nearby-map-card {
+  border-radius: 21px;
+}
+
+.nearby-map {
+  border-radius: 17px;
+}
+
+.nearby-stop-card {
+  border-radius: 18px;
+  min-height: 70px;
+}
+
+.nearby-stop-card__marker {
+  border-radius: 11px;
+  height: 38px;
+  width: 38px;
+}
+
+.nearby-stop-card__marker ion-icon {
+  font-size: 19px;
+}
+
+.nearby-stop-card h2 {
+  font-size: 15px;
+  font-weight: 560;
+}
+
+.nearby-stop-card p,
+.nearby-state p {
+  color: rgba(16, 36, 58, 0.5);
+  font-weight: 440;
+}
+
+.nearby-stop-card button {
+  background: rgba(20, 121, 189, 0.075);
+  font-weight: 560;
+}
+
+.nearby-stop-card .nearby-favourite-button ion-icon {
+  font-size: 15px;
+}
+
+.bottom-nav {
+  backdrop-filter: blur(34px) saturate(1.55);
+  -webkit-backdrop-filter: blur(34px) saturate(1.55);
+  background: rgba(252, 252, 252, 0.58);
+  border-color: rgba(16, 36, 58, 0.045);
+  border-radius: 22px;
+  box-shadow: 0 5px 18px rgba(16, 36, 58, 0.06);
+  max-width: 292px;
+  padding: 4px;
+  width: min(292px, calc(100% - 64px));
+}
+
+.bottom-nav button {
+  border-radius: 17px;
+  font-weight: 450;
+  gap: 2px;
+  min-height: 40px;
+  padding: 4px 3px;
+}
+
+.bottom-nav ion-icon {
+  font-size: 18px;
+}
+
+.bottom-nav button.active {
+  background: rgba(20, 121, 189, 0.045);
+  color: #2a78ad;
+  font-weight: 560;
+}
+
+/* Cute iOS system match: warm, glassy, transit-friendly without getting heavy. */
+:host {
+  --ink: #10243a;
+  --muted: #687b8f;
+  --paper: rgba(255, 255, 255, 0.76);
+  --line: rgba(55, 96, 132, 0.055);
+  --blue-cute: #4aa3df;
+}
+
+ion-content.nearby-page {
+  --background:
+    linear-gradient(180deg, rgba(221, 242, 255, 0.98) 0%, rgba(241, 249, 255, 0.96) 42%, #fbfdff 100%);
+}
+
+.nearby-header p {
+  color: rgba(37, 73, 103, 0.52);
+}
+
+.nearby-header h1 {
+  color: #0f2440;
+}
+
+.nearby-map-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(238, 249, 255, 0.62));
+  border-color: rgba(74, 126, 168, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.nearby-map {
+  background:
+    linear-gradient(145deg, rgba(236, 248, 255, 0.96), rgba(255, 246, 219, 0.42)),
+    linear-gradient(180deg, rgba(74, 163, 223, 0.1), rgba(255, 255, 255, 0.26));
+}
+
+.nearby-locate-button,
+.nearby-state button,
+.nearby-stop-card button {
+  background: rgba(74, 163, 223, 0.105);
+  border-color: rgba(74, 146, 200, 0.08);
+  color: #267db9;
+}
+
+.nearby-state {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 252, 255, 0.62)),
+    linear-gradient(135deg, rgba(255, 235, 170, 0.2), transparent 52%);
+  border-color: rgba(74, 126, 168, 0.04);
+}
+
+.nearby-state > ion-icon {
+  background: rgba(74, 163, 223, 0.1);
+  border-radius: 12px;
+  box-sizing: content-box;
+  padding: 7px;
+}
+
+.nearby-list {
+  gap: 10px;
+}
+
+.nearby-stop-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 251, 255, 0.64));
+  border-color: rgba(74, 126, 168, 0.04);
+}
+
+.nearby-stop-card.selected {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(235, 248, 255, 0.74));
+  border-color: rgba(74, 146, 200, 0.12);
+}
+
+.nearby-stop-card__marker,
+.nearby-stop-card.selected .nearby-stop-card__marker {
+  background:
+    linear-gradient(180deg, rgba(218, 241, 255, 0.92), rgba(201, 234, 255, 0.78));
+  border-color: rgba(74, 146, 200, 0.08);
+  color: #1977c9;
+}
+
+.nearby-stop-card p,
+.nearby-state p {
+  color: rgba(44, 78, 107, 0.5);
+}
+
+.nearby-stop-card .nearby-favourite-button,
+.nearby-stop-card .nearby-favourite-button ion-icon {
+  color: #1977c9;
+}
+
+.bottom-nav {
+  backdrop-filter: blur(42px) saturate(1.72);
+  -webkit-backdrop-filter: blur(42px) saturate(1.72);
+  background: rgba(255, 255, 255, 0.48);
+  border-color: rgba(74, 126, 168, 0.035);
+}
+
+.bottom-nav button.active {
+  background: rgba(74, 163, 223, 0.055);
+  color: #2778ad;
+}
+
 @media (max-width: 520px) {
   .nearby-shell {
-    padding-inline: 14px;
+    padding-inline: 18px;
   }
 
   .nearby-stop-card {
@@ -876,4 +1331,321 @@ ion-content.nearby-page {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
+}
+
+/* Final match to Home: frosted iOS tab bar without the wide Material pill. */
+ion-content.nearby-page {
+  --background:
+    linear-gradient(180deg, #dff3ff 0%, #eef9ff 38%, #fbfdff 100%);
+}
+
+.nearby-map-card,
+.nearby-state,
+.nearby-stop-card {
+  box-shadow: none;
+}
+
+.bottom-nav {
+  backdrop-filter: blur(46px) saturate(1.75);
+  -webkit-backdrop-filter: blur(46px) saturate(1.75);
+  background: rgba(255, 255, 255, 0.44);
+  border-color: rgba(96, 146, 184, 0.035);
+  border-radius: 24px;
+  box-shadow: 0 10px 26px rgba(39, 84, 116, 0.055);
+}
+
+.bottom-nav button {
+  background: transparent;
+  border-radius: 18px;
+  color: rgba(73, 103, 128, 0.58);
+}
+
+.bottom-nav button.active {
+  background: transparent;
+  color: #2778ad;
+}
+
+.bottom-nav ion-icon {
+  border-radius: 13px;
+  box-sizing: content-box;
+  padding: 7px 18px;
+}
+
+.bottom-nav button.active ion-icon {
+  background: rgba(74, 163, 223, 0.09);
+}
+
+@media (max-width: 520px) {
+  .bottom-nav ion-icon {
+    padding-inline: 16px;
+  }
+}
+
+/* Warm iOS correction shared with Home. */
+ion-content.nearby-page {
+  --background:
+    linear-gradient(180deg, #f7f1e8 0%, #fbf7f0 42%, #fffdf9 100%);
+}
+
+.nearby-header p {
+  color: rgba(83, 101, 113, 0.58);
+}
+
+.nearby-map-card,
+.nearby-state,
+.nearby-stop-card {
+  background: rgba(255, 253, 248, 0.72);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.nearby-map {
+  background:
+    linear-gradient(145deg, rgba(255, 253, 248, 0.92), rgba(255, 236, 181, 0.2)),
+    linear-gradient(180deg, rgba(207, 229, 240, 0.18), rgba(255, 255, 255, 0.22));
+}
+
+.nearby-stop-card__marker,
+.nearby-stop-card.selected .nearby-stop-card__marker,
+.nearby-state > ion-icon {
+  background: rgba(225, 240, 248, 0.78);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.nearby-stop-card p,
+.nearby-state p {
+  color: rgba(88, 101, 112, 0.56);
+}
+
+.nearby-locate-button,
+.nearby-state button,
+.nearby-stop-card button {
+  background: rgba(222, 238, 247, 0.82);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.bottom-nav {
+  background: rgba(255, 253, 248, 0.48);
+  border-color: rgba(99, 82, 55, 0.035);
+}
+
+.bottom-nav button {
+  color: rgba(88, 101, 112, 0.58);
+}
+
+.bottom-nav button.active {
+  color: #2e7faf;
+}
+
+.bottom-nav button.active ion-icon {
+  background: rgba(222, 238, 247, 0.7);
+}
+
+/* Keep Nearby coherent with the expressive warm Home system. */
+ion-content.nearby-page {
+  --background:
+    linear-gradient(180deg, #f8f1e7 0%, #fbf7ef 36%, #fffdf9 100%);
+}
+
+.nearby-header h1 {
+  color: #08090b;
+}
+
+.nearby-map-card,
+.nearby-state,
+.nearby-stop-card {
+  background: rgba(255, 255, 255, 0.74);
+  border: 0;
+  box-shadow: 0 12px 30px rgba(72, 61, 44, 0.045);
+}
+
+.nearby-map-card {
+  box-shadow: none;
+}
+
+.nearby-stop-card__marker,
+.nearby-stop-card.selected .nearby-stop-card__marker {
+  background: rgba(46, 127, 175, 0.1);
+  border: 0;
+}
+
+.bottom-nav {
+  backdrop-filter: blur(28px) saturate(1.25);
+  -webkit-backdrop-filter: blur(28px) saturate(1.25);
+  background: rgba(255, 253, 248, 0.84);
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid rgba(60, 60, 67, 0.12);
+  bottom: 0;
+  box-shadow: none;
+  max-width: none;
+  padding: 6px 22px max(8px, env(safe-area-inset-bottom));
+  width: 100%;
+}
+
+.bottom-nav ion-icon {
+  background: transparent !important;
+  font-size: 25px;
+  padding: 0;
+}
+
+.bottom-nav button.active {
+  color: #2d82d9;
+}
+
+/* Final blue iOS system, matching Home. */
+ion-content.nearby-page {
+  --background:
+    linear-gradient(180deg, #eef8ff 0%, #f3faff 46%, #fbfdff 100%);
+}
+
+.nearby-shell {
+  gap: 20px;
+  padding: max(18px, env(safe-area-inset-top)) 22px calc(148px + env(safe-area-inset-bottom));
+}
+
+.nearby-header p {
+  color: rgba(74, 101, 122, 0.62);
+}
+
+.nearby-header h1 {
+  color: #10243a;
+}
+
+.nearby-map-card {
+  background: rgba(255, 255, 255, 0.72);
+  border: 0;
+  border-radius: 24px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+  padding: 6px;
+}
+
+.nearby-map {
+  background:
+    linear-gradient(145deg, rgba(238, 248, 255, 0.96), rgba(255, 255, 255, 0.68)),
+    linear-gradient(180deg, rgba(25, 119, 201, 0.08), rgba(255, 255, 255, 0.2));
+  border-radius: 18px;
+}
+
+.nearby-state,
+.nearby-stop-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 12px 30px rgba(52, 98, 132, 0.07);
+}
+
+.nearby-list {
+  gap: 12px;
+}
+
+.nearby-stop-card__marker,
+.nearby-stop-card.selected .nearby-stop-card__marker,
+.nearby-state > ion-icon {
+  background: rgba(25, 119, 201, 0.1);
+  border: 0;
+  color: #1977c9;
+}
+
+.nearby-stop-card h2 {
+  color: #10243a;
+}
+
+.nearby-stop-card p,
+.nearby-state p {
+  color: rgba(74, 91, 108, 0.62);
+}
+
+.nearby-locate-button,
+.nearby-state button,
+.nearby-stop-card button {
+  background: rgba(25, 119, 201, 0.1);
+  border: 0;
+  color: #1977c9;
+}
+
+.nearby-stop-card .nearby-favourite-button,
+.nearby-stop-card .nearby-favourite-button ion-icon {
+  color: #1977c9;
+}
+
+.bottom-nav {
+  backdrop-filter: blur(30px) saturate(1.28);
+  -webkit-backdrop-filter: blur(30px) saturate(1.28);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(151, 176, 194, 0.16);
+  border-radius: 28px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 14px 34px rgba(52, 98, 132, 0.1);
+  left: 50%;
+  max-width: 360px;
+  padding: 6px 12px;
+  transform: translate3d(-50%, 0, 0);
+  width: min(360px, calc(100% - 40px));
+}
+
+.bottom-nav button {
+  color: rgba(98, 111, 126, 0.72);
+  min-height: 46px;
+}
+
+.bottom-nav button.active {
+  color: #1977c9;
+}
+
+.bottom-nav ion-icon {
+  background: transparent !important;
+  font-size: 22px;
+  padding: 0;
+}
+
+@media (max-width: 520px) {
+  .nearby-shell {
+    padding-inline: 20px;
+  }
+
+  .bottom-nav {
+    width: min(342px, calc(100% - 34px));
+  }
+}
+
+/* Final Nearby favourite heart: match Home Favourite Stops coral squircle. */
+.nearby-stop-card .nearby-favourite-button {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 245, 246, 0.78));
+  border: 1px solid rgba(255, 184, 188, 0.46);
+  border-radius: 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  color: #ff5a5f;
+  height: 36px;
+  min-height: 36px;
+  right: 10px;
+  top: calc(50% - 18px);
+  width: 36px;
+}
+
+.nearby-stop-card .nearby-favourite-button.active,
+.nearby-stop-card .nearby-favourite-button.saved-pop {
+  background: #fff1f2;
+  border-color: #ffd1d6;
+  color: #ff5a5f;
+}
+
+.nearby-stop-card .nearby-favourite-button ion-icon {
+  color: #ff5a5f;
+  font-size: 18px;
+}
+
+.nearby-stop-card .nearby-favourite-button .favourite-icon-pop {
+  font-size: 18px;
+}
+
+.nearby-stop-card .nearby-favourite-button .favourite-icon-pop::after {
+  background: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  color: #ff5a5f;
+}
+
+.nearby-stop-card .nearby-favourite-button .favourite-sparkles span {
+  background: radial-gradient(circle, rgba(255, 90, 95, 0.72), rgba(255, 90, 95, 0));
 }

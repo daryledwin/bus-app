@@ -1,9 +1,10 @@
-import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
-import { IonContent, IonRouterOutlet, ItemReorderEventDetail } from '@ionic/angular';
+import { Geolocation } from '@capacitor/geolocation';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { SPLASH_TAGLINES } from '../app.component';
 import { BusRoute, LtaBusRoutesService } from '../services/lta-bus-routes.service';
 import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
@@ -12,6 +13,8 @@ import { WidgetBridgeService } from '../services/widget-bridge.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { ReviewService } from '../services/review.service';
 import { SameTabScrollService } from '../services/same-tab-scroll.service';
+import { SPLASH_TAGLINES } from '../app.component';
+import { formatBusStopName as formatBusStopDisplayName } from '../utils/bus-stop-display';
 
 interface NavItem {
   label: string;
@@ -26,7 +29,10 @@ interface FavouriteBusStop {
   nickname?: string;
   Latitude?: number;
   Longitude?: number;
+  dateAdded?: number;
 }
+
+type FavouriteSortMode = 'dateAdded' | 'name' | 'distance';
 
 interface RouteProgressStop {
   code: string;
@@ -80,6 +86,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   isSettlingArrivals = false;
   hasSearchedArrivals = false;
   showStickyArrivalHeader = false;
+  favouriteSortMode: FavouriteSortMode = 'dateAdded';
+  isFavouriteSortPopoverOpen = false;
+  favouriteSortMessage = '';
   recentlyAnimatedFavouriteCode = '';
   recentFavouriteAction: 'saved' | 'removed' | '' = '';
   arrivalError = '';
@@ -102,6 +111,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private routePrefetchServiceNos: string[] = [];
   private routePrefetchRunId = 0;
   private routeModalScrollTimer?: ReturnType<typeof setTimeout>;
+  private readonly routeReadyHapticKeys = new Set<string>();
   private favouriteAnimationTimer?: ReturnType<typeof setTimeout>;
   private lastArrivalsRefreshedAt = 0;
   private lastArrivalsRefreshedTimer?: ReturnType<typeof setInterval>;
@@ -115,6 +125,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private lastNavTapAt = 0;
   private lastNavRoute = '';
   private readonly favouritesStorageKey = 'favouriteBusStops';
+  private readonly favouriteSortStorageKey = 'favouriteStopsSortMode';
 
   readonly navItems: NavItem[] = [
     { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
@@ -136,7 +147,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
     this.recentBusStops = this.loadRecentBusStops();
+    this.favouriteSortMode = this.loadFavouriteSortMode();
     this.favouriteBusStops = this.loadFavouriteBusStops();
+    this.applyFavouriteSort({ persist: false, silentDistanceFailure: true });
     this.syncWidgetFavouriteStop();
   }
 
@@ -555,10 +568,26 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    const favouriteStop = {
+      ...currentStop,
+      dateAdded: Date.now()
+    };
+
     this.favouriteBusStops = [
-      currentStop,
+      favouriteStop,
       ...this.favouriteBusStops.filter((stop) => stop.BusStopCode !== currentStop.BusStopCode)
     ];
+
+    if (this.favouriteSortMode === 'name') {
+      this.favouriteBusStops = [...this.favouriteBusStops].sort((a, b) =>
+        this.favouriteDisplayName(a).localeCompare(this.favouriteDisplayName(b), undefined, { sensitivity: 'base' })
+      );
+    } else if (this.favouriteSortMode === 'dateAdded') {
+      this.favouriteBusStops = [...this.favouriteBusStops].sort((a, b) =>
+        this.favouriteDateAddedValue(b) - this.favouriteDateAddedValue(a)
+      );
+    }
+
     this.saveFavouriteBusStops();
     this.markFavouriteAnimation(currentStop.BusStopCode, 'saved');
     void this.refreshFeedbackService.favouriteSaved();
@@ -623,15 +652,127 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.saveFavouriteBusStops();
   }
 
-  reorderFavouriteStops(event: CustomEvent<ItemReorderEventDetail>): void {
-    const reorderedStops = event.detail.complete(this.favouriteBusStops) as FavouriteBusStop[] | undefined;
+  @HostListener('document:click')
+  closeFavouriteSortPopoverFromOutside(): void {
+    this.closeFavouriteSortPopover();
+  }
 
-    if (!Array.isArray(reorderedStops) || event.detail.from === event.detail.to) {
-      return;
+  openFavouriteSortPopover(event: Event): void {
+    event.stopPropagation();
+    this.favouriteSortMessage = '';
+    this.isFavouriteSortPopoverOpen = !this.isFavouriteSortPopoverOpen;
+  }
+
+  closeFavouriteSortPopover(): void {
+    this.isFavouriteSortPopoverOpen = false;
+  }
+
+  async selectFavouriteSort(mode: FavouriteSortMode, event?: Event): Promise<void> {
+    event?.stopPropagation();
+    const changedSort = this.favouriteSortMode !== mode;
+    this.favouriteSortMode = mode;
+    this.favouriteSortMessage = '';
+
+    const sorted = await this.applyFavouriteSort({ persist: true });
+
+    if (sorted) {
+      if (changedSort) {
+        void this.refreshFeedbackService.lightImpact();
+      }
+
+      this.closeFavouriteSortPopover();
+    }
+  }
+
+  private async applyFavouriteSort(options: { persist: boolean; silentDistanceFailure?: boolean }): Promise<boolean> {
+    if (!this.favouriteBusStops.length) {
+      return true;
     }
 
-    this.favouriteBusStops = reorderedStops;
-    this.saveFavouriteBusStops();
+    if (this.favouriteSortMode === 'distance') {
+      return this.sortFavouriteStopsByDistance(options);
+    }
+
+    if (this.favouriteSortMode === 'name') {
+      this.favouriteBusStops = [...this.favouriteBusStops].sort((a, b) =>
+        this.favouriteDisplayName(a).localeCompare(this.favouriteDisplayName(b), undefined, { sensitivity: 'base' })
+      );
+    } else {
+      this.favouriteBusStops = [...this.favouriteBusStops].sort((a, b) =>
+        this.favouriteDateAddedValue(b) - this.favouriteDateAddedValue(a)
+      );
+    }
+
+    if (options.persist) {
+      this.saveFavouriteSortMode();
+      this.saveFavouriteBusStops();
+    }
+
+    return true;
+  }
+
+  private async sortFavouriteStopsByDistance(options: { persist: boolean; silentDistanceFailure?: boolean }): Promise<boolean> {
+    try {
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false,
+        timeout: 8000
+      });
+      const { latitude, longitude } = position.coords;
+
+      this.favouriteBusStops = [...this.favouriteBusStops].sort((a, b) =>
+        this.distanceToFavouriteStop(a, latitude, longitude) - this.distanceToFavouriteStop(b, latitude, longitude)
+      );
+
+      if (options.persist) {
+        this.saveFavouriteSortMode();
+        this.saveFavouriteBusStops();
+      }
+
+      return true;
+    } catch {
+      if (!options.silentDistanceFailure) {
+        this.favouriteSortMessage = 'Distance sorting needs location access. Your current order was kept.';
+      }
+
+      return false;
+    }
+  }
+
+  private favouriteDisplayName(stop: FavouriteBusStop): string {
+    return (stop.nickname || stop.Description || '').trim();
+  }
+
+  formatBusStopName(stop: { Description?: string; RoadName?: string } | null | undefined, displayName?: string): string {
+    return formatBusStopDisplayName(stop, displayName);
+  }
+
+  private favouriteDateAddedValue(stop: FavouriteBusStop): number {
+    return typeof stop.dateAdded === 'number' ? stop.dateAdded : 0;
+  }
+
+  private distanceToFavouriteStop(stop: FavouriteBusStop, latitude: number, longitude: number): number {
+    if (typeof stop.Latitude !== 'number' || typeof stop.Longitude !== 'number' || (!stop.Latitude && !stop.Longitude)) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    return this.distanceInMeters(latitude, longitude, stop.Latitude, stop.Longitude);
+  }
+
+  private distanceInMeters(fromLatitude: number, fromLongitude: number, toLatitude: number, toLongitude: number): number {
+    const earthRadius = 6371000;
+    const latitudeDelta = this.degreesToRadians(toLatitude - fromLatitude);
+    const longitudeDelta = this.degreesToRadians(toLongitude - fromLongitude);
+    const fromRadians = this.degreesToRadians(fromLatitude);
+    const toRadians = this.degreesToRadians(toLatitude);
+    const haversine =
+      Math.sin(latitudeDelta / 2) ** 2
+      + Math.cos(fromRadians) * Math.cos(toRadians) * Math.sin(longitudeDelta / 2) ** 2;
+
+    return 2 * earthRadius * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  }
+
+  private degreesToRadians(value: number): number {
+    return value * Math.PI / 180;
   }
 
   toggleLiveService(service: BusServiceArrival): void {
@@ -645,6 +786,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.isRouteModalOpen = true;
     this.loadRouteProgression(service.serviceNo);
     this.scheduleRouteModalScroll();
+    this.scheduleRouteReadyHaptic(service.serviceNo);
   }
 
   closeRouteModal(): void {
@@ -685,7 +827,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return 'Destination unavailable';
     }
 
-    return this.busStopLookup.get(code)?.Description || `Stop ${code}`;
+    const stop = this.busStopLookup.get(code);
+
+    return stop ? this.formatBusStopName(stop) : this.formatBusStopName({ Description: `Stop ${code}`, RoadName: '' });
   }
 
   destinationCode(service: BusServiceArrival): string {
@@ -699,7 +843,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return 'Origin unavailable';
     }
 
-    return this.busStopLookup.get(code)?.Description || `Bus stop ${code}`;
+    const stop = this.busStopLookup.get(code);
+
+    return stop ? this.formatBusStopName(stop) : this.formatBusStopName({ Description: `Bus stop ${code}`, RoadName: '' });
   }
 
   serviceOriginCode(service: BusServiceArrival): string {
@@ -711,7 +857,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return 'Bus stop unavailable';
     }
 
-    return this.busStopLookup.get(code)?.Description || `Bus Stop ${code}`;
+    const stop = this.busStopLookup.get(code);
+
+    return stop ? this.formatBusStopName(stop) : this.formatBusStopName({ Description: `Bus Stop ${code}`, RoadName: '' });
   }
 
   arrivalStopTitle(): string {
@@ -751,14 +899,23 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   loadTone(load: string): string {
     switch (load) {
-      case 'Seats Available':
+      case 'Seats available':
         return 'seats';
-      case 'Few Seats Left':
+      case 'Few seats left':
         return 'standing';
-      case 'No Chance of a Seat':
+      case 'No chance of a seat':
         return 'crowded';
       default:
         return 'unknown';
+    }
+  }
+
+  loadCompactLabel(load: string): string {
+    switch (load) {
+      case 'No chance of a seat':
+        return 'No Seats';
+      default:
+        return load;
     }
   }
 
@@ -912,7 +1069,56 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
       if (this.isRouteModalOpen && this.selectedRouteServiceNo === serviceNo) {
         this.scheduleRouteModalScroll();
+        this.scheduleRouteReadyHaptic(serviceNo);
       }
+    }
+  }
+
+  private scheduleRouteReadyHaptic(serviceNo: string): void {
+    const progression = this.routeProgressions[serviceNo];
+    const hapticKey = this.routeReadyHapticKey(serviceNo);
+
+    if (
+      !hapticKey
+      || !progression?.stops.length
+      || this.routeProgressLoading[serviceNo]
+      || this.routeProgressErrors[serviceNo]
+      || this.routeReadyHapticKeys.has(hapticKey)
+    ) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const readyProgression = this.routeProgressions[serviceNo];
+        const isReadyToDisplay =
+          this.isRouteModalOpen
+          && this.selectedRouteServiceNo === serviceNo
+          && !this.routeProgressLoading[serviceNo]
+          && !this.routeProgressErrors[serviceNo]
+          && !!readyProgression?.stops.length;
+
+        if (!isReadyToDisplay || this.routeReadyHapticKeys.has(hapticKey)) {
+          return;
+        }
+
+        this.routeReadyHapticKeys.add(hapticKey);
+        void this.routeReadyLightHaptic();
+      });
+    });
+  }
+
+  private routeReadyHapticKey(serviceNo: string): string {
+    const busStopCode = this.searchedBusStopCode.trim();
+
+    return busStopCode && serviceNo ? `${busStopCode}:${serviceNo}` : '';
+  }
+
+  private async routeReadyLightHaptic(): Promise<void> {
+    try {
+      await Haptics.impact({ style: ImpactStyle.Light });
+    } catch {
+      // Route haptics are a nice-to-have; route display should never depend on them.
     }
   }
 
@@ -1131,6 +1337,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.routeProgressions = {};
     this.routeProgressLoading = {};
     this.routeProgressErrors = {};
+    this.routeReadyHapticKeys.clear();
     this.routePrefetchServiceNos = [];
     this.isRouteModalOpen = false;
     this.selectedRouteServiceNo = '';
@@ -1463,7 +1670,15 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         return [];
       }
 
-      return parsedStops.filter((stop) => stop?.BusStopCode && stop.Description && stop.RoadName);
+      const fallbackTime = Date.now();
+      const validStops = parsedStops.filter((stop) => stop?.BusStopCode && stop.Description && stop.RoadName);
+
+      return validStops.map((stop, index) => ({
+        ...stop,
+        dateAdded: typeof stop.dateAdded === 'number'
+          ? stop.dateAdded
+          : fallbackTime - index
+      }));
     } catch {
       return [];
     }
@@ -1472,6 +1687,18 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private saveFavouriteBusStops(): void {
     localStorage.setItem(this.favouritesStorageKey, JSON.stringify(this.favouriteBusStops));
     this.syncWidgetFavouriteStop();
+  }
+
+  private loadFavouriteSortMode(): FavouriteSortMode {
+    const storedMode = localStorage.getItem(this.favouriteSortStorageKey);
+
+    return storedMode === 'name' || storedMode === 'distance' || storedMode === 'dateAdded'
+      ? storedMode
+      : 'dateAdded';
+  }
+
+  private saveFavouriteSortMode(): void {
+    localStorage.setItem(this.favouriteSortStorageKey, this.favouriteSortMode);
   }
 
   private syncWidgetFavouriteStop(): void {

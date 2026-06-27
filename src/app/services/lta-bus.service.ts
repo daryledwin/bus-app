@@ -135,7 +135,7 @@ export class LtaBusService {
 
   private timingLabel(minutesAway: number | null): string {
     if (minutesAway === null) {
-      return 'No estimate';
+      return 'No Bus';
     }
 
     if (minutesAway <= 1) {
@@ -148,11 +148,11 @@ export class LtaBusService {
   private loadLabel(load?: string): string {
     switch (load) {
       case 'SEA':
-        return 'Seats Available';
+        return 'Seats available';
       case 'SDA':
-        return 'Few Seats Left';
+        return 'Few seats left';
       case 'LSD':
-        return 'No Chance of a Seat';
+        return 'No chance of a seat';
       default:
         return 'Load unavailable';
     }

@@ -95,7 +95,7 @@
         </span>
       </div>
 
-      <img class="hero-illustration" src="assets/images/illustration.png" alt="" aria-hidden="true" />
+      <img class="hero-illustration" src="assets/images/bus%20hero9.png" alt="" aria-hidden="true" />
     </header>
 
     <section class="search-card pop-in" aria-label="Find a bus">
@@ -127,10 +127,10 @@
 
       <div class="search-shelves" *ngIf="!searchTerm.trim()">
         <section class="stop-shelf" *ngIf="recentBusStops.length" aria-label="Recent searches">
-          <p>recent searches</p>
+          <p>Recent Searches</p>
           <div class="mini-stop-row">
             <button type="button" *ngFor="let stop of recentBusStops; trackBy: trackBusStop" (click)="selectBusStop(stop)">
-              <strong>{{ stop.Description }}</strong>
+              <strong>{{ formatBusStopName(stop) }}</strong>
               <span>{{ stop.RoadName }} · {{ stop.BusStopCode }}</span>
             </button>
           </div>
@@ -161,7 +161,7 @@
             (click)="selectBusStop(stop)"
           >
             <div>
-              <h3>{{ stop.Description }}</h3>
+              <h3>{{ formatBusStopName(stop) }}</h3>
               <p>{{ stop.RoadName }}</p>
             </div>
             <strong>{{ stop.BusStopCode }}</strong>
@@ -182,7 +182,7 @@
     <section #arrivalsSection class="arrivals-section fade-in-delayed" aria-labelledby="nearby-title">
       <div class="section-heading">
         <div>
-          <p>live bus arrival</p>
+          <p>Live Bus Arrival</p>
           <div class="arrival-title-row">
             <div class="arrival-title-copy">
               <h2 id="nearby-title">{{ arrivalStopTitle() }}</h2>
@@ -275,7 +275,13 @@
             [attr.aria-expanded]="expandedLiveServiceNo === service.serviceNo"
             (click)="toggleLiveService(service)"
           >
-            <div class="service-badge service-badge--compact">{{ service.serviceNo }}</div>
+            <div
+              class="service-badge service-badge--compact"
+              [class.service-badge--medium-code]="service.serviceNo.length === 3"
+              [class.service-badge--long-code]="service.serviceNo.length >= 4"
+            >
+              {{ service.serviceNo }}
+            </div>
 
             <div class="live-row__main">
               <div class="live-row__meta live-row__meta--stacked">
@@ -306,12 +312,24 @@
                   [class.metadata-line--accessible]="service.nextBus.wheelchairAccessible"
                   [class.metadata-line--not-accessible]="!service.nextBus.wheelchairAccessible"
                 >
-                  <i class="wheelchair-access-icon" aria-hidden="true">♿︎</i>
+                  <span class="wheelchair-access-icon" aria-hidden="true">
+	                    <svg viewBox="0 0 24 24" focusable="false">
+	                      <path class="metadata-icon__stroke" d="M10.3 5.2a1.7 1.7 0 1 0 0-3.4 1.7 1.7 0 0 0 0 3.4Z" />
+		                      <path class="metadata-icon__stroke" d="M9.4 8.6v5.1h4.8" />
+		                      <path class="metadata-icon__stroke" d="M9.4 10.7h4.7" />
+		                      <path class="metadata-icon__stroke" d="M13.2 13.7l2.5 2.2h3" />
+	                      <path class="metadata-icon__stroke" d="M15.2 19.1a5.3 5.3 0 1 1-7.4-6.8" />
+	                    </svg>
+                  </span>
                   {{ service.nextBus.wheelchairAccessible ? 'Wheelchair accessible' : 'No wheelchair access' }}
                 </span>
                 <span class="metadata-line load-pill" [ngClass]="'load-pill--' + loadTone(service.nextBus.load)">
-                  <ion-icon class="load-availability-icon" name="bed-outline"></ion-icon>
-                  {{ service.nextBus.load }}
+                  <svg class="load-availability-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path class="metadata-icon__stroke" d="M8.2 4.4c3 2.4 4.4 5.3 4 8.4" />
+                    <path class="metadata-icon__stroke" d="M18 12.8H9.9" />
+                    <path class="metadata-icon__stroke" d="M16.4 12.8l1 5.4M10.2 12.8L9 18.2" />
+                  </svg>
+                  <span class="load-pill__label">{{ loadCompactLabel(service.nextBus.load) }}</span>
                 </span>
               </div>
             </div>
@@ -336,15 +354,15 @@
 
                 <div class="timing-row timing-row--compact">
                   <div class="timing-card timing-card--next">
-                    <span>next</span>
+                    <span>Next</span>
                     <strong>{{ service.nextBus.timing }}</strong>
                   </div>
                   <div class="timing-card timing-card--subsequent">
-                    <span>subsequent</span>
+                    <span>Subsequent</span>
                     <strong>{{ service.subsequentBus.timing }}</strong>
                   </div>
                   <div class="timing-card timing-card--third">
-                    <span>third</span>
+                    <span>Third</span>
                     <strong>{{ service.thirdBus.timing }}</strong>
                   </div>
                 </div>
@@ -369,8 +387,40 @@
     <section class="saved-section fade-in-delayed" aria-labelledby="saved-title">
       <div class="section-heading">
         <div>
-          <p>saved stops</p>
+          <p>Saved Stops</p>
           <h2 id="saved-title">Favourite Stops</h2>
+        </div>
+        <div class="favourite-sort-anchor" *ngIf="favouriteBusStops.length > 1" (click)="$event.stopPropagation()">
+          <button
+            type="button"
+            class="favourite-sort-button"
+            [class.active]="isFavouriteSortPopoverOpen"
+            (click)="openFavouriteSortPopover($event)"
+          >
+            <ion-icon name="swap-vertical-outline"></ion-icon>
+            <span>Sort</span>
+          </button>
+          <div
+            class="favourite-sort-popover"
+            *ngIf="isFavouriteSortPopoverOpen"
+            role="menu"
+            aria-label="Sort favourite stops"
+          >
+            <p>Sort By</p>
+            <button type="button" role="menuitemradio" [attr.aria-checked]="favouriteSortMode === 'dateAdded'" (click)="selectFavouriteSort('dateAdded', $event)">
+              <span>Date Added</span>
+              <ion-icon *ngIf="favouriteSortMode === 'dateAdded'" name="checkmark-outline"></ion-icon>
+            </button>
+            <button type="button" role="menuitemradio" [attr.aria-checked]="favouriteSortMode === 'name'" (click)="selectFavouriteSort('name', $event)">
+              <span>Name</span>
+              <ion-icon *ngIf="favouriteSortMode === 'name'" name="checkmark-outline"></ion-icon>
+            </button>
+            <button type="button" role="menuitemradio" [attr.aria-checked]="favouriteSortMode === 'distance'" (click)="selectFavouriteSort('distance', $event)">
+              <span>Distance</span>
+              <ion-icon *ngIf="favouriteSortMode === 'distance'" name="checkmark-outline"></ion-icon>
+            </button>
+            <span class="favourite-sort-popover__message" *ngIf="favouriteSortMessage">{{ favouriteSortMessage }}</span>
+          </div>
         </div>
       </div>
 
@@ -379,72 +429,69 @@
         <p>Save your favourite stops for quick access.</p>
       </div>
 
-      <ion-reorder-group
+      <div
         class="favourite-shortcuts"
         *ngIf="favouriteBusStops.length"
-        [disabled]="false"
-        (ionItemReorder)="reorderFavouriteStops($event)"
       >
         <article
           class="favourite-stop-card"
           role="button"
           tabindex="0"
+          [attr.data-favourite-stop-code]="stop.BusStopCode"
           *ngFor="let stop of favouriteBusStops; trackBy: trackFavouriteBusStop"
           [class.favourite-stop-card--removing]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
           (click)="viewFavouriteStop(stop)"
           (keydown.enter)="viewFavouriteStop(stop)"
         >
-          <ion-reorder
-            class="favourite-stop-reorder"
-            aria-label="Drag to reorder favourite stop"
-            (click)="$event.stopPropagation()"
-          >
-            <ion-icon name="reorder-three-outline" aria-hidden="true"></ion-icon>
-          </ion-reorder>
-          <button
-            type="button"
-            class="favourite-stop-icon"
-            [class.saved-pop]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'saved'"
-            [class.removed-pop]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
-            [disabled]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
-            aria-label="Remove favourite bus stop"
-            (click)="removeFavouriteStop(stop.BusStopCode); $event.stopPropagation()"
-          >
-            <span class="favourite-icon-pop" aria-hidden="true">
-              <ion-icon [name]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : 'heart'"></ion-icon>
-            </span>
-            <span class="favourite-sparkles" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-              <span></span>
-              <span></span>
-            </span>
-          </button>
-          <div class="favourite-stop-copy">
-            <h3>{{ stop.nickname || stop.Description }}</h3>
-            <p>{{ stop.Description }} · {{ stop.RoadName }} · {{ stop.BusStopCode }}</p>
-          </div>
-          <div class="favourite-stop-actions">
+          <div class="favourite-stop-card-actions">
             <button
               type="button"
-              class="rename-favourite-button"
-              aria-label="Rename favourite bus stop"
-              (click)="renameFavouriteStop(stop); $event.stopPropagation()"
-            >
-              <ion-icon name="create-outline"></ion-icon>
-            </button>
-            <button
-              type="button"
-              class="remove-favourite-button"
+              class="favourite-stop-icon"
+              [class.saved-pop]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'saved'"
+              [class.removed-pop]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
+              [disabled]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed'"
               aria-label="Remove favourite bus stop"
+              (pointerdown)="$event.stopPropagation()"
               (click)="removeFavouriteStop(stop.BusStopCode); $event.stopPropagation()"
             >
-              <ion-icon name="close-outline"></ion-icon>
+              <span class="favourite-icon-pop" aria-hidden="true">
+                <ion-icon [name]="recentlyAnimatedFavouriteCode === stop.BusStopCode && recentFavouriteAction === 'removed' ? 'heart-outline' : 'heart'"></ion-icon>
+              </span>
+              <span class="favourite-sparkles" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
             </button>
+            <div class="favourite-stop-actions">
+              <button
+                type="button"
+                class="rename-favourite-button"
+                aria-label="Rename favourite bus stop"
+                (pointerdown)="$event.stopPropagation()"
+                (click)="renameFavouriteStop(stop); $event.stopPropagation()"
+              >
+                <ion-icon name="create-outline"></ion-icon>
+              </button>
+              <button
+                type="button"
+                class="remove-favourite-button"
+                aria-label="Remove favourite bus stop"
+                (pointerdown)="$event.stopPropagation()"
+                (click)="removeFavouriteStop(stop.BusStopCode); $event.stopPropagation()"
+              >
+                <ion-icon name="close-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+          <div class="favourite-stop-copy">
+            <h3>{{ formatBusStopName(stop, stop.nickname || stop.Description) }}</h3>
+            <p>{{ stop.BusStopCode }}</p>
           </div>
         </article>
-      </ion-reorder-group>
+      </div>
 
     </section>
   </main>
@@ -508,13 +555,13 @@
                 stop.status === 'terminal' ? 'terminal-stop' : ''
               ]"
               [attr.data-route-status]="stop.status"
-              [attr.aria-label]="'View arrivals for ' + stop.name + ' bus stop ' + stop.code"
+              [attr.aria-label]="'View arrivals for ' + formatBusStopName({ Description: stop.name, RoadName: stop.roadName }) + ' bus stop ' + stop.code"
               (click)="selectRouteStop(stop)"
             >
               <span class="route-progress__dot"></span>
               <div class="route-progress__copy">
                 <div class="route-progress__name-row">
-                  <strong>{{ stop.name }}</strong>
+                  <strong>{{ formatBusStopName({ Description: stop.name, RoadName: stop.roadName }) }}</strong>
                   <span class="route-progress__current-pill" *ngIf="stop.status === 'current'">You are here</span>
                   <ion-icon
                     *ngIf="stop.status === 'terminal'"

@@ -16,7 +16,7 @@
   <main class="nearby-shell">
     <header class="nearby-header fade-in">
       <div>
-        <p>nearby stops</p>
+        <p>Nearby Stops</p>
         <h1>Catch a ride nearby</h1>
       </div>
     </header>
@@ -83,7 +83,7 @@
           <ion-icon name="bus-outline"></ion-icon>
         </div>
         <div class="nearby-stop-card__copy">
-          <h2>{{ stop.Description }}</h2>
+          <h2>{{ formatBusStopName(stop) }}</h2>
           <p>{{ stop.RoadName }} · {{ stop.BusStopCode }}</p>
           <div class="nearby-stop-card__footer">
             <span class="nearby-distance" [ngClass]="'nearby-distance--' + nearbyDistanceTone(stop.distanceMeters)">
