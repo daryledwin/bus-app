@@ -1,0 +1,96 @@
+<ion-content [fullscreen]="true" class="routes-page">
+  <main class="routes-shell">
+    <button type="button" class="routes-back-button" aria-label="Back to Settings" (click)="goBack()">
+      <ion-icon name="chevron-back-outline"></ion-icon>
+    </button>
+
+    <header class="routes-hero">
+      <div>
+        <p>Tools</p>
+        <h1>MRT Map</h1>
+        <span>Singapore’s train network at a glance.</span>
+      </div>
+    </header>
+
+    <section class="mrt-status-card mrt-status-card--loading" *ngIf="isLoadingMrtStatus" aria-live="polite">
+      <span class="mrt-status-card__icon"></span>
+      <div>
+        <span class="mrt-status-card__eyebrow"></span>
+        <span class="mrt-status-card__title"></span>
+        <span class="mrt-status-card__subtitle"></span>
+      </div>
+    </section>
+
+    <section class="mrt-status-card mrt-status-card--error" *ngIf="!isLoadingMrtStatus && mrtStatusError" aria-live="polite">
+      <ion-icon name="alert-circle-outline" aria-hidden="true"></ion-icon>
+      <div>
+        <p>MRT Service Status</p>
+        <h2>Unable to load MRT status right now.</h2>
+        <span>The map is still available below.</span>
+      </div>
+    </section>
+
+    <ng-container *ngIf="!isLoadingMrtStatus && !mrtStatusError">
+      <section class="mrt-status-card mrt-status-card--normal" *ngIf="!hasMrtDisruption" aria-live="polite">
+        <ion-icon name="checkmark-circle-outline" aria-hidden="true"></ion-icon>
+        <div>
+          <p>MRT Service Status</p>
+          <h2>All train lines operating normally</h2>
+          <span>{{ mrtUpdatedLabel() }}</span>
+        </div>
+      </section>
+
+      <section
+        class="mrt-status-card mrt-status-card--disrupted"
+        *ngFor="let alert of majorMrtAlerts"
+        aria-live="polite"
+      >
+        <ion-icon name="warning-outline" aria-hidden="true"></ion-icon>
+        <div>
+          <p>MRT Service Status</p>
+          <h2>{{ mrtLineLabel(alert) }} disruption</h2>
+          <span>{{ mrtUpdatedLabel([alert]) }}</span>
+          <dl class="mrt-alert-details">
+            <div>
+              <dt>Direction</dt>
+              <dd>{{ mrtDirectionLabel(alert) }}</dd>
+            </div>
+            <div>
+              <dt>Stations</dt>
+              <dd>{{ mrtStationsLabel(alert) }}</dd>
+            </div>
+          </dl>
+          <p class="mrt-alert-message" *ngIf="alert.messageContent">{{ alert.messageContent }}</p>
+          <div class="mrt-alert-pills" *ngIf="alert.freePublicBus || alert.freeMrtShuttle">
+            <span *ngIf="alert.freePublicBus">Free public bus available</span>
+            <span *ngIf="alert.freeMrtShuttle">
+              Free MRT shuttle{{ alert.mrtShuttleDirection ? ' · ' + alert.mrtShuttleDirection : '' }}
+            </span>
+          </div>
+        </div>
+      </section>
+    </ng-container>
+
+    <section class="mrt-map-card" aria-label="Singapore MRT map">
+      <div class="mrt-map-card__header">
+        <div>
+          <p>Network Map</p>
+          <h2>Singapore MRT & LRT</h2>
+        </div>
+        <a [href]="mrtMapPdfUrl" target="_blank" rel="noopener" aria-label="Open MRT map PDF">
+          <ion-icon name="open-outline" aria-hidden="true"></ion-icon>
+        </a>
+      </div>
+
+      <div class="mrt-map-viewer">
+        <object [data]="trustedMrtMapPdfUrl" type="application/pdf" aria-label="Singapore MRT map PDF">
+          <iframe [src]="trustedMrtMapPdfUrl" title="Singapore MRT map"></iframe>
+          <p>
+            MRT map preview could not load.
+            <a [href]="mrtMapPdfUrl" target="_blank" rel="noopener">Open the PDF</a>
+          </p>
+        </object>
+      </div>
+    </section>
+  </main>
+</ion-content>

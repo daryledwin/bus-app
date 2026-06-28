@@ -1,0 +1,120 @@
+<ion-content [fullscreen]="true" class="settings-page">
+  <main class="settings-shell">
+    <header class="settings-header">
+      <div>
+        <p>MyBus SG</p>
+        <h1>Settings</h1>
+      </div>
+    </header>
+
+    <section class="settings-group" aria-labelledby="settings-app-title">
+      <h2 id="settings-app-title">App</h2>
+      <div class="settings-card">
+        <button type="button" class="settings-row" routerLink="/about-me">
+          <span class="settings-row__icon settings-row__icon--blue" aria-hidden="true">
+            <ion-icon name="person-circle-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>About Me</strong>
+            <small>About the maker and MyBus SG</small>
+          </span>
+          <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+
+        <button type="button" class="settings-row" (click)="openDataSourcePage()">
+          <span class="settings-row__icon settings-row__icon--green" aria-hidden="true">
+            <ion-icon name="server-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>Data Source</strong>
+            <small>LTA DataMall live bus arrivals</small>
+          </span>
+          <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+
+        <button type="button" class="settings-row" (click)="openReviewPage()">
+          <span class="settings-row__icon settings-row__icon--yellow" aria-hidden="true">
+            <ion-icon name="star-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>Rate on the App Store</strong>
+            <small>A quick review means a lot</small>
+          </span>
+          <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+      </div>
+    </section>
+
+    <section class="settings-group" aria-labelledby="settings-tools-title">
+      <h2 id="settings-tools-title">Tools</h2>
+      <div class="settings-card">
+        <button type="button" class="settings-row" (click)="openMrtMap()">
+          <span class="settings-row__icon settings-row__icon--teal" aria-hidden="true">
+            <ion-icon name="train-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>MRT Map</strong>
+            <small>View Singapore’s MRT network</small>
+          </span>
+          <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+
+        <button type="button" class="settings-row" (click)="openBusRoutes()">
+          <span class="settings-row__icon settings-row__icon--blue" aria-hidden="true">
+            <ion-icon name="bus-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>Bus Routes</strong>
+            <small>Search buses and view their routes</small>
+          </span>
+          <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+      </div>
+    </section>
+
+    <section class="settings-group" aria-labelledby="settings-preferences-title">
+      <h2 id="settings-preferences-title">Preferences</h2>
+      <div class="settings-card">
+        <div class="settings-row settings-row--static">
+          <span class="settings-row__icon settings-row__icon--purple" aria-hidden="true">
+            <ion-icon name="color-palette-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>Appearance</strong>
+            <small>Theme options coming soon</small>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-group" aria-labelledby="settings-support-title">
+      <h2 id="settings-support-title">Support</h2>
+      <div class="settings-card">
+        <button type="button" class="settings-row" (click)="openFeedbackEmail()">
+          <span class="settings-row__icon settings-row__icon--orange" aria-hidden="true">
+            <ion-icon name="mail-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>Feedback / Contact</strong>
+            <small>Send us an email</small>
+          </span>
+          <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <nav slot="fixed" class="bottom-nav" aria-label="Bus navigation">
+    <button
+      type="button"
+      *ngFor="let item of navItems"
+      [class.active]="isNavRouteActive(item.route)"
+      [attr.aria-label]="item.label"
+      (touchend)="navigateFromBottomNav(item.route, $event)"
+      (click)="navigateFromBottomNav(item.route, $event)"
+    >
+      <ion-icon [name]="item.icon"></ion-icon>
+      <span>{{ item.label }}</span>
+    </button>
+  </nav>
+</ion-content>

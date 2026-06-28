@@ -1,0 +1,268 @@
+:host {
+  --settings-ink: #10243a;
+  --settings-muted: rgba(60, 60, 67, 0.56);
+  --settings-line: rgba(60, 60, 67, 0.1);
+  color: var(--settings-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+}
+
+ion-content.settings-page {
+  --background:
+    linear-gradient(180deg, #eef8ff 0%, #f7fbfe 46%, #fbfaf8 100%);
+}
+
+.settings-shell {
+  display: grid;
+  gap: 22px;
+  margin: 0 auto;
+  max-width: 720px;
+  padding: max(18px, env(safe-area-inset-top)) 20px calc(92px + env(safe-area-inset-bottom));
+}
+
+.settings-header {
+  align-items: end;
+  animation: fadeIn 620ms ease both;
+  display: grid;
+  gap: 14px;
+  min-height: 104px;
+  padding-top: 8px;
+}
+
+.settings-header p {
+  color: var(--settings-muted);
+  font-size: 13px;
+  font-weight: 650;
+  margin: 0 0 5px;
+}
+
+.settings-header h1 {
+  color: var(--settings-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+  font-size: clamp(34px, 8vw, 46px);
+  font-weight: 760;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+  margin: 0;
+}
+
+.settings-group {
+  animation: fadeIn 700ms 120ms ease both;
+  display: grid;
+  gap: 8px;
+}
+
+.settings-group h2 {
+  color: rgba(60, 60, 67, 0.5);
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: 0.02em;
+  margin: 0;
+  padding: 0 16px;
+  text-transform: uppercase;
+}
+
+.settings-card {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(60, 60, 67, 0.055);
+  border-radius: 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.settings-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  min-height: 64px;
+  padding: 10px 14px;
+  position: relative;
+  text-align: left;
+  width: 100%;
+}
+
+.settings-row + .settings-row::before {
+  background: var(--settings-line);
+  content: "";
+  height: 1px;
+  left: 60px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: scaleY(0.5);
+}
+
+.settings-row--static {
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.settings-row__icon {
+  align-items: center;
+  border-radius: 10px;
+  color: #fff;
+  display: grid;
+  height: 30px;
+  place-items: center;
+  width: 30px;
+}
+
+.settings-row__icon ion-icon {
+  font-size: 18px;
+}
+
+.settings-row__icon--blue {
+  background: #1977c9;
+}
+
+.settings-row__icon--green {
+  background: #2f9e6e;
+}
+
+.settings-row__icon--teal {
+  background: #2f9e9a;
+}
+
+.settings-row__icon--purple {
+  background: #806fae;
+}
+
+.settings-row__icon--orange {
+  background: #c98a1f;
+}
+
+.settings-row__icon--yellow {
+  background: #d6a11d;
+}
+
+.settings-row__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.settings-row__copy strong {
+  color: var(--settings-ink);
+  font-size: 16px;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.settings-row__copy small {
+  color: var(--settings-muted);
+  font-size: 13px;
+  font-weight: 430;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-row__chevron {
+  color: rgba(60, 60, 67, 0.28);
+  font-size: 18px;
+  justify-self: end;
+}
+
+.settings-row:active {
+  background: rgba(60, 60, 67, 0.055);
+}
+
+.bottom-nav {
+  backdrop-filter: blur(30px) saturate(1.28);
+  -webkit-backdrop-filter: blur(30px) saturate(1.28);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(151, 176, 194, 0.16);
+  border-radius: 28px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 14px 34px rgba(52, 98, 132, 0.1);
+  display: grid;
+  gap: 3px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  left: 50%;
+  max-width: 360px;
+  padding: 6px 12px;
+  position: fixed;
+  transform: translate3d(-50%, 0, 0);
+  width: min(360px, calc(100% - 40px));
+  z-index: 1000;
+}
+
+.bottom-nav button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 23px;
+  color: rgba(98, 111, 126, 0.72);
+  display: grid;
+  font-size: 10px;
+  font-weight: 780;
+  gap: 3px;
+  justify-items: center;
+  min-height: 46px;
+  padding: 6px 3px;
+  touch-action: manipulation;
+  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav button.active {
+  background: transparent;
+  box-shadow: none;
+  color: #1977c9;
+}
+
+.bottom-nav button:active {
+  transform: none;
+}
+
+.bottom-nav ion-icon {
+  background: transparent !important;
+  font-size: 22px;
+  padding: 0;
+}
+
+.bottom-nav span {
+  display: none;
+}
+
+@media (max-width: 430px) {
+  .bottom-nav {
+    width: min(342px, calc(100% - 34px));
+  }
+}
+
+@media (max-width: 390px) {
+  .settings-shell {
+    padding-inline: 18px;
+  }
+
+  .settings-row {
+    min-height: 62px;
+    padding-inline: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

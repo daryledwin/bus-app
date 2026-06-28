@@ -1,0 +1,154 @@
+<ion-content [fullscreen]="true" class="routes-page">
+  <main class="routes-shell">
+    <button type="button" class="routes-back-button" aria-label="Back to Settings" (click)="goBack()">
+      <ion-icon name="chevron-back-outline"></ion-icon>
+    </button>
+
+    <header class="routes-hero">
+      <div>
+        <p>Tools</p>
+        <h1>Bus Routes</h1>
+        <span>Search buses and view their route stops.</span>
+      </div>
+    </header>
+
+    <section class="route-search-card" aria-label="Search bus routes">
+      <label for="bus-route-search">Bus service number</label>
+      <form class="route-search-bar" (ngSubmit)="searchBusRoute()">
+        <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+        <span class="route-search-input-wrap">
+          <input
+            id="bus-route-search"
+            name="busServiceQuery"
+            type="tel"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="off"
+            placeholder="969"
+            [(ngModel)]="busServiceQuery"
+            [class.route-search-input--hidden-value]="busServiceQuery"
+            (input)="busServiceInputChanged($event)"
+            (keydown)="preventNonNumericInput($event)"
+          />
+          <span
+            class="route-search-value"
+            [class.route-search-value--pop]="isInputAnimating"
+            aria-hidden="true"
+          >{{ busServiceQuery }}</span>
+        </span>
+        <button
+          type="button"
+          class="route-search-clear-button"
+          aria-label="Clear bus service number"
+          *ngIf="busServiceQuery"
+          (click)="clearBusServiceSearch()"
+        >
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+        <button type="submit" aria-label="Search bus route" [disabled]="isLoadingRoutes">
+          <ion-spinner *ngIf="isLoadingRoutes" name="crescent"></ion-spinner>
+          <ion-icon *ngIf="!isLoadingRoutes" name="arrow-forward-outline"></ion-icon>
+        </button>
+      </form>
+
+      <div class="route-suggestions" *ngIf="serviceSuggestions.length" aria-label="Bus service suggestions">
+        <button
+          type="button"
+          *ngFor="let serviceNo of serviceSuggestions"
+          (click)="selectServiceSuggestion(serviceNo)"
+        >
+          <span>{{ serviceNo }}</span>
+          <small>View route</small>
+          <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+      </div>
+
+      <section class="route-recent-services" *ngIf="recentBusServices.length" aria-label="Recently searched bus services">
+        <p>Recent Searches</p>
+        <div class="route-recent-services__row">
+          <button
+            type="button"
+            *ngFor="let serviceNo of recentBusServices"
+            (click)="searchRecentBusService(serviceNo)"
+          >
+            {{ serviceNo }}
+          </button>
+        </div>
+      </section>
+    </section>
+
+    <section class="routes-empty-state routes-empty-state--error" *ngIf="routeError" aria-live="polite">
+      <ion-icon name="alert-circle-outline" aria-hidden="true"></ion-icon>
+      <p>{{ routeError }}</p>
+    </section>
+
+    <section class="routes-empty-state routes-loading-state" *ngIf="isLoadingRoutes" aria-live="polite">
+      <ion-spinner name="crescent"></ion-spinner>
+      <div>
+        <h2>Loading route</h2>
+        <p>Preparing the stop list for bus {{ searchedServiceNo }}.</p>
+      </div>
+    </section>
+
+    <section
+      #routeResultCard
+      class="route-result-card"
+      *ngIf="!isLoadingRoutes && selectedRouteDirection as routeDirection"
+      aria-label="Bus route result"
+    >
+      <header class="route-sheet__header">
+        <div class="service-badge service-badge--compact">{{ searchedServiceNo }}</div>
+        <div class="route-sheet__title">
+          <p>full route</p>
+          <h2>{{ routeDirection.terminalName }} · {{ routeDirection.terminalCode }}</h2>
+          <span>{{ routeDirection.stops.length }} stops · Direction {{ routeDirection.direction }}</span>
+        </div>
+      </header>
+
+      <div class="direction-tabs" *ngIf="directions.length > 1" role="tablist" aria-label="Route direction">
+        <button
+          type="button"
+          *ngFor="let direction of directions; trackBy: trackDirection"
+          [class.active]="direction.direction === selectedDirection"
+          (click)="selectDirection(direction.direction)"
+        >
+          Direction {{ direction.direction }}
+        </button>
+      </div>
+
+      <div class="route-progress route-progress--modal">
+        <button
+          type="button"
+          class="route-progress__stop"
+          *ngFor="let stop of routeDirection.stops; trackBy: trackRouteStop"
+          (click)="selectRouteStop(stop)"
+          [ngClass]="[
+            'route-progress__stop--' + stop.status,
+            stop.status === 'current' ? 'current-stop' : '',
+            stop.status === 'next' ? 'upcoming-stop' : '',
+            stop.status === 'terminal' ? 'terminal-stop' : ''
+          ]"
+        >
+          <span class="route-progress__dot"></span>
+          <div class="route-progress__copy">
+            <div class="route-progress__name-row">
+              <strong>{{ formatBusStopName({ Description: stop.name, RoadName: stop.roadName }) }}</strong>
+              <ion-icon
+                *ngIf="stop.status === 'terminal'"
+                class="route-progress__terminal-icon"
+                name="flag-outline"
+                aria-hidden="true"
+              ></ion-icon>
+            </div>
+            <small>{{ stop.code }}</small>
+          </div>
+          <ion-icon
+            class="route-progress__chevron"
+            name="chevron-forward-outline"
+            aria-hidden="true"
+          ></ion-icon>
+        </button>
+      </div>
+    </section>
+  </main>
+</ion-content>

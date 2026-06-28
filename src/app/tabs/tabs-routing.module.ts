@@ -16,6 +16,18 @@ const routes: Routes = [
         loadChildren: () => import('../tab2/tab2.module').then(m => m.Tab2PageModule)
       },
       {
+        path: 'settings',
+        loadChildren: () => import('../settings/settings.module').then(m => m.SettingsPageModule)
+      },
+      {
+        path: 'bus-routes',
+        loadChildren: () => import('../bus-routes/bus-routes.module').then(m => m.BusRoutesPageModule)
+      },
+      {
+        path: 'mrt-map',
+        loadChildren: () => import('../mrt-map/mrt-map.module').then(m => m.MrtMapPageModule)
+      },
+      {
         path: '',
         redirectTo: '/tabs/tab1',
         pathMatch: 'full'

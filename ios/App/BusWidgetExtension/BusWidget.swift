@@ -752,7 +752,7 @@ struct BusWidgetView: View {
     }
 
     private func busTypeMetadataChip(for type: String) -> some View {
-        HStack(alignment: .center, spacing: 3.5) {
+        HStack(alignment: .center, spacing: 5) {
             WidgetBusTypeGlyph(type: type, color: busTypeColor(type))
                 .frame(width: 12, height: 10, alignment: .center)
                 .accessibilityHidden(true)

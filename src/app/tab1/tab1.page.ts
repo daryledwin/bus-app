@@ -71,6 +71,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   @ViewChildren('routeStopRow') private readonly routeStopRows?: QueryList<ElementRef<HTMLElement>>;
 
   readonly heroTimeOfDay = this.currentHeroTimeOfDay();
+  currentLocalTimeLabel = this.formatCurrentLocalTime();
   heroTagline = this.randomHeroTagline();
   displayedHeroTagline = '';
   searchTerm = '';
@@ -107,6 +108,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private searchTimer?: ReturnType<typeof setTimeout>;
   private heroTaglineTimer?: ReturnType<typeof setInterval>;
   private heroTaglineTypingTimer?: ReturnType<typeof setTimeout>;
+  private heroClockTimer?: ReturnType<typeof setTimeout>;
   private routePrefetchTimer?: ReturnType<typeof setTimeout>;
   private routePrefetchServiceNos: string[] = [];
   private routePrefetchRunId = 0;
@@ -129,7 +131,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   readonly navItems: NavItem[] = [
     { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
-    { label: 'Nearby', icon: 'navigate-outline', route: '/tabs/tab2' }
+    { label: 'Nearby', icon: 'navigate-outline', route: '/tabs/tab2' },
+    { label: 'Settings', icon: 'settings-outline', route: '/tabs/settings' }
   ];
 
   constructor(
@@ -155,6 +158,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     console.log('IOS DEBUG 1 - home page initialized');
+    this.startHeroClock();
     this.revealHeroTagline(this.heroTagline);
     this.heroTaglineTimer = setInterval(() => this.rotateHeroTagline(), 5200);
     this.selectedStopSubscription = this.selectedBusStopService.selectedStop$.subscribe((stop) => {
@@ -208,6 +212,10 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
     if (this.heroTaglineTimer) {
       clearInterval(this.heroTaglineTimer);
+    }
+
+    if (this.heroClockTimer) {
+      clearTimeout(this.heroClockTimer);
     }
 
     this.clearHeroTaglineTypingTimer();
@@ -292,7 +300,12 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    void this.refreshFeedbackService.lightImpact();
+    if (route === '/tabs/settings') {
+      await this.refreshFeedbackService.lightImpact();
+    } else {
+      void this.refreshFeedbackService.lightImpact();
+    }
+
     this.router.navigateByUrl(route);
   }
 
@@ -1446,6 +1459,30 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       icon: 'sparkles-outline',
       label: 'late night ride'
     };
+  }
+
+  private startHeroClock(): void {
+    this.updateHeroClock();
+  }
+
+  private updateHeroClock(): void {
+    if (this.heroClockTimer) {
+      clearTimeout(this.heroClockTimer);
+    }
+
+    this.currentLocalTimeLabel = this.formatCurrentLocalTime();
+
+    const now = new Date();
+    const msUntilNextMinute = 60_000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+    this.heroClockTimer = setTimeout(() => this.updateHeroClock(), msUntilNextMinute);
+  }
+
+  private formatCurrentLocalTime(): string {
+    return new Date().toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
   }
 
   private logSearchQuery(query: string): void {

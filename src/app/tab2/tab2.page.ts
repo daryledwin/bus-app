@@ -76,7 +76,8 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   readonly navItems: NavItem[] = [
     { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
-    { label: 'Nearby', icon: 'navigate-outline', route: '/tabs/tab2' }
+    { label: 'Nearby', icon: 'navigate-outline', route: '/tabs/tab2' },
+    { label: 'Settings', icon: 'settings-outline', route: '/tabs/settings' }
   ];
 
   constructor(
@@ -284,7 +285,12 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    void this.refreshFeedbackService.lightImpact();
+    if (route === '/tabs/settings') {
+      await this.refreshFeedbackService.lightImpact();
+    } else {
+      void this.refreshFeedbackService.lightImpact();
+    }
+
     this.router.navigateByUrl(route);
   }
 

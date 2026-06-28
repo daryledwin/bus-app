@@ -663,7 +663,7 @@ ion-content.nearby-page {
   box-shadow: 0 22px 58px rgba(29, 108, 168, 0.22), 0 8px 18px rgba(29, 108, 168, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.94);
   display: grid;
   gap: 3px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   left: 50%;
   max-width: 342px;
   padding: 6px;
@@ -881,10 +881,12 @@ ion-content.nearby-page {
 }
 
 .nearby-header {
+  align-items: end;
   background: transparent;
   border: 0;
   border-radius: 0;
   box-shadow: none;
+  min-height: 104px;
   padding: 8px 2px 2px;
 }
 
@@ -1372,7 +1374,7 @@ ion-content.nearby-page {
 }
 
 .bottom-nav button.active ion-icon {
-  background: rgba(74, 163, 223, 0.09);
+  background: transparent !important;
 }
 
 @media (max-width: 520px) {
@@ -1437,7 +1439,7 @@ ion-content.nearby-page {
 }
 
 .bottom-nav button.active ion-icon {
-  background: rgba(222, 238, 247, 0.7);
+  background: transparent !important;
 }
 
 /* Keep Nearby coherent with the expressive warm Home system. */
@@ -1648,4 +1650,83 @@ ion-content.nearby-page {
 
 .nearby-stop-card .nearby-favourite-button .favourite-sparkles span {
   background: radial-gradient(circle, rgba(255, 90, 95, 0.72), rgba(255, 90, 95, 0));
+}
+
+/* Bottom nav source of truth: match Settings exactly. */
+.bottom-nav {
+  backdrop-filter: blur(30px) saturate(1.28);
+  -webkit-backdrop-filter: blur(30px) saturate(1.28);
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(151, 176, 194, 0.16);
+  border-radius: 28px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 14px 34px rgba(52, 98, 132, 0.1);
+  display: grid;
+  gap: 3px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  left: 50%;
+  max-width: 360px;
+  padding: 6px 12px;
+  position: fixed;
+  transform: translate3d(-50%, 0, 0);
+  width: min(360px, calc(100% - 40px));
+  z-index: 1000;
+}
+
+.bottom-nav button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 23px;
+  box-shadow: none;
+  color: rgba(98, 111, 126, 0.72);
+  display: grid;
+  font-size: 10px;
+  font-weight: 780;
+  gap: 3px;
+  justify-items: center;
+  min-height: 46px;
+  outline: 0;
+  padding: 6px 3px;
+  touch-action: manipulation;
+  transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-nav button.active {
+  background: transparent;
+  box-shadow: none;
+  color: #1977c9;
+}
+
+.bottom-nav button:active {
+  transform: none;
+}
+
+.bottom-nav ion-icon {
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+  font-size: 22px;
+  outline: 0;
+  padding: 0;
+}
+
+.bottom-nav button.active ion-icon {
+  background: transparent !important;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.bottom-nav span {
+  display: none;
+}
+
+@media (max-width: 430px) {
+  .bottom-nav {
+    width: min(342px, calc(100% - 34px));
+  }
 }

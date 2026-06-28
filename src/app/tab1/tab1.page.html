@@ -69,10 +69,6 @@
 
   <main class="home-shell">
     <header class="commute-header fade-in">
-      <button type="button" class="about-home-button" routerLink="/about-me" aria-label="About MyBus SG">
-        <ion-icon name="sparkles-outline"></ion-icon>
-      </button>
-
       <div class="header-glow" aria-hidden="true"></div>
       <div class="skyline" aria-hidden="true">
         <span></span>
@@ -86,7 +82,7 @@
       <div class="header-copy">
         <div class="morning-chip">
           <ion-icon [name]="heroTimeOfDay.icon" aria-hidden="true"></ion-icon>
-          {{ heroTimeOfDay.label }}
+          {{ heroTimeOfDay.label }} • {{ currentLocalTimeLabel }}
         </div>
         <h1>Where are we heading today?</h1>
         <span class="hero-tagline" [attr.aria-label]="heroTagline">

@@ -301,7 +301,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private isRootTabUrl(url: string): boolean {
     const route = url.split('?')[0].split('#')[0];
-    return route === '/tabs/tab1' || route === '/tabs/tab2';
+    return route === '/tabs/tab1' || route === '/tabs/tab2' || route === '/tabs/settings';
   }
 
   private isOnboardingUrl(url: string): boolean {

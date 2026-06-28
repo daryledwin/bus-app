@@ -13,6 +13,7 @@ const accountKey = process.env.LTA_ACCOUNT_KEY;
 const ltaArrivalEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival';
 const ltaBusStopsEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/BusStops';
 const ltaBusRoutesEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/BusRoutes';
+const ltaTrainServiceAlertsEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/TrainServiceAlerts';
 const busStopsPageSize = 500;
 const busRoutesPageSize = 500;
 const busStopsCacheTtl = 12 * 60 * 60 * 1000;
@@ -52,7 +53,8 @@ function hasAccountKey(res) {
 function ltaRequestOptions(params) {
   return {
     headers: {
-      AccountKey: accountKey
+      AccountKey: accountKey,
+      accept: 'application/json'
     },
     httpsAgent: ltaHttpsAgent,
     params,
@@ -125,6 +127,50 @@ function cleanBusRoute(route) {
     SUN_FirstBus: route.SUN_FirstBus,
     SUN_LastBus: route.SUN_LastBus
   };
+}
+
+function cleanTrainServiceAlert(alert) {
+  const message = Array.isArray(alert.Message)
+    ? alert.Message[0] || {}
+    : alert.Message || {};
+
+  return {
+    Status: Number(alert.Status) || 0,
+    Line: alert.Line || '',
+    Direction: alert.Direction || '',
+    Stations: alert.Stations || '',
+    FreePublicBus: alert.FreePublicBus || '',
+    FreeMRTShuttle: alert.FreeMRTShuttle || '',
+    MRTShuttleDirection: alert.MRTShuttleDirection || '',
+    Message: {
+      Content: message.Content || '',
+      CreatedDate: message.CreatedDate || ''
+    }
+  };
+}
+
+function unwrapTrainServiceAlerts(rawResponse) {
+  if (Array.isArray(rawResponse)) {
+    return rawResponse;
+  }
+
+  if (Array.isArray(rawResponse && rawResponse.value)) {
+    return rawResponse.value;
+  }
+
+  if (Array.isArray(rawResponse && rawResponse.alerts)) {
+    return rawResponse.alerts;
+  }
+
+  if (Array.isArray(rawResponse && rawResponse.data)) {
+    return rawResponse.data;
+  }
+
+  if (rawResponse && typeof rawResponse === 'object' && rawResponse.Status !== undefined) {
+    return [rawResponse];
+  }
+
+  return [];
 }
 
 function normalizeSearchText(value) {
@@ -337,6 +383,32 @@ app.get('/api/bus-routes', async (req, res) => {
 
     return res.json(filteredRoutes);
   } catch (error) {
+    return ltaFailure(res, error);
+  }
+});
+
+app.get('/api/train-service-alerts', async (req, res) => {
+  if (!hasAccountKey(res)) {
+    return;
+  }
+
+  try {
+    console.log(`[TrainServiceAlerts] Request URL: ${ltaTrainServiceAlertsEndpoint}`);
+    const response = await getFromLta(ltaTrainServiceAlertsEndpoint, undefined, 3);
+    console.log(`[TrainServiceAlerts] HTTP status: ${response.status}`);
+    console.log('[TrainServiceAlerts] Raw JSON response:', JSON.stringify(response.data));
+
+    const alerts = unwrapTrainServiceAlerts(response.data);
+    console.log(`[TrainServiceAlerts] Parsed alert count: ${alerts.length}`);
+
+    return res.json(alerts.map(cleanTrainServiceAlert));
+  } catch (error) {
+    console.error('[TrainServiceAlerts] Caught error object:', {
+      message: error.message,
+      status: error.response && error.response.status,
+      data: error.response && error.response.data,
+      code: error.code
+    });
     return ltaFailure(res, error);
   }
 });

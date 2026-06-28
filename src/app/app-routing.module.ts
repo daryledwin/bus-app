@@ -13,6 +13,21 @@ const routes: Routes = [
     loadChildren: () => import('./about-me/about-me.module').then(m => m.AboutMePageModule)
   },
   {
+    path: 'bus-routes',
+    canActivate: [OnboardingService],
+    loadChildren: () => import('./bus-routes/bus-routes.module').then(m => m.BusRoutesPageModule)
+  },
+  {
+    path: 'mrt-map',
+    canActivate: [OnboardingService],
+    loadChildren: () => import('./mrt-map/mrt-map.module').then(m => m.MrtMapPageModule)
+  },
+  {
+    path: 'settings',
+    redirectTo: '/tabs/settings',
+    pathMatch: 'full'
+  },
+  {
     path: '',
     canActivate: [OnboardingService],
     loadChildren: () => import('./tabs/tabs.module').then(m => m.TabsPageModule)
