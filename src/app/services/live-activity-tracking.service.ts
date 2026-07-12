@@ -126,10 +126,12 @@ export class LiveActivityTrackingService {
     private readonly widgetBridgeService: WidgetBridgeService,
     private readonly ltaBusService: LtaBusService
   ) {
-    this.registerForegroundListener();
-    this.registerVisibilityListener();
-    this.registerPushTokenListener();
-    void this.restoreActiveLiveActivity('launch');
+    if (environment.liveActivitiesEnabled) {
+      this.registerForegroundListener();
+      this.registerVisibilityListener();
+      this.registerPushTokenListener();
+      void this.restoreActiveLiveActivity('launch');
+    }
   }
 
   get currentState(): LiveActivityTrackingState {
