@@ -131,11 +131,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private liveActivityTrackingSubscription?: Subscription;
   private liveActivityDebugSubscription?: Subscription;
   private arrivalRequestId = 0;
-  private normalArrivalSubscription?: Subscription;
-  private normalArrivalInFlightStopCode = '';
-  private normalArrivalOnComplete?: () => void;
-  private normalArrivalStartedAt = 0;
-  private normalArrivalCorrelationId = '';
   private refreshInProgress = false;
   private arrivalStickyThreshold = 0;
   private homeScrollElement?: HTMLElement;
@@ -258,7 +253,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.cancelNormalArrivalRequest('page destroyed');
     this.selectedStopSubscription?.unsubscribe();
     this.routeQuerySubscription?.unsubscribe();
     this.liveActivityTrackingSubscription?.unsubscribe();
@@ -422,8 +416,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       this.searchTimer = undefined;
     }
 
-    this.cancelNormalArrivalRequest('search cleared');
-
     this.arrivalRequestId++;
     this.searchTerm = '';
     this.busStopResults = [];
@@ -454,30 +446,12 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const isNormalArrivalRequest = options.silentLiveActivityRefresh !== true;
-    if (isNormalArrivalRequest && this.normalArrivalSubscription && !this.normalArrivalSubscription.closed) {
-      if (this.normalArrivalInFlightStopCode === normalizedBusStopCode) {
-        console.info('[Arrivals] duplicate request suppressed', {
-          stopCode: normalizedBusStopCode,
-          activeRequestId: this.arrivalRequestId,
-          correlationId: this.normalArrivalCorrelationId
-        });
-        onComplete?.();
-        return;
-      }
-
-      this.cancelNormalArrivalRequest('replaced by different stop', normalizedBusStopCode);
-    }
-
     const requestId = ++this.arrivalRequestId;
     const startedAt = performance.now();
     const correlationId = isNormalArrivalRequest
       ? `arrival-${Date.now()}-${requestId}`
       : '';
     if (isNormalArrivalRequest) {
-      this.normalArrivalInFlightStopCode = normalizedBusStopCode;
-      this.normalArrivalOnComplete = onComplete;
-      this.normalArrivalStartedAt = startedAt;
-      this.normalArrivalCorrelationId = correlationId;
       console.info('[Arrivals] request start', {
         stopCode: normalizedBusStopCode,
         requestId,
@@ -503,7 +477,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       this.liveActivityTrackingService.markDebug('httpRequest', true, `searchArrivals stop ${normalizedBusStopCode}`);
     }
 
-    const arrivalSubscription = this.ltaBusService.getBusArrivals(normalizedBusStopCode, options.silentLiveActivityRefresh
+    this.ltaBusService.getBusArrivals(normalizedBusStopCode, options.silentLiveActivityRefresh
       ? { forceRefresh: true, reason: 'manual', retry: true }
       : { retry: false, timeoutMs: 35000, correlationId }
     ).subscribe({
@@ -528,7 +502,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
             durationMs: Math.round(performance.now() - startedAt),
             serviceCount: arrivalLookup.services.length
           });
-          this.clearNormalArrivalRequest(requestId);
         }
         if (options.confirmLoadedHaptic === true) {
           void this.refreshFeedbackService.lightImpact();
@@ -563,7 +536,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
             timeout: error?.name === 'TimeoutError',
             error
           });
-          this.clearNormalArrivalRequest(requestId);
         }
         this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
         this.arrivalError = this.errorMessage(error);
@@ -573,10 +545,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         onComplete?.();
       }
     });
-
-    if (isNormalArrivalRequest) {
-      this.normalArrivalSubscription = arrivalSubscription;
-    }
   }
 
   async refreshLiveArrivals(event?: CustomEvent<{ complete: () => Promise<void> | void }>): Promise<void> {
@@ -662,48 +630,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.busStopResults = [];
     this.rememberBusStop(stop);
     this.searchArrivals(stop.BusStopCode, undefined, { confirmLoadedHaptic: true });
-  }
-
-  private cancelNormalArrivalRequest(reason: string, replacementStopCode?: string): void {
-    if (!this.normalArrivalSubscription || this.normalArrivalSubscription.closed) {
-      return;
-    }
-
-    const requestId = this.arrivalRequestId;
-    const stopCode = this.normalArrivalInFlightStopCode;
-    const durationMs = this.normalArrivalStartedAt
-      ? Math.round(performance.now() - this.normalArrivalStartedAt)
-      : 0;
-    const completion = this.normalArrivalOnComplete;
-
-    console.info('[Arrivals] request cancelled', {
-      stopCode,
-      requestId,
-      correlationId: this.normalArrivalCorrelationId,
-      reason,
-      replacementStopCode,
-      durationMs
-    });
-    this.normalArrivalSubscription.unsubscribe();
-    this.normalArrivalSubscription = undefined;
-    this.normalArrivalInFlightStopCode = '';
-    this.normalArrivalOnComplete = undefined;
-    this.normalArrivalStartedAt = 0;
-    this.normalArrivalCorrelationId = '';
-    this.isLoadingArrivals = false;
-    completion?.();
-  }
-
-  private clearNormalArrivalRequest(requestId: number): void {
-    if (requestId !== this.arrivalRequestId) {
-      return;
-    }
-
-    this.normalArrivalSubscription = undefined;
-    this.normalArrivalInFlightStopCode = '';
-    this.normalArrivalOnComplete = undefined;
-    this.normalArrivalStartedAt = 0;
-    this.normalArrivalCorrelationId = '';
   }
 
   private openBusStopFromDeepLink(busStopCode: string): void {
