@@ -75,6 +75,11 @@ export class SettingsPage {
     this.reviewService.openAppStoreReviewPage();
   }
 
+  openAboutMe(): void {
+    void this.refreshFeedbackService.lightImpact();
+    this.navController.navigateForward('/about-me', { animated: true });
+  }
+
   openMrtMap(): void {
     void this.refreshFeedbackService.lightImpact();
     this.navController.navigateForward('/mrt-map', { animated: true });

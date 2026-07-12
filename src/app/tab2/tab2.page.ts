@@ -1,5 +1,6 @@
 import { AfterViewInit, Component, ElementRef, NgZone, OnDestroy, OnInit, Optional, ViewChild } from '@angular/core';
-import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { Router } from '@angular/router';
 import * as L from 'leaflet';
@@ -43,6 +44,7 @@ interface NavItem {
 
 interface NearbyLoadOptions {
   forceFreshLocation?: boolean;
+  keepVisibleStopsWhileLoading?: boolean;
   preserveVisibleStopsOnFreshLocationError?: boolean;
 }
 
@@ -77,6 +79,8 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   private selectedStopPopup?: L.Popup;
   private favouritePopTimer?: ReturnType<typeof setTimeout>;
   private nearbyLoadRequestId = 0;
+  private appStateListener?: PluginListenerHandle;
+  private isDestroyed = false;
   private didUseVisibleStopsRefreshFallback = false;
   private lastNavTapAt = 0;
   private lastNavRoute = '';
@@ -104,6 +108,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    void this.registerAppStateListener();
     this.loadNearbyStops();
   }
 
@@ -126,7 +131,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.isDestroyed = true;
     this.nearbyLoadRequestId++;
+    void this.appStateListener?.remove();
     this.map?.remove();
     this.stopMarkers.clear();
     if (this.favouritePopTimer) {
@@ -138,6 +145,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     const requestId = ++this.nearbyLoadRequestId;
     const startedAt = performance.now();
     const forceFreshLocation = options.forceFreshLocation === true;
+    const keepVisibleStopsWhileLoading = options.keepVisibleStopsWhileLoading === true;
     const preserveVisibleStopsOnFreshLocationError = options.preserveVisibleStopsOnFreshLocationError === true;
     console.info(`[Nearby] load start request=${requestId} forceFresh=${forceFreshLocation}`);
     this.isLoadingLocation = true;
@@ -153,7 +161,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }
     const shouldPreserveCurrentStops = this.nearbyStops.length > 0;
 
-    if (!shouldPreserveCurrentStops || forceFreshLocation) {
+    if ((!shouldPreserveCurrentStops || forceFreshLocation) && !keepVisibleStopsWhileLoading) {
       this.nearbyStops = [];
     }
 
@@ -183,7 +191,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
       this.renderNearbyStops(stops, location);
       if (!forceFreshLocation) {
-        this.refreshLocationInBackground(stops, location);
+        this.refreshLocationInBackground(stops, location, requestId);
       } else {
         console.info(`[Nearby] background location refinement skipped after fresh manual location request=${requestId}`);
       }
@@ -508,7 +516,45 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  private refreshLocationInBackground(stops: BusStop[], currentLocation: NearbyLocation): void {
+  private async registerAppStateListener(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      const listener = await App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive || !this.isNearbyTabActive()) {
+          return;
+        }
+
+        void this.loadNearbyStops({
+          forceFreshLocation: true,
+          keepVisibleStopsWhileLoading: true,
+          preserveVisibleStopsOnFreshLocationError: true
+        });
+      });
+
+      if (this.isDestroyed) {
+        await listener.remove();
+        return;
+      }
+
+      this.appStateListener = listener;
+    } catch (error) {
+      console.warn('[Nearby] app state listener unavailable', error);
+    }
+  }
+
+  private isNearbyTabActive(): boolean {
+    const route = this.router.url.split('?')[0].split('#')[0];
+    return route === '/tabs/tab2' || route.startsWith('/tabs/tab2/');
+  }
+
+  private refreshLocationInBackground(
+    stops: BusStop[],
+    currentLocation: NearbyLocation,
+    requestId: number
+  ): void {
     if (!this.onboardingService.shouldRequestLocationAutomatically()) {
       return;
     }
@@ -520,6 +566,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       timeout: 7000
     })
       .then((location) => {
+        if (!this.isActiveNearbyRequest(requestId)) {
+          console.info(`[Nearby] stale background location result ignored request=${requestId}`);
+          return;
+        }
+
         console.info('[Nearby] background geolocation success');
         const freshLocation = { latitude: location.latitude, longitude: location.longitude };
 

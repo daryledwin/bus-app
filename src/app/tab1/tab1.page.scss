@@ -1513,7 +1513,7 @@ ion-content.bus-home {
   align-items: flex-start;
   display: grid;
   flex-wrap: nowrap;
-  gap: 5px;
+  gap: 7.5px;
 }
 
 .live-row__meta--stacked span,
@@ -1606,18 +1606,19 @@ ion-content.bus-home {
   align-items: center;
   color: currentColor;
   display: inline-flex;
-  height: 17px;
+  height: 15.5px;
   justify-content: center;
   justify-self: center;
   line-height: 1;
-  width: 17px;
+  transform: translateY(-0.25px);
+  width: 15.5px;
 }
 
 .live-row__meta--stacked .wheelchair-access-icon svg {
   display: block;
-  height: 17px;
+  height: 15.5px;
   overflow: visible;
-  width: 17px;
+  width: 15.5px;
 }
 
 .live-row__meta--stacked .metadata-line--bus-type {
@@ -8939,14 +8940,14 @@ ion-modal.route-modal::part(content),
 .live-row__meta .metadata-line--accessible,
 .live-row__meta .metadata-line--accessible .wheelchair-access-icon,
 .live-row__meta .metadata-line--accessible .metadata-icon__stroke {
-  color: #8a8f98;
+  color: #6e737b;
   stroke: currentColor;
 }
 
 .live-row__meta .metadata-line--not-accessible,
 .live-row__meta .metadata-line--not-accessible .wheelchair-access-icon,
 .live-row__meta .metadata-line--not-accessible .metadata-icon__stroke {
-  color: #b75a63;
+  color: #6e737b;
   stroke: currentColor;
 }
 

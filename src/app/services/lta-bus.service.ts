@@ -1,13 +1,18 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
-import { Observable, throwError, timer } from 'rxjs';
-import { map, mergeMap, retryWhen, timeout } from 'rxjs/operators';
+import { HttpClient, HttpErrorResponse, HttpParams, HttpResponse } from '@angular/common/http';
+import { Injectable, OnDestroy } from '@angular/core';
+import { App } from '@capacitor/app';
+import { Capacitor, PluginListenerHandle } from '@capacitor/core';
+import { defer, Observable, throwError, timer } from 'rxjs';
+import { map, mergeMap, retryWhen, tap, timeout } from 'rxjs/operators';
 
 import { environment } from '../../environments/environment';
 
 interface LtaBusResponse {
   BusStopCode?: string;
   Services?: LtaServiceResponse[];
+  _diagnostics?: {
+    backendReceivedAt?: number;
+  };
 }
 
 interface LtaServiceResponse {
@@ -62,10 +67,48 @@ export interface BusArrivalRequestOptions {
 @Injectable({
   providedIn: 'root'
 })
-export class LtaBusService {
+export class LtaBusService implements OnDestroy {
   private readonly endpoint = `${environment.apiBaseUrl}/api/bus-arrival`;
+  private appIsActive = typeof document === 'undefined' || !document.hidden;
+  private lifecycleChangeSequence = 0;
+  private appStateListener?: PluginListenerHandle;
+  private readonly visibilityChangeHandler = () => {
+    this.lifecycleChangeSequence++;
+    console.info('[BusArrival Diagnostic] visibility changed', {
+      visibilityState: document.visibilityState,
+      appState: this.currentAppState(),
+      dateNow: Date.now(),
+      performanceNow: performance.now()
+    });
+  };
 
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    }
+
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener('appStateChange', ({ isActive }) => {
+        this.appIsActive = isActive;
+        this.lifecycleChangeSequence++;
+        console.info('[BusArrival Diagnostic] app state changed', {
+          appState: this.currentAppState(),
+          isActive,
+          dateNow: Date.now(),
+          performanceNow: performance.now()
+        });
+      }).then((listener) => {
+        this.appStateListener = listener;
+      }).catch((error) => {
+        console.warn('[BusArrival Diagnostic] app state listener unavailable', error);
+      });
+    }
+  }
+
+  ngOnDestroy(): void {
+    document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+    void this.appStateListener?.remove();
+  }
 
   getBusArrivals(busStopCode: string, options: BusArrivalRequestOptions = {}): Observable<BusArrivalLookup> {
     const cleanedBusStopCode = busStopCode.trim();
@@ -96,22 +139,109 @@ export class LtaBusService {
     const requestTimeoutMs = options.timeoutMs || 24000;
     const maxRetryIndex = options.retry === false ? 0 : 2;
 
-    return this.http.get<LtaBusResponse>(this.endpoint, { params }).pipe(
-      timeout(requestTimeoutMs),
-      retryWhen((errors) => errors.pipe(
-        mergeMap((error, retryIndex) => {
-          if (retryIndex >= maxRetryIndex || !this.isTransientError(error)) {
-            return throwError(error);
-          }
+    return defer(() => {
+      const clientStartedAt = Date.now();
+      const performanceStartedAt = performance.now();
+      const lifecycleSequenceAtStart = this.lifecycleChangeSequence;
+      const diagnosticId = options.correlationId || `uncorrelated-${clientStartedAt}`;
 
-          return timer(retryIndex === 0 ? 1200 : 3200);
+      console.info('[BusArrival Diagnostic] HTTP subscription start', {
+        diagnosticId,
+        busStopCode: cleanedBusStopCode,
+        appState: this.currentAppState(),
+        visibilityState: typeof document === 'undefined' ? 'unknown' : document.visibilityState,
+        dateNow: clientStartedAt,
+        performanceNow: performanceStartedAt
+      });
+
+      return this.http.get<LtaBusResponse>(this.endpoint, { params, observe: 'response' }).pipe(
+        timeout(requestTimeoutMs),
+        retryWhen((errors) => errors.pipe(
+          mergeMap((error, retryIndex) => {
+            if (retryIndex >= maxRetryIndex || !this.isTransientError(error)) {
+              return throwError(error);
+            }
+
+            return timer(retryIndex === 0 ? 1200 : 3200);
+          })
+        )),
+        tap({
+          next: (response) => this.logRequestSettled(
+            'response',
+            response,
+            diagnosticId,
+            clientStartedAt,
+            performanceStartedAt,
+            lifecycleSequenceAtStart
+          ),
+          error: (error) => this.logRequestSettled(
+            'error',
+            error instanceof HttpErrorResponse ? error : undefined,
+            diagnosticId,
+            clientStartedAt,
+            performanceStartedAt,
+            lifecycleSequenceAtStart,
+            error
+          )
+        }),
+        map((response) => {
+          const body = response.body || {};
+          return {
+            busStopCode: body.BusStopCode || cleanedBusStopCode,
+            services: (body.Services || []).map((service) => this.mapService(service))
+          };
         })
-      )),
-      map((response) => ({
-        busStopCode: response.BusStopCode || cleanedBusStopCode,
-        services: (response.Services || []).map((service) => this.mapService(service))
-      }))
-    );
+      );
+    });
+  }
+
+  private currentAppState(): 'active' | 'inactive' | 'background' {
+    if (typeof document !== 'undefined' && document.hidden) {
+      return 'background';
+    }
+
+    return this.appIsActive ? 'active' : 'inactive';
+  }
+
+  private logRequestSettled(
+    outcome: 'response' | 'error',
+    response: HttpResponse<LtaBusResponse> | HttpErrorResponse | undefined,
+    diagnosticId: string,
+    clientStartedAt: number,
+    performanceStartedAt: number,
+    lifecycleSequenceAtStart: number,
+    error?: unknown
+  ): void {
+    const clientReceivedAt = Date.now();
+    const performanceReceivedAt = performance.now();
+    const elapsedMs = performanceReceivedAt - performanceStartedAt;
+    const backendReceivedAtHeader = response?.headers.get('X-Backend-Received-At');
+    const backendReceivedAtBody = response instanceof HttpResponse
+      ? response.body?._diagnostics?.backendReceivedAt
+      : undefined;
+    const backendReceivedAt = backendReceivedAtHeader
+      ? Number(backendReceivedAtHeader)
+      : backendReceivedAtBody;
+    const hasBackendTimestamp = Number.isFinite(backendReceivedAt);
+
+    console.info('[BusArrival Diagnostic] HTTP request settled', {
+      diagnosticId,
+      outcome,
+      appState: this.currentAppState(),
+      clientStartedAt,
+      clientReceivedAt,
+      performanceStartedAt,
+      performanceReceivedAt,
+      elapsedMs: Math.round(elapsedMs),
+      backendReceivedAt: hasBackendTimestamp ? backendReceivedAt : undefined,
+      apparentPreBackendGapMs: hasBackendTimestamp ? backendReceivedAt! - clientStartedAt : undefined,
+      estimatedClientServerClockOffsetMs: hasBackendTimestamp
+        ? Math.round(backendReceivedAt! - (clientStartedAt + elapsedMs / 2))
+        : undefined,
+      lifecycleOrVisibilityChangedWhilePending: this.lifecycleChangeSequence !== lifecycleSequenceAtStart,
+      lifecycleChangesWhilePending: this.lifecycleChangeSequence - lifecycleSequenceAtStart,
+      error
+    });
   }
 
   private isTransientError(error: any): boolean {

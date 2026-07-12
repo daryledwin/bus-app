@@ -1039,7 +1039,8 @@ app.get('/api/bus-arrival', async (req, res) => {
   const backendReceivedAt = Date.now();
 
   res.set('X-Request-ID', requestId);
-  res.set('Access-Control-Expose-Headers', 'X-Request-ID');
+  res.set('X-Backend-Received-At', String(backendReceivedAt));
+  res.set('Access-Control-Expose-Headers', 'X-Request-ID, X-Backend-Received-At');
   res.on('finish', () => {
     console.log('[BusArrival Timing] backend response sent', {
       requestId,
@@ -1076,7 +1077,12 @@ app.get('/api/bus-arrival', async (req, res) => {
       reason: liveTrackReason || 'app'
     });
 
-    return res.json(response.data);
+    return res.json({
+      ...response.data,
+      _diagnostics: {
+        backendReceivedAt
+      }
+    });
   } catch (error) {
     return ltaFailure(res, error);
   }
