@@ -8781,6 +8781,58 @@ ion-modal.route-modal::part(content),
   font-size: 22px;
 }
 
+.pin-info-popup__icon--live {
+  background: #f2ebff;
+  border-color: rgba(124, 92, 230, 0.16);
+  color: #7c5ce6;
+}
+
+.pin-info-popup--help {
+  max-width: 360px;
+  text-align: left;
+}
+
+.pin-info-popup--help > .help-sheet__title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+  margin: -2px 0 18px;
+  text-align: left;
+}
+
+.help-sheet__section {
+  align-items: flex-start;
+  display: grid;
+  gap: 13px;
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.help-sheet__section + .help-sheet__section {
+  border-top: 1px solid rgba(16, 36, 58, 0.08);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.help-sheet__section .pin-info-popup__icon {
+  margin: 0;
+}
+
+.help-sheet__section h3 {
+  font-size: 17px;
+  margin-bottom: 7px;
+}
+
+.help-sheet__section small {
+  margin-top: 8px;
+}
+
+.pin-info-popup--help > button {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .pin-info-popup h3 {
   color: #10243a;
   font-size: 20px;
@@ -9172,23 +9224,38 @@ ion-modal.route-modal::part(content),
   }
 }
 
+.arrival-action-buttons {
+  display: grid;
+  gap: 7px;
+  justify-items: stretch;
+  justify-self: start;
+  margin-top: -2px;
+  width: max-content;
+}
+
+.arrival-action-buttons .view-route-button,
+.arrival-action-buttons .track-live-button {
+  justify-self: stretch;
+  width: 100%;
+}
+
 .track-live-button {
   align-items: center;
-  background: rgba(25, 119, 201, 0.1);
-  border: 1px solid rgba(25, 119, 201, 0.18);
-  border-radius: 999px;
-  color: #1977c9;
+  background: #f2ebff;
+  border: 0;
+  border-radius: 12px;
+  color: #7c5ce6;
   display: inline-flex;
   font: inherit;
   font-size: 12px;
-  font-weight: 820;
+  font-weight: 560;
   gap: 6px;
   justify-content: center;
   justify-self: start;
   line-height: 1;
   max-width: 100%;
-  min-height: 36px;
-  padding: 0 13px;
+  min-height: 34px;
+  padding: 0 12px;
   transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
   -webkit-tap-highlight-color: transparent;
 }

@@ -92,20 +92,67 @@ function shouldRetryLtaRequest(error) {
   return !status || status === 429 || status >= 500;
 }
 
-async function getFromLta(url, params, attempts = 2) {
+async function getFromLta(url, params, attempts = 2, diagnostics = null) {
   let lastError;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const attemptNumber = attempt + 1;
+    const attemptStartedAt = Date.now();
+
+    if (diagnostics) {
+      console.log('[BusArrival Timing] LTA request started', {
+        ...diagnostics,
+        attempt: attemptNumber,
+        attempts,
+        startedAt: new Date(attemptStartedAt).toISOString()
+      });
+    }
+
     try {
-      return await axios.get(url, ltaRequestOptions(params));
+      const response = await axios.get(url, ltaRequestOptions(params));
+
+      if (diagnostics) {
+        console.log('[BusArrival Timing] LTA response received', {
+          ...diagnostics,
+          attempt: attemptNumber,
+          statusCode: response.status,
+          receivedAt: new Date().toISOString(),
+          durationMs: Date.now() - attemptStartedAt
+        });
+      }
+
+      return response;
     } catch (error) {
       lastError = error;
+      const retryable = shouldRetryLtaRequest(error);
+      const willRetry = attempt < attempts - 1 && retryable;
 
-      if (attempt === attempts - 1 || !shouldRetryLtaRequest(error)) {
+      if (diagnostics) {
+        console.warn('[BusArrival Timing] LTA request failed', {
+          ...diagnostics,
+          attempt: attemptNumber,
+          statusCode: error.response && error.response.status,
+          errorCode: error.code,
+          durationMs: Date.now() - attemptStartedAt,
+          retryable,
+          willRetry,
+          failedAt: new Date().toISOString()
+        });
+      }
+
+      if (!willRetry) {
         throw error;
       }
 
-      await wait(800 * (attempt + 1));
+      const retryDelayMs = 800 * attemptNumber;
+      if (diagnostics) {
+        console.log('[BusArrival Timing] LTA retry scheduled', {
+          ...diagnostics,
+          afterAttempt: attemptNumber,
+          retryDelayMs
+        });
+      }
+      await wait(retryDelayMs);
     }
   }
 
@@ -985,6 +1032,23 @@ app.delete('/api/live-activity-sessions/:activityId', async (req, res) => {
 app.get('/api/bus-arrival', async (req, res) => {
   const busStopCode = String(req.query.busStopCode || '').trim();
   const liveTrackReason = String(req.query._liveTrackReason || '').trim();
+  const suppliedRequestId = String(req.query._requestId || '').trim();
+  const requestId = (suppliedRequestId || `backend-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`)
+    .replace(/[^a-zA-Z0-9._-]/g, '')
+    .slice(0, 100);
+  const backendReceivedAt = Date.now();
+
+  res.set('X-Request-ID', requestId);
+  res.set('Access-Control-Expose-Headers', 'X-Request-ID');
+  res.on('finish', () => {
+    console.log('[BusArrival Timing] backend response sent', {
+      requestId,
+      busStopCode,
+      statusCode: res.statusCode,
+      sentAt: new Date().toISOString(),
+      backendDurationMs: Date.now() - backendReceivedAt
+    });
+  });
 
   if (!/^\d{5}$/.test(busStopCode)) {
     return res.status(400).json({
@@ -999,13 +1063,18 @@ app.get('/api/bus-arrival', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
     console.log('[LiveTrack] backend bus arrival request received', {
+      requestId,
       busStopCode,
       reason: liveTrackReason || 'app',
-      receivedAt: new Date().toISOString()
+      receivedAt: new Date(backendReceivedAt).toISOString()
     });
     const response = await getFromLta(ltaArrivalEndpoint, {
       BusStopCode: busStopCode
-    }, 3);
+    }, 2, {
+      requestId,
+      busStopCode,
+      reason: liveTrackReason || 'app'
+    });
 
     return res.json(response.data);
   } catch (error) {

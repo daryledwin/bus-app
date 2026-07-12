@@ -182,7 +182,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       console.info(`[Nearby] bus stops API success request=${requestId} count=${stops.length}`);
 
       this.renderNearbyStops(stops, location);
-      this.refreshLocationInBackground(stops, location);
+      if (!forceFreshLocation) {
+        this.refreshLocationInBackground(stops, location);
+      } else {
+        console.info(`[Nearby] background location refinement skipped after fresh manual location request=${requestId}`);
+      }
       console.info(`[Nearby] load success request=${requestId} ms=${Math.round(performance.now() - startedAt)}`);
     } catch (error) {
       if (!this.isActiveNearbyRequest(requestId)) {

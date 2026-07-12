@@ -56,6 +56,7 @@ export interface BusArrivalRequestOptions {
   reason?: string;
   retry?: boolean;
   timeoutMs?: number;
+  correlationId?: string;
 }
 
 @Injectable({
@@ -74,6 +75,10 @@ export class LtaBusService {
     }
 
     let params = new HttpParams().set('busStopCode', cleanedBusStopCode);
+
+    if (options.correlationId) {
+      params = params.set('_requestId', options.correlationId);
+    }
 
     if (options.forceRefresh) {
       params = params

@@ -109,6 +109,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   selectedRouteService?: BusServiceArrival;
   lastArrivalsRefreshedLabel = '';
   isPinInfoPopupOpen = false;
+  isPinOnboardingPopupOpen = false;
+  isLiveActivityInfoPopupOpen = false;
   private busStops: BusStop[] = [];
   private busStopLookup = new Map<string, BusStop>();
   private busStopsLoadPromise?: Promise<BusStop[]>;
@@ -129,6 +131,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private liveActivityTrackingSubscription?: Subscription;
   private liveActivityDebugSubscription?: Subscription;
   private arrivalRequestId = 0;
+  private normalArrivalSubscription?: Subscription;
+  private normalArrivalInFlightStopCode = '';
+  private normalArrivalOnComplete?: () => void;
+  private normalArrivalStartedAt = 0;
+  private normalArrivalCorrelationId = '';
   private refreshInProgress = false;
   private arrivalStickyThreshold = 0;
   private homeScrollElement?: HTMLElement;
@@ -136,6 +143,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private lastNavTapAt = 0;
   private lastNavRoute = '';
   private pinnedBusServices: PinnedBusServicesByStop = {};
+  private pendingPinnedService?: BusServiceArrival;
+  private pendingLiveActivityService?: BusServiceArrival;
   liveTrackingState: LiveActivityTrackingState = {
     active: false,
     serviceNo: '',
@@ -158,6 +167,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private readonly favouriteSortStorageKey = 'favouriteStopsSortMode';
   private readonly pinnedBusServicesStorageKey = 'pinnedBusServicesByStop';
   private readonly pinnedBusServicesUpdatedAtStorageKey = 'pinnedBusServicesUpdatedAtByStop';
+  private readonly pinInfoSeenStorageKey = 'pinBusServicesTipSeen';
+  private readonly liveActivityInfoSeenStorageKey = 'liveActivityTrackingTipSeen';
 
   readonly navItems: NavItem[] = [
     { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
@@ -247,6 +258,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.cancelNormalArrivalRequest('page destroyed');
     this.selectedStopSubscription?.unsubscribe();
     this.routeQuerySubscription?.unsubscribe();
     this.liveActivityTrackingSubscription?.unsubscribe();
@@ -407,7 +419,10 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   clearSearch(): void {
     if (this.searchTimer) {
       clearTimeout(this.searchTimer);
+      this.searchTimer = undefined;
     }
+
+    this.cancelNormalArrivalRequest('search cleared');
 
     this.arrivalRequestId++;
     this.searchTerm = '';
@@ -438,7 +453,38 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    const isNormalArrivalRequest = options.silentLiveActivityRefresh !== true;
+    if (isNormalArrivalRequest && this.normalArrivalSubscription && !this.normalArrivalSubscription.closed) {
+      if (this.normalArrivalInFlightStopCode === normalizedBusStopCode) {
+        console.info('[Arrivals] duplicate request suppressed', {
+          stopCode: normalizedBusStopCode,
+          activeRequestId: this.arrivalRequestId,
+          correlationId: this.normalArrivalCorrelationId
+        });
+        onComplete?.();
+        return;
+      }
+
+      this.cancelNormalArrivalRequest('replaced by different stop', normalizedBusStopCode);
+    }
+
     const requestId = ++this.arrivalRequestId;
+    const startedAt = performance.now();
+    const correlationId = isNormalArrivalRequest
+      ? `arrival-${Date.now()}-${requestId}`
+      : '';
+    if (isNormalArrivalRequest) {
+      this.normalArrivalInFlightStopCode = normalizedBusStopCode;
+      this.normalArrivalOnComplete = onComplete;
+      this.normalArrivalStartedAt = startedAt;
+      this.normalArrivalCorrelationId = correlationId;
+      console.info('[Arrivals] request start', {
+        stopCode: normalizedBusStopCode,
+        requestId,
+        correlationId,
+        startedAt: new Date().toISOString()
+      });
+    }
     this.hasSearchedArrivals = true;
     this.isLoadingArrivals = !options.silentLiveActivityRefresh;
     this.arrivalError = '';
@@ -457,9 +503,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       this.liveActivityTrackingService.markDebug('httpRequest', true, `searchArrivals stop ${normalizedBusStopCode}`);
     }
 
-    this.ltaBusService.getBusArrivals(normalizedBusStopCode, options.silentLiveActivityRefresh
+    const arrivalSubscription = this.ltaBusService.getBusArrivals(normalizedBusStopCode, options.silentLiveActivityRefresh
       ? { forceRefresh: true, reason: 'manual', retry: true }
-      : {}
+      : { retry: false, timeoutMs: 35000, correlationId }
     ).subscribe({
       next: (arrivalLookup) => {
         if (requestId !== this.arrivalRequestId) {
@@ -473,6 +519,17 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         this.searchedBusStopCode = arrivalLookup.busStopCode;
         this.resolveSelectedBusStopForCode(arrivalLookup.busStopCode, requestId);
         this.liveBusServices = this.sortLiveServices(arrivalLookup.services);
+        if (isNormalArrivalRequest) {
+          console.info('[Arrivals] request success', {
+            stopCode: normalizedBusStopCode,
+            requestId,
+            correlationId,
+            receivedAt: new Date().toISOString(),
+            durationMs: Math.round(performance.now() - startedAt),
+            serviceCount: arrivalLookup.services.length
+          });
+          this.clearNormalArrivalRequest(requestId);
+        }
         if (options.confirmLoadedHaptic === true) {
           void this.refreshFeedbackService.lightImpact();
         }
@@ -496,6 +553,18 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
           this.liveActivityTrackingService.markDebug('httpResponse', false, error instanceof Error ? error.message : String(error));
         }
         this.searchedBusStopCode = normalizedBusStopCode;
+        if (isNormalArrivalRequest) {
+          console.warn('[Arrivals] request failed', {
+            stopCode: normalizedBusStopCode,
+            requestId,
+            correlationId,
+            receivedAt: new Date().toISOString(),
+            durationMs: Math.round(performance.now() - startedAt),
+            timeout: error?.name === 'TimeoutError',
+            error
+          });
+          this.clearNormalArrivalRequest(requestId);
+        }
         this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
         this.arrivalError = this.errorMessage(error);
         this.isLoadingArrivals = false;
@@ -504,6 +573,10 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         onComplete?.();
       }
     });
+
+    if (isNormalArrivalRequest) {
+      this.normalArrivalSubscription = arrivalSubscription;
+    }
   }
 
   async refreshLiveArrivals(event?: CustomEvent<{ complete: () => Promise<void> | void }>): Promise<void> {
@@ -573,6 +646,10 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   selectBusStop(stop: BusStop): void {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = undefined;
+    }
     this.selectedBusStop = stop;
     this.widgetBridgeService.syncSelectedBusStop({
       BusStopCode: stop.BusStopCode,
@@ -585,6 +662,48 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.busStopResults = [];
     this.rememberBusStop(stop);
     this.searchArrivals(stop.BusStopCode, undefined, { confirmLoadedHaptic: true });
+  }
+
+  private cancelNormalArrivalRequest(reason: string, replacementStopCode?: string): void {
+    if (!this.normalArrivalSubscription || this.normalArrivalSubscription.closed) {
+      return;
+    }
+
+    const requestId = this.arrivalRequestId;
+    const stopCode = this.normalArrivalInFlightStopCode;
+    const durationMs = this.normalArrivalStartedAt
+      ? Math.round(performance.now() - this.normalArrivalStartedAt)
+      : 0;
+    const completion = this.normalArrivalOnComplete;
+
+    console.info('[Arrivals] request cancelled', {
+      stopCode,
+      requestId,
+      correlationId: this.normalArrivalCorrelationId,
+      reason,
+      replacementStopCode,
+      durationMs
+    });
+    this.normalArrivalSubscription.unsubscribe();
+    this.normalArrivalSubscription = undefined;
+    this.normalArrivalInFlightStopCode = '';
+    this.normalArrivalOnComplete = undefined;
+    this.normalArrivalStartedAt = 0;
+    this.normalArrivalCorrelationId = '';
+    this.isLoadingArrivals = false;
+    completion?.();
+  }
+
+  private clearNormalArrivalRequest(requestId: number): void {
+    if (requestId !== this.arrivalRequestId) {
+      return;
+    }
+
+    this.normalArrivalSubscription = undefined;
+    this.normalArrivalInFlightStopCode = '';
+    this.normalArrivalOnComplete = undefined;
+    this.normalArrivalStartedAt = 0;
+    this.normalArrivalCorrelationId = '';
   }
 
   private openBusStopFromDeepLink(busStopCode: string): void {
@@ -635,6 +754,13 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    if (!this.hasSeenTip(this.pinInfoSeenStorageKey)) {
+      this.pendingPinnedService = service;
+      this.isPinOnboardingPopupOpen = true;
+      void this.refreshFeedbackService.lightImpact();
+      return;
+    }
+
     const serviceNo = service.serviceNo;
     const currentPins = this.pinnedBusServices[busStopCode] || [];
     const isPinned = currentPins.includes(serviceNo);
@@ -669,6 +795,13 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    if (!this.hasSeenTip(this.liveActivityInfoSeenStorageKey)) {
+      this.pendingLiveActivityService = service;
+      this.isLiveActivityInfoPopupOpen = true;
+      void this.refreshFeedbackService.lightImpact();
+      return;
+    }
+
     await this.startLiveActivityTracking(service);
   }
 
@@ -694,6 +827,39 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   closePinInfoPopup(): void {
     this.isPinInfoPopupOpen = false;
+  }
+
+  acknowledgePinOnboarding(): void {
+    this.isPinOnboardingPopupOpen = false;
+    localStorage.setItem(this.pinInfoSeenStorageKey, 'true');
+
+    const pendingService = this.pendingPinnedService;
+    this.pendingPinnedService = undefined;
+
+    if (pendingService) {
+      void this.togglePinnedBusService(pendingService);
+    }
+  }
+
+  handleLiveActivityInfoPopupTap(event: Event): void {
+    event.stopPropagation();
+    void this.refreshFeedbackService.lightImpact();
+  }
+
+  acknowledgeLiveActivityOnboarding(): void {
+    this.isLiveActivityInfoPopupOpen = false;
+    localStorage.setItem(this.liveActivityInfoSeenStorageKey, 'true');
+
+    const pendingService = this.pendingLiveActivityService;
+    this.pendingLiveActivityService = undefined;
+
+    if (pendingService) {
+      void this.startLiveActivityTracking(pendingService);
+    }
+  }
+
+  private hasSeenTip(storageKey: string): boolean {
+    return localStorage.getItem(storageKey) === 'true';
   }
 
   trackFavouriteBusStop(index: number, stop: FavouriteBusStop): string {

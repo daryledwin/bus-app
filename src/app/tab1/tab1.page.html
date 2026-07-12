@@ -396,27 +396,29 @@
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  class="view-route-button"
-                  [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
-                  (click)="openRouteModal(service)"
-                >
-                  <span>View Full Route</span>
-                  <ion-icon name="arrow-forward-outline"></ion-icon>
-                </button>
+                <div class="arrival-action-buttons">
+                  <button
+                    type="button"
+                    class="view-route-button"
+                    [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
+                    (click)="openRouteModal(service)"
+                  >
+                    <span>View Full Route</span>
+                    <ion-icon name="arrow-forward-outline"></ion-icon>
+                  </button>
 
-                <button
-                  type="button"
-                  class="track-live-button"
-                  [class.track-live-button--active]="isTrackingLiveActivity(service)"
-                  [attr.aria-label]="isTrackingLiveActivity(service) ? 'Stop tracking bus ' + service.serviceNo : 'Track bus ' + service.serviceNo + ' live'"
-                  [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
-                  (click)="toggleBusLiveActivityTracking(service, $event)"
-                >
-                  <ion-icon [name]="isTrackingLiveActivity(service) ? 'stop-circle-outline' : 'radio-outline'" aria-hidden="true"></ion-icon>
-                  <span>{{ isTrackingLiveActivity(service) ? 'Stop Tracking' : 'Track Live' }}</span>
-                </button>
+                  <button
+                    type="button"
+                    class="track-live-button"
+                    [class.track-live-button--active]="isTrackingLiveActivity(service)"
+                    [attr.aria-label]="isTrackingLiveActivity(service) ? 'Stop tracking bus ' + service.serviceNo : 'Track bus ' + service.serviceNo + ' live'"
+                    [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
+                    (click)="toggleBusLiveActivityTracking(service, $event)"
+                  >
+                    <ion-icon [name]="isTrackingLiveActivity(service) ? 'stop-circle-outline' : 'radio-outline'" aria-hidden="true"></ion-icon>
+                    <span>{{ isTrackingLiveActivity(service) ? 'Stop Tracking' : 'Track Live' }}</span>
+                  </button>
+                </div>
 
                 <button
                   type="button"
@@ -443,19 +445,83 @@
       (click)="closePinInfoPopup()"
     >
       <section
+        class="pin-info-popup pin-info-popup--help"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-sheet-title"
+        (click)="handlePinInfoPopupTap($event)"
+      >
+        <h3 id="help-sheet-title" class="help-sheet__title">Bus arrival features</h3>
+
+        <div class="help-sheet__section">
+          <div class="pin-info-popup__icon" aria-hidden="true">
+            <ion-icon name="pin"></ion-icon>
+          </div>
+          <div>
+            <h3>Pin bus services</h3>
+            <p>Pin your usual bus services to keep them at the top of this stop’s arrivals and in the widget.</p>
+            <small>Pins are saved separately for each bus stop.</small>
+          </div>
+        </div>
+
+        <div class="help-sheet__section">
+          <div class="pin-info-popup__icon pin-info-popup__icon--live" aria-hidden="true">
+            <ion-icon name="radio-outline"></ion-icon>
+          </div>
+          <div>
+            <h3>Track buses live</h3>
+            <p>Follow your bus from the Lock Screen, Home Screen and Dynamic Island with Live Activities.</p>
+            <small>Live tracking updates automatically while the activity is active.</small>
+          </div>
+        </div>
+
+        <button type="button" (click)="closePinInfoPopup()">Got it</button>
+      </section>
+    </div>
+
+    <div
+      class="pin-info-overlay"
+      *ngIf="isPinOnboardingPopupOpen"
+      role="presentation"
+      (click)="handlePinInfoPopupTap($event)"
+    >
+      <section
         class="pin-info-popup"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="pin-info-title"
+        aria-labelledby="pin-onboarding-title"
         (click)="handlePinInfoPopupTap($event)"
       >
         <div class="pin-info-popup__icon" aria-hidden="true">
           <ion-icon name="pin"></ion-icon>
         </div>
-        <h3 id="pin-info-title">Pin bus services</h3>
+        <h3 id="pin-onboarding-title">Pin bus services</h3>
         <p>Pin your usual bus services to keep them at the top of this stop’s arrivals and in the widget.</p>
         <small>Pins are saved separately for each bus stop.</small>
-        <button type="button" (click)="closePinInfoPopup()">Got it</button>
+        <button type="button" (click)="acknowledgePinOnboarding()">Got it</button>
+      </section>
+    </div>
+
+    <div
+      class="pin-info-overlay"
+      *ngIf="isLiveActivityInfoPopupOpen"
+      role="presentation"
+      (click)="handleLiveActivityInfoPopupTap($event)"
+    >
+      <section
+        class="pin-info-popup"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="live-activity-info-title"
+        (click)="handleLiveActivityInfoPopupTap($event)"
+      >
+        <div class="pin-info-popup__icon pin-info-popup__icon--live" aria-hidden="true">
+          <ion-icon name="radio-outline"></ion-icon>
+        </div>
+        <h3 id="live-activity-info-title">Track buses live</h3>
+        <p>Follow your bus from the Lock Screen, Home Screen and Dynamic Island with Live Activities.</p>
+        <small>Live tracking updates automatically while the activity is active.</small>
+        <button type="button" (click)="acknowledgeLiveActivityOnboarding()">Got it</button>
       </section>
     </div>
 

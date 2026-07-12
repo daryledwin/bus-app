@@ -22,6 +22,7 @@ interface StoredFavouriteStop {
 interface WidgetBridgePlugin {
   syncWidgetData(payload: { payload: string }): Promise<void>;
   startBusLiveActivity(payload: { payload: string }): Promise<BusLiveActivityStartResult>;
+  getActiveBusLiveActivities(): Promise<BusLiveActivityRestoreResult>;
   updateBusLiveActivity(payload: { payload: string }): Promise<void>;
   endBusLiveActivity(): Promise<void>;
   addListener(
@@ -69,6 +70,16 @@ export interface BusLiveActivityStartResult {
 export interface BusLiveActivityPushTokenEvent {
   activityId?: string;
   pushToken?: string;
+}
+
+export interface BusLiveActivityRestoreActivity extends BusLiveActivityPayload {
+  activityId: string;
+  pushToken?: string;
+}
+
+export interface BusLiveActivityRestoreResult {
+  activities: BusLiveActivityRestoreActivity[];
+  orphanedActivityIds: string[];
 }
 
 const WidgetBridge = registerPlugin<WidgetBridgePlugin>('WidgetBridge');
@@ -123,6 +134,14 @@ export class WidgetBridgeService {
     }
 
     return WidgetBridge.startBusLiveActivity({ payload: JSON.stringify(payload) });
+  }
+
+  async getActiveBusLiveActivities(): Promise<BusLiveActivityRestoreResult | undefined> {
+    if (!Capacitor.isNativePlatform()) {
+      return undefined;
+    }
+
+    return WidgetBridge.getActiveBusLiveActivities();
   }
 
   async updateBusLiveActivity(payload: BusLiveActivityPayload): Promise<void> {

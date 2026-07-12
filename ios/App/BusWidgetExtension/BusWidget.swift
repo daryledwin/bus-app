@@ -1221,60 +1221,76 @@ struct BusLiveActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Bus \(context.attributes.serviceNo)")
-                            .font(.system(size: 17, weight: .heavy, design: .rounded))
-                        Text("\(context.attributes.busStopName) · \(context.attributes.busStopCode)")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.78)
-                    }
+                    Text("Bus \(context.attributes.serviceNo)")
+                        .font(.system(size: 19, weight: .heavy, design: .rounded))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
+                        .padding(.leading, 14)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(context.state.arrivalStatus)
-                            .font(.system(size: 17, weight: .heavy, design: .rounded))
+                            .font(.system(size: 21, weight: .heavy, design: .rounded))
                             .foregroundStyle(liveActivityArrivalColor(context.state.arrivalStatus))
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
-                        Text(context.state.busType)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        Text("Next \(context.state.nextArrivalTiming)")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.78)
+                            .minimumScaleFactor(0.72)
                     }
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("\(context.attributes.busStopName) · \(context.attributes.busStopCode)")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.78)
+                            .minimumScaleFactor(0.65)
+                            .allowsTightening(true)
+                            .layoutPriority(1)
 
-                        HStack(spacing: 8) {
-                            LiveActivityInfoPill(text: context.state.seatAvailability)
-                            LiveActivityInfoPill(text: context.state.wheelchairAccessible ? "Wheelchair" : "No wheelchair")
+                        HStack(spacing: 5) {
+                            LiveActivityInfoPill(
+                                text: context.state.busType,
+                                style: .neutral,
+                                size: .compact
+                            )
+                            LiveActivityInfoPill(
+                                text: context.state.wheelchairAccessible ? "Wheelchair" : "No wheelchair",
+                                style: .blue,
+                                size: .compact
+                            )
+                            LiveActivityInfoPill(
+                                text: context.state.seatAvailability,
+                                style: .load(context.state.seatAvailability),
+                                size: .compact
+                            )
                             Spacer(minLength: 0)
-                            Text("Next \(context.state.nextArrivalTiming)")
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.secondary)
                         }
                     }
+                    .padding(.leading, 14)
+                    .padding(.trailing, 8)
+                    .offset(y: -6)
                 }
             } compactLeading: {
-                Text(context.attributes.serviceNo)
+                Text("Bus \(context.attributes.serviceNo)")
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             } compactTrailing: {
                 Text(context.state.arrivalStatus)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(liveActivityBlue)
                     .minimumScaleFactor(0.72)
             } minimal: {
-                Text(context.attributes.serviceNo)
+                Text("Bus \(context.attributes.serviceNo)")
                     .font(.system(size: 11, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
             .keylineTint(liveActivityBlue)
         }
@@ -1285,26 +1301,23 @@ private struct BusLiveActivityLockScreenView: View {
     let context: ActivityViewContext<BusLiveActivityAttributes>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(context.attributes.serviceNo)
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
-                    .foregroundStyle(liveActivityBlue)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: -1) {
+                    Text("Bus \(context.attributes.serviceNo)")
+                        .font(.system(size: 28, weight: .heavy, design: .rounded))
+                        .foregroundStyle(liveActivityBlue)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(context.attributes.busStopName)
-                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                    Text("\(context.attributes.busStopName) · \(context.attributes.busStopCode)")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color(red: 0.08, green: 0.18, blue: 0.30))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-
-                    Text("Bus stop \(context.attributes.busStopCode)")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color(red: 0.33, green: 0.43, blue: 0.52))
-                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+                        .allowsTightening(true)
                 }
+                .layoutPriority(1)
 
                 Spacer(minLength: 0)
 
@@ -1316,50 +1329,124 @@ private struct BusLiveActivityLockScreenView: View {
                         .minimumScaleFactor(0.72)
 
                     if context.state.nextArrivalTiming != "No Bus" {
-                        Text("Subsequent \(context.state.nextArrivalTiming)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                        Text("Next \(context.state.nextArrivalTiming)")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .foregroundStyle(Color(red: 0.50, green: 0.60, blue: 0.68))
                             .lineLimit(1)
                             .minimumScaleFactor(0.78)
                     }
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
+            .padding(.bottom, 3)
 
             HStack(spacing: 7) {
-                LiveActivityInfoPill(text: context.state.busType)
-                LiveActivityInfoPill(text: context.state.wheelchairAccessible ? "Wheelchair accessible" : "No wheelchair access")
-                LiveActivityInfoPill(text: context.state.seatAvailability)
+                LiveActivityInfoPill(text: context.state.busType, style: .neutral)
+                LiveActivityInfoPill(
+                    text: context.state.wheelchairAccessible ? "Wheelchair" : "No wheelchair",
+                    style: .blue
+                )
+                LiveActivityInfoPill(
+                    text: context.state.seatAvailability,
+                    style: .load(context.state.seatAvailability)
+                )
             }
             .lineLimit(1)
             .minimumScaleFactor(0.76)
 
             HStack(spacing: 12) {
-                Text("Next \(context.state.nextArrivalTiming)")
-                Text("Then \(context.state.thirdArrivalTiming)")
+                Text("Subsequent \(context.state.nextArrivalTiming)")
+                Text("Third \(context.state.thirdArrivalTiming)")
             }
             .font(.system(size: 11, weight: .semibold, design: .rounded))
             .foregroundStyle(Color(red: 0.50, green: 0.60, blue: 0.68))
             .lineLimit(1)
             .minimumScaleFactor(0.78)
+
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, 10.5)
         .padding(.horizontal, 16)
     }
 }
 
 private struct LiveActivityInfoPill: View {
     let text: String
+    let style: LiveActivityPillStyle
+    var size: LiveActivityPillSize = .regular
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(Color(red: 0.08, green: 0.18, blue: 0.30))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.white.opacity(0.72), in: Capsule())
+            .font(.system(size: size.fontSize, weight: .bold, design: .rounded))
+            .foregroundStyle(style.foregroundColor)
+            .lineLimit(1)
+            .minimumScaleFactor(size.minimumScaleFactor)
+            .padding(.horizontal, size.horizontalPadding)
+            .padding(.vertical, size.verticalPadding)
+            .background(style.backgroundColor, in: Capsule())
             .overlay(
-                Capsule().stroke(Color(red: 0.72, green: 0.84, blue: 0.92).opacity(0.4), lineWidth: 1)
+                Capsule().stroke(style.borderColor, lineWidth: 1)
             )
+    }
+}
+
+private enum LiveActivityPillSize {
+    case compact
+    case regular
+
+    var fontSize: CGFloat { self == .compact ? 10 : 11 }
+    var horizontalPadding: CGFloat { self == .compact ? 5 : 8 }
+    var verticalPadding: CGFloat { self == .compact ? 4 : 5 }
+    var minimumScaleFactor: CGFloat { self == .compact ? 0.68 : 0.72 }
+}
+
+private enum LiveActivityPillStyle {
+    case blue
+    case neutral
+    case green
+    case orange
+    case red
+
+    static func load(_ seatAvailability: String) -> Self {
+        switch seatAvailability.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "seats available", "sea":
+            return .green
+        case "standing available", "few seats left", "sda":
+            return .orange
+        case "limited standing", "no chance of a seat", "lsd":
+            return .red
+        default:
+            return .neutral
+        }
+    }
+
+    var foregroundColor: Color {
+        switch self {
+        case .blue: return Color(red: 0.08, green: 0.18, blue: 0.30)
+        case .neutral: return Color(red: 0.25, green: 0.34, blue: 0.42)
+        case .green: return Color(red: 0.08, green: 0.42, blue: 0.24)
+        case .orange: return Color(red: 0.67, green: 0.32, blue: 0.03)
+        case .red: return Color(red: 0.68, green: 0.10, blue: 0.12)
+        }
+    }
+
+    var backgroundColor: Color {
+        switch self {
+        case .blue: return Color.white.opacity(0.72)
+        case .neutral: return Color(red: 0.91, green: 0.94, blue: 0.96)
+        case .green: return Color(red: 0.83, green: 0.95, blue: 0.87)
+        case .orange: return Color(red: 1.0, green: 0.91, blue: 0.76)
+        case .red: return Color(red: 1.0, green: 0.84, blue: 0.84)
+        }
+    }
+
+    var borderColor: Color {
+        switch self {
+        case .blue: return Color(red: 0.72, green: 0.84, blue: 0.92).opacity(0.4)
+        case .neutral: return Color(red: 0.65, green: 0.73, blue: 0.79).opacity(0.45)
+        case .green: return Color(red: 0.25, green: 0.66, blue: 0.40).opacity(0.5)
+        case .orange: return Color(red: 0.90, green: 0.53, blue: 0.12).opacity(0.55)
+        case .red: return Color(red: 0.86, green: 0.27, blue: 0.29).opacity(0.5)
+        }
     }
 }
 

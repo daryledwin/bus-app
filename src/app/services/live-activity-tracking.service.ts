@@ -129,6 +129,7 @@ export class LiveActivityTrackingService {
     this.registerForegroundListener();
     this.registerVisibilityListener();
     this.registerPushTokenListener();
+    void this.restoreActiveLiveActivity('launch');
   }
 
   get currentState(): LiveActivityTrackingState {
@@ -308,7 +309,7 @@ export class LiveActivityTrackingService {
     this.trackingStateSubject.next(inactiveTrackingState);
     this.activeActivityId = '';
     this.pollTickCount = 0;
-    await this.endPushUpdateSession(activityId);
+    const backendDeleted = await this.endPushUpdateSession(activityId);
 
     if (!endNative || !Capacitor.isNativePlatform()) {
       return;
@@ -316,8 +317,9 @@ export class LiveActivityTrackingService {
 
     try {
       await this.widgetBridgeService.endBusLiveActivity();
-    } catch {
-      // Live Activities are best-effort. Shared UI state should still clear.
+      console.debug('[LiveTrack] stop action completed', { activityId, backendDeleted, nativeEnded: true });
+    } catch (error) {
+      console.warn('[LiveTrack] stop action native end failed', { activityId, backendDeleted, error });
     }
   }
 
@@ -349,9 +351,8 @@ export class LiveActivityTrackingService {
         activeTracking: this.currentState.active
       });
 
-      if (isActive && this.currentState.active) {
-        console.debug('[LiveTrack] app returned to foreground; requesting one backend refresh');
-        void this.requestBackendRefresh('foreground');
+      if (isActive) {
+        void this.restoreActiveLiveActivity('resume');
       }
     }).then((listener) => {
       this.appStateListener = listener;
@@ -756,13 +757,13 @@ export class LiveActivityTrackingService {
     activityId: string | undefined,
     pushToken: string | undefined,
     payload: BusLiveActivityPayload
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!activityId || !pushToken) {
       console.debug('[LiveTrack] push update session not registered: missing ActivityKit activity ID or push token', {
         activityId,
         hasPushToken: Boolean(pushToken)
       });
-      return;
+      return false;
     }
 
     const body = {
@@ -784,7 +785,7 @@ export class LiveActivityTrackingService {
           busStopCode: payload.busStopCode,
           attempt
         });
-        return;
+        return true;
       } catch (error) {
         console.warn('[LiveTrack] backend registration failed but activity remains active', {
           activityId,
@@ -799,11 +800,12 @@ export class LiveActivityTrackingService {
         }
       }
     }
+    return false;
   }
 
-  private async endPushUpdateSession(activityId: string): Promise<void> {
+  private async endPushUpdateSession(activityId: string): Promise<boolean> {
     if (!activityId) {
-      return;
+      return true;
     }
 
     try {
@@ -812,16 +814,82 @@ export class LiveActivityTrackingService {
         this.liveActivitySessionRequestOptions()
       ).toPromise();
       console.debug('[LiveTrack] backend push update session ended', { activityId });
+      return true;
     } catch (error) {
       console.warn('[LiveTrack] backend push update session end failed', { activityId, error });
+      return false;
     }
   }
 
-  private async requestBackendRefresh(reason: 'start' | 'interval' | 'foreground' | 'manual'): Promise<void> {
+  private async restoreActiveLiveActivity(reason: 'launch' | 'resume'): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    try {
+      const result = await this.widgetBridgeService.getActiveBusLiveActivities();
+      const activities = result?.activities || [];
+      console.debug('[LiveTrack Restore] active ActivityKit activities found', {
+        reason,
+        count: activities.length,
+        activityIds: activities.map((activity) => activity.activityId)
+      });
+
+      for (const orphanedActivityId of result?.orphanedActivityIds || []) {
+        const deleted = await this.endPushUpdateSession(orphanedActivityId);
+        console.debug('[LiveTrack Restore] orphan backend session cleanup', {
+          activityId: orphanedActivityId,
+          deleted
+        });
+      }
+
+      const restored = activities[0];
+      if (!restored) {
+        if (this.currentState.active) {
+          const staleActivityId = this.activeActivityId;
+          this.clearTimer();
+          this.stopPoller('ActivityKit reports no active activity');
+          this.activeActivityId = '';
+          this.trackingStateSubject.next(inactiveTrackingState);
+          const deleted = await this.endPushUpdateSession(staleActivityId);
+          console.debug('[LiveTrack Restore] removed stale local/backend record', {
+            reason,
+            activityId: staleActivityId,
+            deleted
+          });
+        }
+        console.debug('[LiveTrack Restore] no active activity; header remains hidden', { reason });
+        return;
+      }
+
+      this.activeActivityId = restored.activityId;
+      this.setStateFromPayload(restored);
+      console.debug('[LiveTrack Restore] restored activity into app state', {
+        reason,
+        activityId: restored.activityId,
+        serviceNo: restored.serviceNo,
+        busStopCode: restored.busStopCode
+      });
+
+      const reconciled = restored.pushToken
+        ? await this.registerPushUpdateSession(restored.activityId, restored.pushToken, restored)
+        : await this.requestBackendRefresh('foreground');
+      console.debug('[LiveTrack Restore] backend session reconciliation', {
+        reason,
+        activityId: restored.activityId,
+        method: restored.pushToken ? 'registration' : 'refresh',
+        reconciled
+      });
+    } catch (error) {
+      console.warn('[LiveTrack Restore] restoration failed', { reason, error });
+    }
+  }
+
+  private async requestBackendRefresh(reason: 'start' | 'interval' | 'foreground' | 'manual'): Promise<boolean> {
     const activityId = this.activeActivityId;
 
     if (!activityId || !this.currentState.active) {
-      return;
+      return false;
     }
 
     try {
@@ -831,12 +899,14 @@ export class LiveActivityTrackingService {
         this.liveActivitySessionRequestOptions()
       ).toPromise();
       console.debug('[LiveTrack] backend refresh requested', { activityId, reason });
+      return true;
     } catch (error) {
       console.warn('[LiveTrack] backend refresh request failed; scheduled backend loop remains active', {
         activityId,
         reason,
         error
       });
+      return false;
     }
   }
 

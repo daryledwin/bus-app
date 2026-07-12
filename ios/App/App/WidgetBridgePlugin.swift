@@ -10,11 +10,13 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "syncWidgetData", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "startBusLiveActivity", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getActiveBusLiveActivities", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "updateBusLiveActivity", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "endBusLiveActivity", returnType: CAPPluginReturnPromise)
     ]
 
     private let appGroupId = "group.com.daryledwin.bus"
+    private let liveActivityPushTokensKey = "liveActivityPushTokensByActivityId"
     private let pushTokenObservationStore = PushTokenObservationStore()
 
     @objc func syncWidgetData(_ call: CAPPluginCall) {
@@ -141,6 +143,61 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func getActiveBusLiveActivities(_ call: CAPPluginCall) {
+        guard #available(iOS 16.2, *) else {
+            call.resolve(["activities": [], "orphanedActivityIds": []])
+            return
+        }
+
+        Task {
+            let activities = Activity<BusLiveActivityAttributes>.activities.sorted {
+                $0.attributes.startedAt > $1.attributes.startedAt
+            }
+            print("[LiveTrack Restore] active ActivityKit activities found count=\(activities.count) ids=\(activities.map(\.id))")
+
+            guard let retainedActivity = activities.first else {
+                clearStoredPushTokens()
+                call.resolve(["activities": [], "orphanedActivityIds": []])
+                return
+            }
+
+            let orphanedActivities = Array(activities.dropFirst())
+            for activity in orphanedActivities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+                removeStoredPushToken(activityId: activity.id)
+                print("[LiveTrack Restore] ended extra ActivityKit activity id=\(activity.id)")
+            }
+
+            observePushTokenUpdates(for: retainedActivity)
+            let state = retainedActivity.content.state
+            let expiresAt = retainedActivity.content.staleDate
+                ?? retainedActivity.attributes.startedAt.addingTimeInterval(30 * 60)
+            let snapshot: [String: Any] = [
+                "activityId": retainedActivity.id,
+                "pushToken": storedPushToken(activityId: retainedActivity.id) ?? "",
+                "serviceNo": retainedActivity.attributes.serviceNo,
+                "busStopName": retainedActivity.attributes.busStopName,
+                "busStopCode": retainedActivity.attributes.busStopCode,
+                "arrivalStatus": state.arrivalStatus,
+                "nextArrivalTiming": state.nextArrivalTiming,
+                "thirdArrivalTiming": state.thirdArrivalTiming,
+                "busType": state.busType,
+                "wheelchairAccessible": state.wheelchairAccessible,
+                "seatAvailability": state.seatAvailability,
+                "arrivalAt": state.arrivalAt.timeIntervalSince1970 * 1000,
+                "lastUpdatedAt": state.lastUpdatedAt.timeIntervalSince1970 * 1000,
+                "startedAt": retainedActivity.attributes.startedAt.timeIntervalSince1970 * 1000,
+                "expiresAt": expiresAt.timeIntervalSince1970 * 1000
+            ]
+
+            print("[LiveTrack Restore] restoring ActivityKit activity id=\(retainedActivity.id) service=\(retainedActivity.attributes.serviceNo) stop=\(retainedActivity.attributes.busStopCode)")
+            call.resolve([
+                "activities": [snapshot],
+                "orphanedActivityIds": orphanedActivities.map(\.id)
+            ])
+        }
+    }
+
     @objc func endBusLiveActivity(_ call: CAPPluginCall) {
         guard #available(iOS 16.2, *) else {
             call.resolve()
@@ -155,9 +212,11 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @available(iOS 16.2, *)
     private func endAllBusLiveActivities() async {
+        let activityIds = Set(Activity<BusLiveActivityAttributes>.activities.map(\.id))
         for activity in Activity<BusLiveActivityAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
         }
+        activityIds.forEach { removeStoredPushToken(activityId: $0) }
     }
 
     @available(iOS 16.2, *)
@@ -195,6 +254,7 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             for await tokenData in activity.pushTokenUpdates {
                 let token = tokenData.map { String(format: "%02x", $0) }.joined()
                 await observationStore.insert(activity.id)
+                plugin.storePushToken(token, activityId: activity.id)
                 print("[LiveTrack] push token received")
                 plugin.notifyListeners("busLiveActivityPushToken", data: [
                     "activityId": activity.id,
@@ -217,6 +277,28 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             print("[LiveTrack] push token pending")
             #endif
         }
+    }
+
+    private func storePushToken(_ token: String, activityId: String) {
+        guard let defaults = UserDefaults(suiteName: appGroupId) else { return }
+        var tokens = defaults.dictionary(forKey: liveActivityPushTokensKey) as? [String: String] ?? [:]
+        tokens[activityId] = token
+        defaults.set(tokens, forKey: liveActivityPushTokensKey)
+    }
+
+    private func storedPushToken(activityId: String) -> String? {
+        (UserDefaults(suiteName: appGroupId)?.dictionary(forKey: liveActivityPushTokensKey) as? [String: String])?[activityId]
+    }
+
+    private func removeStoredPushToken(activityId: String) {
+        guard let defaults = UserDefaults(suiteName: appGroupId) else { return }
+        var tokens = defaults.dictionary(forKey: liveActivityPushTokensKey) as? [String: String] ?? [:]
+        tokens.removeValue(forKey: activityId)
+        defaults.set(tokens, forKey: liveActivityPushTokensKey)
+    }
+
+    private func clearStoredPushTokens() {
+        UserDefaults(suiteName: appGroupId)?.removeObject(forKey: liveActivityPushTokensKey)
     }
 
     @available(iOS 16.2, *)
