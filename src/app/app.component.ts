@@ -7,6 +7,7 @@ import { IonRouterOutlet } from '@ionic/angular';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { environment } from '../environments/environment';
+import { AppUpdateService } from './services/app-update.service';
 import { OnboardingService } from './services/onboarding.service';
 import { ReviewService } from './services/review.service';
 import { WidgetBridgeService } from './services/widget-bridge.service';
@@ -110,7 +111,7 @@ export const SPLASH_TAGLINES = [
 'May your next break feel well deserved.',
 'Wishing you safe travels, wherever today takes you!',
 'Hope the hawker queue moves faster than expected.',
-'May your kopi auntie remembers your usual order!',
+'May your kopi auntie remember your usual order!',
 'Wishing you a peaceful evening walk.',
 'Hope your bus stop has plenty of shade today.',
 'May your phone survive without Low Power Mode!',
@@ -176,6 +177,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   private nativeSplashHidden = false;
   private routerSubscription?: Subscription;
   private appUrlOpenListener?: PluginListenerHandle;
+  private statusTapListener?: PluginListenerHandle;
+  private readonly statusTapWindowHandler = () => this.scrollActiveIonContentToTop();
   private readonly visibilityChangeHandler = () => {
     if (!document.hidden) {
       this.warmBackend();
@@ -184,6 +187,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   };
 
   constructor(
+    private readonly appUpdateService: AppUpdateService,
     private readonly router: Router,
     private readonly onboardingService: OnboardingService,
     private readonly reviewService: ReviewService,
@@ -192,6 +196,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     void this.registerDeepLinkHandler();
+    void this.registerStatusTapHandler();
     this.reviewService.recordLaunch();
     console.info(`[Startup] onboarding check start ${Date.now()}`);
     this.onboardingPending = !this.onboardingService.isComplete();
@@ -228,6 +233,8 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.routerSubscription?.unsubscribe();
     this.appUrlOpenListener?.remove();
+    this.statusTapListener?.remove();
+    window.removeEventListener('statusTap', this.statusTapWindowHandler);
     document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
   }
 
@@ -291,6 +298,65 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     return undefined;
   }
 
+  private async registerStatusTapHandler(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    window.addEventListener('statusTap', this.statusTapWindowHandler);
+
+    try {
+      const addStatusTapListener = App.addListener as unknown as (
+        eventName: 'statusTap',
+        listenerFunc: () => void
+      ) => Promise<PluginListenerHandle>;
+
+      this.statusTapListener = await addStatusTapListener('statusTap', () => {
+        this.scrollActiveIonContentToTop();
+      });
+    } catch {
+      // Some native shells dispatch statusTap on window instead of the App plugin.
+    }
+  }
+
+  private scrollActiveIonContentToTop(): void {
+    const activeContent = this.activeIonContent();
+
+    if (!activeContent) {
+      return;
+    }
+
+    activeContent.scrollToTop(320).catch(() => undefined);
+  }
+
+  private activeIonContent(): HTMLIonContentElement | undefined {
+    const contents = Array.from(document.querySelectorAll<HTMLIonContentElement>('ion-router-outlet ion-content'));
+    const visibleContents = contents.filter((content) => this.isVisibleIonContent(content));
+
+    return visibleContents[visibleContents.length - 1] || contents[contents.length - 1];
+  }
+
+  private isVisibleIonContent(content: HTMLIonContentElement): boolean {
+    const hiddenPage = content.closest('.ion-page-hidden');
+
+    if (hiddenPage) {
+      return false;
+    }
+
+    const page = content.closest('.ion-page') as HTMLElement | null;
+
+    if (page) {
+      const styles = getComputedStyle(page);
+
+      if (styles.display === 'none' || styles.visibility === 'hidden' || page.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+    }
+
+    const rect = content.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
   private updateRootSwipeGesture(url: string): void {
     if (!this.rootRouterOutlet) {
       return;
@@ -318,6 +384,7 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
     this.widgetBridgeService.syncStoredFavouriteStop();
     this.backendKeepAliveTimer = setInterval(() => this.warmBackend(), 240000);
     document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    void this.appUpdateService.checkForAppStoreUpdate();
   }
 
   private hideNativeSplashAfterPaint(): void {

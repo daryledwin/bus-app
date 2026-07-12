@@ -1,0 +1,89 @@
+<ion-content [fullscreen]="true" class="pinned-page">
+  <main class="pinned-shell">
+    <button type="button" class="pinned-back-button" aria-label="Back to Settings" (click)="goBack()">
+      <ion-icon name="chevron-back-outline" aria-hidden="true"></ion-icon>
+    </button>
+
+    <header class="pinned-hero">
+      <div>
+        <p>Tools</p>
+        <div class="pinned-title-row">
+          <h1>Pinned Buses</h1>
+          <div class="favourite-sort-anchor pinned-sort-anchor" (click)="$event.stopPropagation()">
+            <button
+              type="button"
+              class="favourite-sort-button pinned-sort-button"
+              [class.active]="isSortPopoverOpen"
+              aria-label="Sort pinned buses"
+              (click)="openSortPopover($event)"
+            >
+              <ion-icon name="swap-vertical-outline" aria-hidden="true"></ion-icon>
+              <span>Sort</span>
+            </button>
+            <div
+              class="favourite-sort-popover pinned-sort-popover"
+              *ngIf="isSortPopoverOpen"
+              role="menu"
+              aria-label="Sort pinned buses"
+            >
+              <p>Sort By</p>
+              <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'recent'" (click)="selectSortMode('recent', $event)">
+                <span>Most Recent</span>
+                <ion-icon *ngIf="sortMode === 'recent'" name="checkmark-outline"></ion-icon>
+              </button>
+              <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'distance'" (click)="selectSortMode('distance', $event)">
+                <span>Nearest First</span>
+                <ion-icon *ngIf="sortMode === 'distance'" name="checkmark-outline"></ion-icon>
+              </button>
+              <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'name'" (click)="selectSortMode('name', $event)">
+                <span>Stop Name</span>
+                <ion-icon *ngIf="sortMode === 'name'" name="checkmark-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+        </div>
+        <span class="pinned-hero__subtitle">Manage your pinned services</span>
+      </div>
+    </header>
+
+    <section class="pinned-empty-state" *ngIf="isLoading" aria-live="polite">
+      <ion-spinner name="crescent"></ion-spinner>
+      <p>Loading pinned buses.</p>
+    </section>
+
+    <section class="pinned-empty-state" *ngIf="!isLoading && !pinnedGroups.length">
+      <ion-icon name="pin-outline" aria-hidden="true"></ion-icon>
+      <h2>No pinned buses yet</h2>
+      <p>Pin your usual buses from Live Bus Arrival and they will appear here.</p>
+    </section>
+
+    <section
+      class="pinned-group-list"
+      [class.pinned-group-list--reordering]="isReordering"
+      *ngIf="!isLoading && pinnedGroups.length"
+      aria-label="Pinned bus services"
+    >
+      <article class="pinned-stop-card" *ngFor="let group of pinnedGroups; trackBy: trackPinnedGroup">
+        <header>
+          <div>
+            <h2>{{ group.name }}</h2>
+            <p>{{ group.roadName }} · {{ group.busStopCode }}</p>
+          </div>
+        </header>
+
+        <div class="pinned-services">
+          <button
+            type="button"
+            class="pinned-service-chip"
+            *ngFor="let serviceNo of group.services; trackBy: trackService"
+            [attr.aria-label]="'Unpin bus ' + serviceNo"
+            (click)="unpinService(group, serviceNo)"
+          >
+            <strong>{{ serviceNo }}</strong>
+            <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+          </button>
+        </div>
+      </article>
+    </section>
+  </main>
+</ion-content>

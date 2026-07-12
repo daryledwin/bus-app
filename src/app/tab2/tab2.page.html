@@ -44,7 +44,7 @@
       <div>
         <p>{{ nearbyError }}</p>
         <button type="button" *ngIf="locationAccessDeferred" (click)="openLocationSettings()">Open Settings</button>
-        <button type="button" *ngIf="!locationAccessDeferred" (click)="loadNearbyStops()">Try again</button>
+        <button type="button" *ngIf="!locationAccessDeferred" (click)="retryNearbyStops()">Try again</button>
       </div>
     </section>
 

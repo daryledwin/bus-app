@@ -51,6 +51,13 @@ export interface BusArrivalLookup {
   services: BusServiceArrival[];
 }
 
+export interface BusArrivalRequestOptions {
+  forceRefresh?: boolean;
+  reason?: string;
+  retry?: boolean;
+  timeoutMs?: number;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -59,20 +66,36 @@ export class LtaBusService {
 
   constructor(private readonly http: HttpClient) {}
 
-  getBusArrivals(busStopCode: string): Observable<BusArrivalLookup> {
+  getBusArrivals(busStopCode: string, options: BusArrivalRequestOptions = {}): Observable<BusArrivalLookup> {
     const cleanedBusStopCode = busStopCode.trim();
 
     if (!/^\d{5}$/.test(cleanedBusStopCode)) {
       return throwError(new Error('Please enter a 5-digit Singapore bus stop code.'));
     }
 
-    const params = new HttpParams().set('busStopCode', cleanedBusStopCode);
+    let params = new HttpParams().set('busStopCode', cleanedBusStopCode);
+
+    if (options.forceRefresh) {
+      params = params
+        .set('_liveTrackTs', String(Date.now()))
+        .set('_liveTrackReason', options.reason || 'force-refresh');
+    }
+
+    if (options.forceRefresh) {
+      console.debug('[LiveTrack] HTTP request sent', {
+        busStopCode: cleanedBusStopCode,
+        reason: options.reason || 'force-refresh'
+      });
+    }
+
+    const requestTimeoutMs = options.timeoutMs || 24000;
+    const maxRetryIndex = options.retry === false ? 0 : 2;
 
     return this.http.get<LtaBusResponse>(this.endpoint, { params }).pipe(
-      timeout(24000),
+      timeout(requestTimeoutMs),
       retryWhen((errors) => errors.pipe(
         mergeMap((error, retryIndex) => {
-          if (retryIndex >= 2 || !this.isTransientError(error)) {
+          if (retryIndex >= maxRetryIndex || !this.isTransientError(error)) {
             return throwError(error);
           }
 

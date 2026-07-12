@@ -1,4 +1,12 @@
 <ion-content [fullscreen]="true" class="routes-page">
+  <ion-refresher slot="fixed" (ionRefresh)="refreshMrtStatus($event)">
+    <ion-refresher-content
+      pullingIcon="chevron-down-circle-outline"
+      pullingText="Pull to refresh MRT status"
+      refreshingSpinner="crescent"
+      refreshingText="Checking MRT lines..."
+    ></ion-refresher-content>
+  </ion-refresher>
   <main class="routes-shell">
     <button type="button" class="routes-back-button" aria-label="Back to Settings" (click)="goBack()">
       <ion-icon name="chevron-back-outline"></ion-icon>
@@ -40,16 +48,20 @@
         </div>
       </section>
 
-      <section
-        class="mrt-status-card mrt-status-card--disrupted"
-        *ngFor="let alert of majorMrtAlerts"
-        aria-live="polite"
-      >
-        <ion-icon name="warning-outline" aria-hidden="true"></ion-icon>
-        <div>
-          <p>MRT Service Status</p>
-          <h2>{{ mrtLineLabel(alert) }} disruption</h2>
-          <span>{{ mrtUpdatedLabel([alert]) }}</span>
+        <section
+          class="mrt-status-card mrt-status-card--disrupted"
+          *ngFor="let alert of majorMrtAlerts"
+          [ngStyle]="mrtLineStyle(alert)"
+          aria-live="polite"
+        >
+          <ion-icon name="warning-outline" aria-hidden="true"></ion-icon>
+          <div>
+            <p>MRT Service Status</p>
+            <h2>
+              <span class="mrt-line-badge">{{ mrtLineLabel(alert) }}</span>
+              <span>disruption</span>
+            </h2>
+            <span>{{ mrtUpdatedLabel([alert]) }}</span>
           <dl class="mrt-alert-details">
             <div>
               <dt>Direction</dt>
@@ -77,20 +89,62 @@
           <p>Network Map</p>
           <h2>Singapore MRT & LRT</h2>
         </div>
-        <a [href]="mrtMapPdfUrl" target="_blank" rel="noopener" aria-label="Open MRT map PDF">
+        <button type="button" (click)="openMrtMapFullscreen()" aria-label="Open MRT map full screen">
           <ion-icon name="open-outline" aria-hidden="true"></ion-icon>
-        </a>
+        </button>
       </div>
 
-      <div class="mrt-map-viewer">
-        <object [data]="trustedMrtMapPdfUrl" type="application/pdf" aria-label="Singapore MRT map PDF">
-          <iframe [src]="trustedMrtMapPdfUrl" title="Singapore MRT map"></iframe>
-          <p>
-            MRT map preview could not load.
-            <a [href]="mrtMapPdfUrl" target="_blank" rel="noopener">Open the PDF</a>
-          </p>
-        </object>
+      <div
+        #mrtMapViewer
+        class="mrt-map-viewer"
+        (touchstart)="onMrtMapTouchStart($event)"
+        (touchmove)="onMrtMapTouchMove($event)"
+        (touchend)="onMrtMapTouchEnd()"
+        (touchcancel)="onMrtMapTouchEnd()"
+      >
+        <img
+          #mrtMapImage
+          [src]="mrtMapImageUrl"
+          [style.transform]="mrtMapTransform"
+          alt="Singapore MRT and LRT network map"
+        />
       </div>
     </section>
   </main>
 </ion-content>
+
+<ion-modal
+  class="mrt-map-modal"
+  [isOpen]="isMrtMapFullscreenOpen"
+  (didDismiss)="closeMrtMapFullscreen()"
+>
+  <ng-template>
+    <div class="mrt-map-fullscreen">
+      <button
+        type="button"
+        class="mrt-map-fullscreen__close"
+        aria-label="Close MRT map"
+        (click)="closeMrtMapFullscreen()"
+      >
+        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      </button>
+
+      <div
+        #mrtMapFullscreenViewer
+        class="mrt-map-fullscreen__viewer"
+        (touchstart)="onMrtMapFullscreenTouchStart($event)"
+        (touchmove)="onMrtMapFullscreenTouchMove($event)"
+        (touchend)="onMrtMapFullscreenTouchEnd($event)"
+        (touchcancel)="onMrtMapFullscreenTouchCancel()"
+        (dblclick)="toggleMrtMapFullscreenZoom($event)"
+      >
+        <img
+          #mrtMapFullscreenImage
+          [src]="mrtMapImageUrl"
+          [style.transform]="mrtMapFullscreenTransform"
+          alt="Singapore MRT and LRT network map"
+        />
+      </div>
+    </div>
+  </ng-template>
+</ion-modal>

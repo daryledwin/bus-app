@@ -18,6 +18,11 @@ const routes: Routes = [
     loadChildren: () => import('./bus-routes/bus-routes.module').then(m => m.BusRoutesPageModule)
   },
   {
+    path: 'pinned-buses',
+    canActivate: [OnboardingService],
+    loadChildren: () => import('./pinned-buses/pinned-buses.module').then(m => m.PinnedBusesPageModule)
+  },
+  {
     path: 'mrt-map',
     canActivate: [OnboardingService],
     loadChildren: () => import('./mrt-map/mrt-map.module').then(m => m.MrtMapPageModule)

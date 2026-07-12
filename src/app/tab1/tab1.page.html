@@ -3,6 +3,7 @@
   class="bus-home"
   [class.programmatic-scroll]="isProgrammaticScroll"
   [class.arrivals-settling]="isSettlingArrivals"
+  [class.live-tracking-active]="liveTrackingState.active"
 >
   <ion-refresher
     class="home-refresher"
@@ -17,6 +18,28 @@
       refreshingSpinner="crescent"
     ></ion-refresher-content>
   </ion-refresher>
+
+  <div
+    class="live-tracking-header"
+    *ngIf="liveTrackingState.active"
+    aria-live="polite"
+  >
+    <div class="live-tracking-header__copy">
+      <strong>Tracking {{ liveTrackingState.serviceNo }}</strong>
+      <span>{{ liveTrackingState.busStopName }} · {{ liveTrackingState.busStopCode }}</span>
+    </div>
+
+    <div class="live-tracking-header__status">
+      <span>{{ liveTrackingState.arrivalStatus }}</span>
+      <button
+        type="button"
+        aria-label="Stop live tracking"
+        (click)="stopLiveActivityTracking(true, $event)"
+      >
+        <ion-icon name="close-outline" aria-hidden="true"></ion-icon>
+      </button>
+    </div>
+  </div>
 
   <div
     class="sticky-arrival-header"
@@ -124,7 +147,7 @@
       <div class="search-shelves" *ngIf="!searchTerm.trim()">
         <section class="stop-shelf" *ngIf="recentBusStops.length" aria-label="Recent searches">
           <p>Recent Searches</p>
-          <div class="mini-stop-row">
+          <div #recentStopsScroller class="mini-stop-row">
             <button type="button" *ngFor="let stop of recentBusStops; trackBy: trackBusStop" (click)="selectBusStop(stop)">
               <strong>{{ formatBusStopName(stop) }}</strong>
               <span>{{ stop.RoadName }} · {{ stop.BusStopCode }}</span>
@@ -178,7 +201,17 @@
     <section #arrivalsSection class="arrivals-section fade-in-delayed" aria-labelledby="nearby-title">
       <div class="section-heading">
         <div>
-          <p>Live Bus Arrival</p>
+          <div class="arrival-label-row">
+            <p>Live Bus Arrival</p>
+            <button
+              type="button"
+              class="pin-info-button"
+              aria-label="About pinned bus services"
+              (click)="openPinInfoPopup($event)"
+            >
+              <ion-icon name="information-circle-outline" aria-hidden="true"></ion-icon>
+            </button>
+          </div>
           <div class="arrival-title-row">
             <div class="arrival-title-copy">
               <h2 id="nearby-title">{{ arrivalStopTitle() }}</h2>
@@ -372,6 +405,29 @@
                   <span>View Full Route</span>
                   <ion-icon name="arrow-forward-outline"></ion-icon>
                 </button>
+
+                <button
+                  type="button"
+                  class="track-live-button"
+                  [class.track-live-button--active]="isTrackingLiveActivity(service)"
+                  [attr.aria-label]="isTrackingLiveActivity(service) ? 'Stop tracking bus ' + service.serviceNo : 'Track bus ' + service.serviceNo + ' live'"
+                  [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
+                  (click)="toggleBusLiveActivityTracking(service, $event)"
+                >
+                  <ion-icon [name]="isTrackingLiveActivity(service) ? 'stop-circle-outline' : 'radio-outline'" aria-hidden="true"></ion-icon>
+                  <span>{{ isTrackingLiveActivity(service) ? 'Stop Tracking' : 'Track Live' }}</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="pin-service-button"
+                  [class.pin-service-button--pinned]="isBusServicePinned(service.serviceNo)"
+                  [attr.aria-label]="isBusServicePinned(service.serviceNo) ? 'Unpin bus ' + service.serviceNo : 'Pin bus ' + service.serviceNo"
+                  [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
+                  (click)="togglePinnedBusService(service, $event)"
+                >
+                  <ion-icon [name]="isBusServicePinned(service.serviceNo) ? 'pin' : 'pin-outline'" aria-hidden="true"></ion-icon>
+                </button>
               </div>
             </div>
           </div>
@@ -379,6 +435,29 @@
       </div>
 
     </section>
+
+    <div
+      class="pin-info-overlay"
+      *ngIf="isPinInfoPopupOpen"
+      role="presentation"
+      (click)="closePinInfoPopup()"
+    >
+      <section
+        class="pin-info-popup"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pin-info-title"
+        (click)="handlePinInfoPopupTap($event)"
+      >
+        <div class="pin-info-popup__icon" aria-hidden="true">
+          <ion-icon name="pin"></ion-icon>
+        </div>
+        <h3 id="pin-info-title">Pin bus services</h3>
+        <p>Pin your usual bus services to keep them at the top of this stop’s arrivals and in the widget.</p>
+        <small>Pins are saved separately for each bus stop.</small>
+        <button type="button" (click)="closePinInfoPopup()">Got it</button>
+      </section>
+    </div>
 
     <section class="saved-section fade-in-delayed" aria-labelledby="saved-title">
       <div class="section-heading">
@@ -426,6 +505,7 @@
       </div>
 
       <div
+        #favouriteStopsScroller
         class="favourite-shortcuts"
         *ngIf="favouriteBusStops.length"
       >

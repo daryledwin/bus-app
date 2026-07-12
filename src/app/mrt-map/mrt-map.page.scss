@@ -425,12 +425,34 @@ ion-content.routes-page {
 }
 
 .mrt-status-card--disrupted > ion-icon {
-  background: rgba(224, 144, 28, 0.12);
-  color: #d88209;
+  background: var(--mrt-line-soft);
+  color: var(--mrt-line-color);
+}
+
+.mrt-status-card--disrupted {
+  border-left: 4px solid var(--mrt-line-color);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 14px 32px rgba(52, 98, 132, 0.06);
 }
 
 .mrt-status-card--disrupted h2 {
-  color: #9f5700;
+  align-items: center;
+  color: var(--routes-ink);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mrt-line-badge {
+  background: var(--mrt-line-color);
+  border-radius: 999px;
+  color: #fff !important;
+  display: inline-flex !important;
+  font-size: 11px !important;
+  font-weight: 780 !important;
+  letter-spacing: 0.02em;
+  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 5px 7px;
 }
 
 .mrt-status-card--error > ion-icon {
@@ -465,6 +487,10 @@ ion-content.routes-page {
   margin: 0;
 }
 
+.mrt-status-card--disrupted .mrt-alert-details dt {
+  color: var(--mrt-line-color);
+}
+
 .mrt-alert-message {
   color: rgba(16, 36, 58, 0.74) !important;
   font-size: 13px !important;
@@ -482,10 +508,10 @@ ion-content.routes-page {
 }
 
 .mrt-alert-pills span {
-  background: rgba(224, 144, 28, 0.11);
-  border: 1px solid rgba(224, 144, 28, 0.1);
+  background: var(--mrt-line-softer);
+  border: 1px solid var(--mrt-line-border);
   border-radius: 999px;
-  color: #a45f05;
+  color: var(--mrt-line-color);
   display: inline-flex;
   font-size: 12px;
   font-weight: 650;
@@ -552,7 +578,8 @@ ion-content.routes-page {
   justify-content: space-between;
 }
 
-.mrt-map-card__header a {
+.mrt-map-card__header a,
+.mrt-map-card__header button {
   align-items: center;
   background: rgba(234, 244, 255, 0.9);
   border: 1px solid rgba(25, 119, 201, 0.08);
@@ -563,6 +590,12 @@ ion-content.routes-page {
   height: 34px;
   place-items: center;
   width: 34px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mrt-map-card__header button:active {
+  background: rgba(218, 236, 255, 0.96);
+  transform: scale(0.97);
 }
 
 .mrt-map-card__header ion-icon {
@@ -577,30 +610,83 @@ ion-content.routes-page {
   min-height: 420px;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y pinch-zoom;
+  touch-action: none;
 }
 
-.mrt-map-viewer object,
-.mrt-map-viewer iframe {
+.mrt-map-viewer img {
   background: #fff;
   border: 0;
   display: block;
-  height: 100%;
-  min-height: 420px;
+  height: auto;
+  object-fit: contain;
+  transform-origin: top left;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
   width: 100%;
 }
 
-.mrt-map-viewer p {
-  color: var(--routes-muted);
-  font-size: 13px;
-  line-height: 1.35;
-  margin: 0;
-  padding: 18px;
+:host ::ng-deep ion-modal.mrt-map-modal {
+  --background: #f8fbfd;
+  --height: 100%;
+  --width: 100%;
+  --border-radius: 0;
 }
 
-.mrt-map-viewer a {
+.mrt-map-fullscreen {
+  background: #f8fbfd;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.mrt-map-fullscreen__close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(60, 60, 67, 0.08);
+  border-radius: 999px;
+  box-shadow: 0 12px 30px rgba(16, 36, 58, 0.12);
   color: #1977c9;
-  font-weight: 650;
+  display: grid;
+  height: 42px;
+  left: max(16px, env(safe-area-inset-left));
+  place-items: center;
+  position: absolute;
+  top: calc(max(14px, env(safe-area-inset-top)) + 4px);
+  width: 42px;
+  z-index: 3;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mrt-map-fullscreen__close ion-icon {
+  font-size: 24px;
+}
+
+.mrt-map-fullscreen__close:active {
+  background: rgba(234, 244, 255, 0.94);
+  transform: scale(0.97);
+}
+
+.mrt-map-fullscreen__viewer {
+  align-items: center;
+  background: #fff;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+  width: 100%;
+}
+
+.mrt-map-fullscreen__viewer img {
+  display: block;
+  height: auto;
+  object-fit: contain;
+  transform-origin: top left;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
+  width: 100%;
 }
 
 @keyframes mrtSkeletonSheen {

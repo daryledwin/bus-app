@@ -15,6 +15,11 @@ export class RefreshFeedbackService {
     await this.showToast(message);
   }
 
+  async info(message: string): Promise<void> {
+    await this.lightImpact();
+    await this.showToast(message);
+  }
+
   async favouriteSaved(): Promise<void> {
     try {
       await Haptics.impact({ style: ImpactStyle.Light });

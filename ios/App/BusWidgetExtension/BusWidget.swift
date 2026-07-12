@@ -1,4 +1,5 @@
 import AppIntents
+import ActivityKit
 import SwiftUI
 import WidgetKit
 
@@ -156,6 +157,7 @@ struct BusWidgetEntry: TimelineEntry {
 
 enum WidgetStore {
     private static let favouritesKey = "widgetFavouriteStops"
+    private static let pinnedBusServicesKey = "widgetPinnedBusServices"
     private static let selectedBusStopKey = "widgetSelectedBusStop"
     private static let nearestBusStopKey = "widgetNearestBusStop"
 
@@ -209,7 +211,14 @@ enum WidgetStore {
             return nil
         }
 
-        return try? JSONDecoder().decode(CachedArrivals.self, from: data)
+        guard let cached = try? JSONDecoder().decode(CachedArrivals.self, from: data) else {
+            return nil
+        }
+
+        return CachedArrivals(
+            buses: sortPinnedBuses(cached.buses, for: busStopCode),
+            updatedAt: cached.updatedAt
+        )
     }
 
     static func saveCachedArrivals(_ buses: [WidgetBus], for busStopCode: String, updatedAt: Date = Date()) {
@@ -237,7 +246,7 @@ enum WidgetStore {
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let response = try JSONDecoder().decode(LtaArrivalResponse.self, from: data)
-            let buses = response.services.map {
+            let buses = sortPinnedBuses(response.services.map {
                 WidgetBus(
                     serviceNo: $0.serviceNo,
                     timing: arrivalText(from: $0.nextBus.estimatedArrival),
@@ -245,7 +254,7 @@ enum WidgetStore {
                     wheelchairAccessible: $0.nextBus.feature == "WAB",
                     type: typeText(from: $0.nextBus.type)
                 )
-            }
+            }, for: busStopCode)
             let updatedAt = Date()
             saveCachedArrivals(buses, for: busStopCode, updatedAt: updatedAt)
             return CachedArrivals(buses: buses, updatedAt: updatedAt.timeIntervalSince1970)
@@ -292,6 +301,39 @@ enum WidgetStore {
 
     private static func cachedArrivalsKey(_ busStopCode: String) -> String {
         "widgetCachedArrivals_\(busStopCode)"
+    }
+
+    private static func pinnedServices(for busStopCode: String) -> [String] {
+        guard let data = defaults?.data(forKey: pinnedBusServicesKey),
+              let pins = try? JSONDecoder().decode([String: [String]].self, from: data) else {
+            return []
+        }
+
+        return pins[busStopCode] ?? []
+    }
+
+    private static func sortPinnedBuses(_ buses: [WidgetBus], for busStopCode: String) -> [WidgetBus] {
+        let pins = pinnedServices(for: busStopCode)
+
+        guard !pins.isEmpty else {
+            return buses
+        }
+
+        return buses.enumerated().sorted { first, second in
+            let firstPinnedIndex = pins.firstIndex(of: first.element.serviceNo)
+            let secondPinnedIndex = pins.firstIndex(of: second.element.serviceNo)
+
+            switch (firstPinnedIndex, secondPinnedIndex) {
+            case let (first?, second?):
+                return first < second
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return first.offset < second.offset
+            case (.none, .none):
+                return first.offset < second.offset
+            }
+        }.map(\.element)
     }
 
     private static func pageIndexKey(_ busStopCode: String) -> String {
@@ -618,24 +660,25 @@ struct BusWidgetView: View {
     }
 
     private func updatedStatus(from date: Date) -> some View {
-        HStack(spacing: 2) {
-            Text("Updated")
-            Text(date, style: .relative)
+        TimelineView(.periodic(from: date, by: 1)) { timeline in
+            Text(updatedSecondsText(from: date, now: timeline.date))
+                .font(.system(size: family == .systemMedium ? 9 : 8, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
+                .lineLimit(1)
+                .minimumScaleFactor(0.76)
+                .monospacedDigit()
         }
-        .font(.system(size: family == .systemMedium ? 9 : 8, weight: .bold, design: .rounded))
-        .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
-        .lineLimit(1)
-        .minimumScaleFactor(0.76)
-        .monospacedDigit()
     }
 
     private func smallUpdatedStatus(from date: Date) -> some View {
-        Text(date, style: .relative)
-            .font(.system(size: 9, weight: .bold, design: .rounded))
-            .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .monospacedDigit()
+        TimelineView(.periodic(from: date, by: 1)) { timeline in
+            Text(updatedSecondsText(from: date, now: timeline.date))
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .monospacedDigit()
+        }
     }
 
     private var busList: some View {
@@ -727,6 +770,7 @@ struct BusWidgetView: View {
         HStack(spacing: 3) {
             if bus.type != "Type unavailable" {
                 busTypeMetadataChip(for: bus.type)
+                    .layoutPriority(2)
             }
 
             systemMetadataChip(
@@ -736,6 +780,7 @@ struct BusWidgetView: View {
                 background: (bus.wheelchairAccessible ? appAccessibleColor : appNotAccessibleColor).opacity(0.10),
                 accessibilityLabel: bus.wheelchairAccessible ? "Wheelchair accessible" : "Not wheelchair accessible"
             )
+            .layoutPriority(1)
 
             if bus.load != "Load unavailable" {
                 systemMetadataChip(
@@ -745,6 +790,7 @@ struct BusWidgetView: View {
                     background: loadBackgroundColor(bus.load),
                     accessibilityLabel: bus.load
                 )
+                .layoutPriority(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -752,20 +798,23 @@ struct BusWidgetView: View {
     }
 
     private func busTypeMetadataChip(for type: String) -> some View {
-        HStack(alignment: .center, spacing: 5) {
+        let isBendy = type == "Bendy bus"
+
+        return HStack(alignment: .center, spacing: 5) {
             WidgetBusTypeGlyph(type: type, color: busTypeColor(type))
                 .frame(width: 12, height: 10, alignment: .center)
                 .accessibilityHidden(true)
 
-            Text(busTypeCompactLabel(type))
-                .font(.system(size: 7.6, weight: .bold, design: .rounded))
+            Text(isBendy ? " Bendy" : busTypeCompactLabel(type))
+                .font(.system(size: isBendy ? 7.2 : 7.6, weight: .bold, design: .rounded))
                 .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .layoutPriority(-1)
+                .minimumScaleFactor(isBendy ? 0.82 : 0.72)
+                .layoutPriority(1)
         }
         .foregroundColor(busTypeColor(type))
         .padding(.vertical, 2.4)
-        .padding(.horizontal, 3)
+        .padding(.horizontal, isBendy ? 2.5 : 3)
+        .frame(minWidth: isBendy ? 43 : nil, maxWidth: isBendy ? 52 : 58, alignment: .center)
         .background(busTypeColor(type).opacity(0.10))
         .clipShape(Capsule())
         .accessibilityLabel(busTypeDisplayLabel(type))
@@ -1146,6 +1195,7 @@ private struct WidgetBusTypeGlyph: View {
 struct BusWidgetBundle: WidgetBundle {
     var body: some Widget {
         BusArrivalWidget()
+        BusLiveActivityWidget()
     }
 }
 
@@ -1160,6 +1210,174 @@ struct BusArrivalWidget: Widget {
         .description("Live arrivals for a favourite stop you choose in Edit Widget.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
+}
+
+struct BusLiveActivityWidget: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: BusLiveActivityAttributes.self) { context in
+            BusLiveActivityLockScreenView(context: context)
+                .activityBackgroundTint(Color(red: 0.95, green: 0.99, blue: 1.0))
+                .activitySystemActionForegroundColor(Color(red: 0.08, green: 0.18, blue: 0.30))
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Bus \(context.attributes.serviceNo)")
+                            .font(.system(size: 17, weight: .heavy, design: .rounded))
+                        Text("\(context.attributes.busStopName) · \(context.attributes.busStopCode)")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                    }
+                }
+
+                DynamicIslandExpandedRegion(.trailing) {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(context.state.arrivalStatus)
+                            .font(.system(size: 17, weight: .heavy, design: .rounded))
+                            .foregroundStyle(liveActivityArrivalColor(context.state.arrivalStatus))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                        Text(context.state.busType)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                    }
+                }
+
+                DynamicIslandExpandedRegion(.bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(context.attributes.busStopName) · \(context.attributes.busStopCode)")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+
+                        HStack(spacing: 8) {
+                            LiveActivityInfoPill(text: context.state.seatAvailability)
+                            LiveActivityInfoPill(text: context.state.wheelchairAccessible ? "Wheelchair" : "No wheelchair")
+                            Spacer(minLength: 0)
+                            Text("Next \(context.state.nextArrivalTiming)")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } compactLeading: {
+                Text(context.attributes.serviceNo)
+                    .font(.system(size: 15, weight: .heavy, design: .rounded))
+            } compactTrailing: {
+                Text(context.state.arrivalStatus)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(liveActivityBlue)
+                    .minimumScaleFactor(0.72)
+            } minimal: {
+                Text(context.attributes.serviceNo)
+                    .font(.system(size: 11, weight: .heavy, design: .rounded))
+            }
+            .keylineTint(liveActivityBlue)
+        }
+    }
+}
+
+private struct BusLiveActivityLockScreenView: View {
+    let context: ActivityViewContext<BusLiveActivityAttributes>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(context.attributes.serviceNo)
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .foregroundStyle(liveActivityBlue)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(context.attributes.busStopName)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color(red: 0.08, green: 0.18, blue: 0.30))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    Text("Bus stop \(context.attributes.busStopCode)")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.33, green: 0.43, blue: 0.52))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(context.state.arrivalStatus)
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .foregroundStyle(liveActivityArrivalColor(context.state.arrivalStatus))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    if context.state.nextArrivalTiming != "No Bus" {
+                        Text("Subsequent \(context.state.nextArrivalTiming)")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color(red: 0.50, green: 0.60, blue: 0.68))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                    }
+                }
+            }
+
+            HStack(spacing: 7) {
+                LiveActivityInfoPill(text: context.state.busType)
+                LiveActivityInfoPill(text: context.state.wheelchairAccessible ? "Wheelchair accessible" : "No wheelchair access")
+                LiveActivityInfoPill(text: context.state.seatAvailability)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.76)
+
+            HStack(spacing: 12) {
+                Text("Next \(context.state.nextArrivalTiming)")
+                Text("Then \(context.state.thirdArrivalTiming)")
+            }
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundStyle(Color(red: 0.50, green: 0.60, blue: 0.68))
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct LiveActivityInfoPill: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(red: 0.08, green: 0.18, blue: 0.30))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.white.opacity(0.72), in: Capsule())
+            .overlay(
+                Capsule().stroke(Color(red: 0.72, green: 0.84, blue: 0.92).opacity(0.4), lineWidth: 1)
+            )
+    }
+}
+
+private let liveActivityBlue = Color(red: 25 / 255, green: 119 / 255, blue: 201 / 255)
+
+private func liveActivityArrivalColor(_ arrivalStatus: String) -> Color {
+    arrivalStatus == "Arriving" ? Color(red: 47 / 255, green: 158 / 255, blue: 110 / 255) : liveActivityBlue
+}
+
+private func updatedSecondsText(from date: Date, now: Date = Date()) -> String {
+    let elapsedSeconds = max(0, Int(now.timeIntervalSince(date)))
+
+    if elapsedSeconds < 60 {
+        return elapsedSeconds == 1 ? "Updated 1 sec" : "Updated \(elapsedSeconds) secs"
+    }
+
+    let elapsedMinutes = elapsedSeconds / 60
+    return elapsedMinutes == 1 ? "Updated 1 min" : "Updated \(elapsedMinutes) mins"
 }
 
 private extension View {

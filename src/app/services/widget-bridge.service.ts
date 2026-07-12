@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor, PluginListenerHandle, registerPlugin } from '@capacitor/core';
 
 interface WidgetFavouriteStop {
   busStopCode: string;
@@ -21,17 +21,54 @@ interface StoredFavouriteStop {
 
 interface WidgetBridgePlugin {
   syncWidgetData(payload: { payload: string }): Promise<void>;
+  startBusLiveActivity(payload: { payload: string }): Promise<BusLiveActivityStartResult>;
+  updateBusLiveActivity(payload: { payload: string }): Promise<void>;
+  endBusLiveActivity(): Promise<void>;
+  addListener(
+    eventName: 'busLiveActivityPushToken',
+    listenerFunc: (event: BusLiveActivityPushTokenEvent) => void
+  ): Promise<PluginListenerHandle>;
 }
 
 interface WidgetDataPayload {
   favourites: WidgetFavouriteStop[];
   selectedBusStop?: WidgetFavouriteStop;
   nearestBusStop?: WidgetFavouriteStop;
+  pinnedBusServices?: Record<string, string[]>;
   lastLocation?: {
     latitude: number;
     longitude: number;
     savedAt?: number;
   };
+}
+
+export interface BusLiveActivityPayload {
+  serviceNo: string;
+  busStopName: string;
+  busStopCode: string;
+  arrivalStatus: string;
+  nextArrivalTiming: string;
+  thirdArrivalTiming: string;
+  busType: string;
+  wheelchairAccessible: boolean;
+  seatAvailability: string;
+  arrivalAt: number;
+  lastUpdatedAt: number;
+  startedAt: number;
+  expiresAt: number;
+}
+
+export interface BusLiveActivityStartResult {
+  started?: boolean;
+  activityId?: string;
+  pushToken?: string;
+  pushEnabled?: boolean;
+  pushTokenPending?: boolean;
+}
+
+export interface BusLiveActivityPushTokenEvent {
+  activityId?: string;
+  pushToken?: string;
 }
 
 const WidgetBridge = registerPlugin<WidgetBridgePlugin>('WidgetBridge');
@@ -42,6 +79,7 @@ const WidgetBridge = registerPlugin<WidgetBridgePlugin>('WidgetBridge');
 export class WidgetBridgeService {
   private readonly favouritesStorageKey = 'favouriteBusStops';
   private readonly lastLocationStorageKey = 'nearbyStopsLastLocation';
+  private readonly pinnedBusServicesStorageKey = 'pinnedBusServicesByStop';
   private readonly selectedBusStopStorageKey = 'widgetSelectedBusStop';
 
   syncWidgetData(): void {
@@ -55,6 +93,7 @@ export class WidgetBridgeService {
       favourites,
       selectedBusStop: this.loadSelectedBusStop(),
       nearestBusStop: this.nearestFavouriteStop(favourites, lastLocation),
+      pinnedBusServices: this.loadPinnedBusServices(),
       lastLocation
     };
 
@@ -76,6 +115,51 @@ export class WidgetBridgeService {
     }
 
     this.syncWidgetData();
+  }
+
+  async startBusLiveActivity(payload: BusLiveActivityPayload): Promise<BusLiveActivityStartResult | undefined> {
+    if (!Capacitor.isNativePlatform()) {
+      return undefined;
+    }
+
+    return WidgetBridge.startBusLiveActivity({ payload: JSON.stringify(payload) });
+  }
+
+  async updateBusLiveActivity(payload: BusLiveActivityPayload): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    console.debug('[LiveTrack] updateBusLiveActivity called from Ionic', {
+      serviceNo: payload.serviceNo,
+      busStopCode: payload.busStopCode,
+      arrivalStatus: payload.arrivalStatus,
+      lastUpdatedAt: payload.lastUpdatedAt
+    });
+    await WidgetBridge.updateBusLiveActivity({ payload: JSON.stringify(payload) });
+    console.debug('[LiveTrack] updateBusLiveActivity bridge resolved', {
+      serviceNo: payload.serviceNo,
+      busStopCode: payload.busStopCode,
+      lastUpdatedAt: payload.lastUpdatedAt
+    });
+  }
+
+  async endBusLiveActivity(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
+    await WidgetBridge.endBusLiveActivity();
+  }
+
+  addLiveActivityPushTokenListener(
+    listener: (event: BusLiveActivityPushTokenEvent) => void
+  ): Promise<PluginListenerHandle> | undefined {
+    if (!Capacitor.isNativePlatform()) {
+      return undefined;
+    }
+
+    return WidgetBridge.addListener('busLiveActivityPushToken', listener);
   }
 
   syncSelectedBusStop(stop: StoredFavouriteStop): void {
@@ -123,6 +207,41 @@ export class WidgetBridgeService {
       return parsedLocation;
     } catch {
       return undefined;
+    }
+  }
+
+  private loadPinnedBusServices(): Record<string, string[]> {
+    const storedPins = localStorage.getItem(this.pinnedBusServicesStorageKey);
+
+    if (!storedPins) {
+      return {};
+    }
+
+    try {
+      const parsedPins = JSON.parse(storedPins) as Record<string, string[]>;
+
+      if (!parsedPins || typeof parsedPins !== 'object' || Array.isArray(parsedPins)) {
+        return {};
+      }
+
+      return Object.entries(parsedPins).reduce<Record<string, string[]>>((pins, [busStopCode, serviceNos]) => {
+        if (!busStopCode || !Array.isArray(serviceNos)) {
+          return pins;
+        }
+
+        const normalizedServiceNos = serviceNos
+          .filter((serviceNo): serviceNo is string => typeof serviceNo === 'string')
+          .map((serviceNo) => serviceNo.trim().toUpperCase())
+          .filter(Boolean);
+
+        if (normalizedServiceNos.length) {
+          pins[busStopCode] = Array.from(new Set(normalizedServiceNos));
+        }
+
+        return pins;
+      }, {});
+    } catch {
+      return {};
     }
   }
 

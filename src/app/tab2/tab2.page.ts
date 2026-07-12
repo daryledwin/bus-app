@@ -41,6 +41,11 @@ interface NavItem {
   route: string;
 }
 
+interface NearbyLoadOptions {
+  forceFreshLocation?: boolean;
+  preserveVisibleStopsOnFreshLocationError?: boolean;
+}
+
 @Component({
   selector: 'app-tab2',
   templateUrl: 'tab2.page.html',
@@ -58,6 +63,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   isLoadingLocation = false;
   isProgrammaticScroll = false;
   hasUserLocation = false;
+  isUsingFallbackLocation = false;
   locationAccessDeferred = false;
   nearbyError = '';
   private readonly singaporeCenter = { latitude: 1.3521, longitude: 103.8198 };
@@ -71,6 +77,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   private selectedStopPopup?: L.Popup;
   private favouritePopTimer?: ReturnType<typeof setTimeout>;
   private nearbyLoadRequestId = 0;
+  private didUseVisibleStopsRefreshFallback = false;
   private lastNavTapAt = 0;
   private lastNavRoute = '';
 
@@ -127,28 +134,40 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  async loadNearbyStops(): Promise<void> {
+  async loadNearbyStops(options: NearbyLoadOptions = {}): Promise<void> {
     const requestId = ++this.nearbyLoadRequestId;
     const startedAt = performance.now();
-    console.info(`[Nearby] load start request=${requestId}`);
+    const forceFreshLocation = options.forceFreshLocation === true;
+    const preserveVisibleStopsOnFreshLocationError = options.preserveVisibleStopsOnFreshLocationError === true;
+    console.info(`[Nearby] load start request=${requestId} forceFresh=${forceFreshLocation}`);
     this.isLoadingLocation = true;
     this.nearbyError = '';
+    const visibleStopsBeforeLoad = [...this.nearbyStops];
+    const selectedStopBeforeLoad = this.selectedNearbyStop;
+    const mapCenterBeforeLoad = this.mapCenter;
+    let didResolveFreshLocation = false;
+    if (forceFreshLocation) {
+      this.locationAccessDeferred = false;
+      this.hasUserLocation = false;
+      this.isUsingFallbackLocation = false;
+    }
     const shouldPreserveCurrentStops = this.nearbyStops.length > 0;
 
-    if (!shouldPreserveCurrentStops) {
+    if (!shouldPreserveCurrentStops || forceFreshLocation) {
       this.nearbyStops = [];
     }
 
     this.selectedNearbyStop = undefined;
 
     try {
-      const location = await this.locationOrFallback();
+      const location = await this.locationOrFallback({ forceFreshLocation });
       if (!this.isActiveNearbyRequest(requestId)) {
         console.info(`[Nearby] stale location result ignored request=${requestId}`);
         return;
       }
 
       this.mapCenter = location;
+      didResolveFreshLocation = true;
       console.info(`[Nearby] bus stops API start request=${requestId}`);
       const stops = await this.withTimeout(
         this.ltaBusStopsService.getBusStops().toPromise(),
@@ -172,7 +191,24 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       }
 
       console.warn(`[Nearby] load failed request=${requestId}`, error);
-      if (!this.hasUserLocation) {
+      if (
+        forceFreshLocation
+        && preserveVisibleStopsOnFreshLocationError
+        && !didResolveFreshLocation
+        && visibleStopsBeforeLoad.length > 0
+      ) {
+        this.nearbyStops = visibleStopsBeforeLoad;
+        this.selectedNearbyStop = selectedStopBeforeLoad;
+        this.mapCenter = mapCenterBeforeLoad;
+        this.hasUserLocation = true;
+        this.isUsingFallbackLocation = true;
+        this.nearbyError = '';
+        this.didUseVisibleStopsRefreshFallback = true;
+        await this.refreshFeedbackService.info('Couldn’t refresh location, showing last known nearby stops.');
+        return;
+      }
+
+      if (!this.hasUserLocation || forceFreshLocation) {
         this.nearbyStops = [];
         this.selectedNearbyStop = undefined;
       }
@@ -189,11 +225,15 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   async refreshNearbyStops(event: Event): Promise<void> {
     const refresher = event.target as HTMLIonRefresherElement;
     let shouldShowFeedback = false;
+    this.didUseVisibleStopsRefreshFallback = false;
     console.info('[Nearby] pull-to-refresh start');
 
     try {
-      await this.loadNearbyStops();
-      shouldShowFeedback = this.nearbyStops.length > 0;
+      await this.loadNearbyStops({
+        forceFreshLocation: true,
+        preserveVisibleStopsOnFreshLocationError: true
+      });
+      shouldShowFeedback = this.nearbyStops.length > 0 && !this.didUseVisibleStopsRefreshFallback;
     } catch (error) {
       console.warn('[Nearby] pull-to-refresh failed', error);
     } finally {
@@ -205,8 +245,12 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }
 
     if (shouldShowFeedback) {
-      await this.refreshFeedbackService.success('Nearby stops updated ✨');
+      await this.refreshFeedbackService.success('Nearby stops refreshed');
     }
+  }
+
+  retryNearbyStops(): Promise<void> {
+    return this.loadNearbyStops({ forceFreshLocation: true });
   }
 
   async enableLocation(): Promise<void> {
@@ -393,14 +437,16 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private async locationOrFallback(): Promise<NearbyLocation> {
+  private async locationOrFallback(options: NearbyLoadOptions = {}): Promise<NearbyLocation> {
     const locationChoice = this.onboardingService.locationChoice();
+    const forceFreshLocation = options.forceFreshLocation === true;
     console.info(`[Nearby] location permission choice=${locationChoice || 'unknown'}`);
 
-    if (!this.onboardingService.shouldRequestLocationAutomatically()) {
+    if (!this.onboardingService.shouldRequestLocationAutomatically() && !forceFreshLocation) {
       console.info('[Nearby] location deferred by onboarding choice');
       this.locationAccessDeferred = true;
       this.hasUserLocation = false;
+      this.isUsingFallbackLocation = false;
       this.nearbyStops = [];
       throw this.permissionDeferredError();
     }
@@ -409,14 +455,21 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
     try {
       console.info('[Nearby] foreground geolocation start');
-      const location = await this.locationService.currentLocation({
+      const locationOptions = {
         enableHighAccuracy: false,
-        maximumAge: 1000 * 60 * 15,
-        timeout: 6500
-      });
+        maximumAge: forceFreshLocation ? 0 : 1000 * 60 * 15,
+        timeout: forceFreshLocation ? 12000 : 6500
+      };
+      const location = forceFreshLocation
+        ? await this.locationService.requestPermissionAndLocation(locationOptions)
+        : await this.locationService.currentLocation(locationOptions);
       console.info('[Nearby] foreground geolocation success');
 
       this.hasUserLocation = true;
+      this.isUsingFallbackLocation = false;
+      if (forceFreshLocation && locationChoice !== 'granted') {
+        this.onboardingService.complete('granted');
+      }
       const currentLocation = { latitude: location.latitude, longitude: location.longitude };
       this.saveLastLocation(currentLocation);
       return currentLocation;
@@ -424,8 +477,15 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       console.warn('[Nearby] foreground geolocation failed', error);
       if (this.isPermissionDenied(error)) {
         this.hasUserLocation = false;
+        this.isUsingFallbackLocation = false;
         this.locationAccessDeferred = true;
         this.nearbyStops = [];
+        throw error;
+      }
+
+      if (forceFreshLocation) {
+        this.hasUserLocation = false;
+        this.isUsingFallbackLocation = false;
         throw error;
       }
 
@@ -433,11 +493,13 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
       if (lastLocation) {
         this.hasUserLocation = true;
+        this.isUsingFallbackLocation = true;
         this.nearbyError = 'Using your last known location while your phone refreshes nearby stops.';
         return lastLocation;
       }
 
       this.hasUserLocation = false;
+      this.isUsingFallbackLocation = false;
       throw error;
     }
   }
@@ -468,6 +530,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
         this.ngZone.run(() => {
           this.hasUserLocation = true;
+          this.isUsingFallbackLocation = false;
           this.nearbyError = '';
           this.saveLastLocation(freshLocation);
           this.mapCenter = freshLocation;

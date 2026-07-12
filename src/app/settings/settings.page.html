@@ -16,7 +16,7 @@
           </span>
           <span class="settings-row__copy">
             <strong>About Me</strong>
-            <small>About the maker and MyBus SG</small>
+            <small>About MyBus SG</small>
           </span>
           <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
         </button>
@@ -48,13 +48,13 @@
     <section class="settings-group" aria-labelledby="settings-tools-title">
       <h2 id="settings-tools-title">Tools</h2>
       <div class="settings-card">
-        <button type="button" class="settings-row" (click)="openMrtMap()">
-          <span class="settings-row__icon settings-row__icon--teal" aria-hidden="true">
-            <ion-icon name="train-outline"></ion-icon>
+        <button type="button" class="settings-row" (click)="openPinnedBuses()">
+          <span class="settings-row__icon settings-row__icon--red" aria-hidden="true">
+            <ion-icon name="pin-outline"></ion-icon>
           </span>
           <span class="settings-row__copy">
-            <strong>MRT Map</strong>
-            <small>View Singapore’s MRT network</small>
+            <strong>Pinned Buses</strong>
+            <small>Manage your pinned services</small>
           </span>
           <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
         </button>
@@ -69,6 +69,19 @@
           </span>
           <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
         </button>
+        
+        <button type="button" class="settings-row" (click)="openMrtMap()">
+          <span class="settings-row__icon settings-row__icon--teal" aria-hidden="true">
+            <ion-icon name="train-outline"></ion-icon>
+          </span>
+          <span class="settings-row__copy">
+            <strong>MRT</strong>
+            <small>View Singapore’s MRT network</small>
+          </span>
+          <ion-icon class="settings-row__chevron" name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+        </button>
+
+
       </div>
     </section>
 

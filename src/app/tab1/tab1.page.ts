@@ -6,10 +6,11 @@ import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { BusRoute, LtaBusRoutesService } from '../services/lta-bus-routes.service';
-import { BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
+import { BusArrivalLookup, BusServiceArrival, LtaBusService } from '../services/lta-bus.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
-import { WidgetBridgeService } from '../services/widget-bridge.service';
+import { BusLiveActivityPayload, WidgetBridgeService } from '../services/widget-bridge.service';
+import { LiveActivityTrackingService, LiveActivityTrackingState, LiveTrackDebugState } from '../services/live-activity-tracking.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { ReviewService } from '../services/review.service';
 import { SameTabScrollService } from '../services/same-tab-scroll.service';
@@ -53,12 +54,15 @@ interface ArrivalSearchOptions {
   preserveScrollPosition?: boolean;
   scrollToArrivals?: boolean;
   confirmLoadedHaptic?: boolean;
+  silentLiveActivityRefresh?: boolean;
 }
 
 interface HeroTimeOfDay {
   icon: string;
   label: string;
 }
+
+type PinnedBusServicesByStop = Record<string, string[]>;
 
 @Component({
   selector: 'app-tab1',
@@ -68,6 +72,8 @@ interface HeroTimeOfDay {
 export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('arrivalsSection') private readonly arrivalsSection?: ElementRef<HTMLElement>;
+  @ViewChild('recentStopsScroller') private readonly recentStopsScroller?: ElementRef<HTMLElement>;
+  @ViewChild('favouriteStopsScroller') private readonly favouriteStopsScroller?: ElementRef<HTMLElement>;
   @ViewChildren('routeStopRow') private readonly routeStopRows?: QueryList<ElementRef<HTMLElement>>;
 
   readonly heroTimeOfDay = this.currentHeroTimeOfDay();
@@ -102,6 +108,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   selectedRouteServiceNo = '';
   selectedRouteService?: BusServiceArrival;
   lastArrivalsRefreshedLabel = '';
+  isPinInfoPopupOpen = false;
   private busStops: BusStop[] = [];
   private busStopLookup = new Map<string, BusStop>();
   private busStopsLoadPromise?: Promise<BusStop[]>;
@@ -119,6 +126,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private lastArrivalsRefreshedTimer?: ReturnType<typeof setInterval>;
   private selectedStopSubscription?: Subscription;
   private routeQuerySubscription?: Subscription;
+  private liveActivityTrackingSubscription?: Subscription;
+  private liveActivityDebugSubscription?: Subscription;
   private arrivalRequestId = 0;
   private refreshInProgress = false;
   private arrivalStickyThreshold = 0;
@@ -126,8 +135,29 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private readonly homeScrollListener = () => this.onHomeScroll();
   private lastNavTapAt = 0;
   private lastNavRoute = '';
+  private pinnedBusServices: PinnedBusServicesByStop = {};
+  liveTrackingState: LiveActivityTrackingState = {
+    active: false,
+    serviceNo: '',
+    busStopCode: '',
+    busStopName: '',
+    arrivalStatus: '',
+    nextArrivalTiming: '',
+    thirdArrivalTiming: '',
+    busType: '',
+    wheelchairAccessible: false,
+    seatAvailability: '',
+    arrivalAt: 0,
+    lastUpdatedAt: 0,
+    startedAt: 0,
+    expiresAt: 0
+  };
+  liveTrackDebugRows: Array<LiveTrackDebugState[keyof LiveTrackDebugState]> = [];
+  private readonly liveActivityTimeoutMs = 30 * 60 * 1000;
   private readonly favouritesStorageKey = 'favouriteBusStops';
   private readonly favouriteSortStorageKey = 'favouriteStopsSortMode';
+  private readonly pinnedBusServicesStorageKey = 'pinnedBusServicesByStop';
+  private readonly pinnedBusServicesUpdatedAtStorageKey = 'pinnedBusServicesUpdatedAtByStop';
 
   readonly navItems: NavItem[] = [
     { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
@@ -146,12 +176,14 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     private readonly reviewService: ReviewService,
     private readonly sameTabScrollService: SameTabScrollService,
     private readonly widgetBridgeService: WidgetBridgeService,
+    private readonly liveActivityTrackingService: LiveActivityTrackingService,
     private readonly ngZone: NgZone,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {
     this.recentBusStops = this.loadRecentBusStops();
     this.favouriteSortMode = this.loadFavouriteSortMode();
     this.favouriteBusStops = this.loadFavouriteBusStops();
+    this.pinnedBusServices = this.loadPinnedBusServices();
     this.applyFavouriteSort({ persist: false, silentDistanceFailure: true });
     this.syncWidgetFavouriteStop();
   }
@@ -178,6 +210,19 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
       this.openBusStopFromDeepLink(busStopCode);
     });
+    this.liveActivityTrackingSubscription = this.liveActivityTrackingService.trackingState$.subscribe((state) => {
+      this.liveTrackingState = state;
+    });
+    this.liveActivityDebugSubscription = this.liveActivityTrackingService.debugState$.subscribe((state) => {
+      this.liveTrackDebugRows = [
+        state.timer,
+        state.httpRequest,
+        state.httpResponse,
+        state.trackedService,
+        state.bridgeUpdate,
+        state.nativeUpdate
+      ];
+    });
 
     try {
       await this.loadBusStops();
@@ -196,12 +241,16 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.favouriteBusStops = this.loadFavouriteBusStops();
+    this.pinnedBusServices = this.loadPinnedBusServices();
+    this.liveBusServices = this.sortLiveServices(this.liveBusServices);
     this.syncWidgetFavouriteStop();
   }
 
   ngOnDestroy(): void {
     this.selectedStopSubscription?.unsubscribe();
     this.routeQuerySubscription?.unsubscribe();
+    this.liveActivityTrackingSubscription?.unsubscribe();
+    this.liveActivityDebugSubscription?.unsubscribe();
     this.detachHomeScrollListener();
 
     if (this.searchTimer) {
@@ -372,6 +421,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.isLoadingArrivals = false;
     this.arrivalError = '';
     this.liveBusServices = [];
+    void this.liveActivityTrackingService.end(true);
     this.resetLastArrivalsRefreshed();
     this.resetRouteState();
     this.logMatchesFound(0);
@@ -390,7 +440,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
     const requestId = ++this.arrivalRequestId;
     this.hasSearchedArrivals = true;
-    this.isLoadingArrivals = true;
+    this.isLoadingArrivals = !options.silentLiveActivityRefresh;
     this.arrivalError = '';
     if (!options.preserveScrollPosition) {
       this.liveBusServices = [];
@@ -403,13 +453,23 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.searchedBusStopCode = normalizedBusStopCode;
     this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
 
-    this.ltaBusService.getBusArrivals(normalizedBusStopCode).subscribe({
+    if (options.silentLiveActivityRefresh) {
+      this.liveActivityTrackingService.markDebug('httpRequest', true, `searchArrivals stop ${normalizedBusStopCode}`);
+    }
+
+    this.ltaBusService.getBusArrivals(normalizedBusStopCode, options.silentLiveActivityRefresh
+      ? { forceRefresh: true, reason: 'manual', retry: true }
+      : {}
+    ).subscribe({
       next: (arrivalLookup) => {
         if (requestId !== this.arrivalRequestId) {
           onComplete?.();
           return;
         }
 
+        if (options.silentLiveActivityRefresh) {
+          this.liveActivityTrackingService.markDebug('httpResponse', true, `${arrivalLookup.services.length} services for stop ${arrivalLookup.busStopCode}`);
+        }
         this.searchedBusStopCode = arrivalLookup.busStopCode;
         this.resolveSelectedBusStopForCode(arrivalLookup.busStopCode, requestId);
         this.liveBusServices = this.sortLiveServices(arrivalLookup.services);
@@ -419,8 +479,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         this.isLoadingArrivals = false;
         this.markArrivalsRefreshed();
         this.syncExpandedServiceAfterRefresh();
+        void this.updateLiveActivityTrackingFromArrivals(arrivalLookup);
         this.settleArrivalResults(requestId, options.scrollToArrivals !== false);
-        void this.reviewService.requestAutomaticReviewIfEligible();
+        if (!options.silentLiveActivityRefresh) {
+          void this.reviewService.requestAutomaticReviewIfEligible();
+        }
         onComplete?.();
       },
       error: (error) => {
@@ -429,10 +492,14 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
           return;
         }
 
+        if (options.silentLiveActivityRefresh) {
+          this.liveActivityTrackingService.markDebug('httpResponse', false, error instanceof Error ? error.message : String(error));
+        }
         this.searchedBusStopCode = normalizedBusStopCode;
         this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
         this.arrivalError = this.errorMessage(error);
         this.isLoadingArrivals = false;
+        void this.liveActivityTrackingService.clearIfTracking(normalizedBusStopCode);
         this.settleArrivalResults(requestId, options.scrollToArrivals !== false);
         onComplete?.();
       }
@@ -469,7 +536,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         completeRefresh();
 
         if (!this.arrivalError) {
-          void this.refreshFeedbackService.success('Arrivals refreshed ✨');
+          void this.refreshFeedbackService.success('Bus arrivals refreshed');
         }
       },
       {
@@ -554,6 +621,79 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   trackLiveService(index: number, service: BusServiceArrival): string {
     return service.serviceNo;
+  }
+
+  isBusServicePinned(serviceNo: string): boolean {
+    return this.pinnedServicesForCurrentStop().includes(serviceNo);
+  }
+
+  async togglePinnedBusService(service: BusServiceArrival, event?: Event): Promise<void> {
+    event?.stopPropagation();
+    const busStopCode = this.searchedBusStopCode.trim();
+
+    if (!busStopCode) {
+      return;
+    }
+
+    const serviceNo = service.serviceNo;
+    const currentPins = this.pinnedBusServices[busStopCode] || [];
+    const isPinned = currentPins.includes(serviceNo);
+
+    this.pinnedBusServices = {
+      ...this.pinnedBusServices,
+      [busStopCode]: isPinned
+        ? currentPins.filter((pinnedServiceNo) => pinnedServiceNo !== serviceNo)
+        : [serviceNo, ...currentPins]
+    };
+
+    if (!this.pinnedBusServices[busStopCode].length) {
+      delete this.pinnedBusServices[busStopCode];
+    }
+
+    this.savePinnedBusServices();
+    this.markPinnedBusStopUpdated(busStopCode);
+    this.liveBusServices = this.sortLiveServices(this.liveBusServices);
+    await this.refreshFeedbackService.info(isPinned ? `Bus ${serviceNo} unpinned` : `Bus ${serviceNo} pinned`);
+    this.widgetBridgeService.syncWidgetData();
+  }
+
+  isTrackingLiveActivity(service: BusServiceArrival): boolean {
+    return this.liveActivityTrackingService.isTracking(this.searchedBusStopCode.trim(), service.serviceNo);
+  }
+
+  async toggleBusLiveActivityTracking(service: BusServiceArrival, event?: Event): Promise<void> {
+    event?.stopPropagation();
+
+    if (this.isTrackingLiveActivity(service)) {
+      await this.stopLiveActivityTracking(true);
+      return;
+    }
+
+    await this.startLiveActivityTracking(service);
+  }
+
+  async stopLiveActivityTracking(showToast = true, event?: Event): Promise<void> {
+    event?.stopPropagation();
+    await this.liveActivityTrackingService.end(true);
+
+    if (showToast) {
+      await this.refreshFeedbackService.info('Stopped tracking');
+    }
+  }
+
+  openPinInfoPopup(event?: Event): void {
+    event?.stopPropagation();
+    this.isPinInfoPopupOpen = true;
+    void this.refreshFeedbackService.lightImpact();
+  }
+
+  handlePinInfoPopupTap(event: Event): void {
+    event.stopPropagation();
+    void this.refreshFeedbackService.lightImpact();
+  }
+
+  closePinInfoPopup(): void {
+    this.isPinInfoPopupOpen = false;
   }
 
   trackFavouriteBusStop(index: number, stop: FavouriteBusStop): string {
@@ -674,6 +814,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     event.stopPropagation();
     this.favouriteSortMessage = '';
     this.isFavouriteSortPopoverOpen = !this.isFavouriteSortPopoverOpen;
+    void this.refreshFeedbackService.lightImpact();
   }
 
   closeFavouriteSortPopover(): void {
@@ -682,17 +823,13 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   async selectFavouriteSort(mode: FavouriteSortMode, event?: Event): Promise<void> {
     event?.stopPropagation();
-    const changedSort = this.favouriteSortMode !== mode;
     this.favouriteSortMode = mode;
     this.favouriteSortMessage = '';
 
     const sorted = await this.applyFavouriteSort({ persist: true });
 
     if (sorted) {
-      if (changedSort) {
-        void this.refreshFeedbackService.lightImpact();
-      }
-
+      void this.refreshFeedbackService.lightImpact();
       this.closeFavouriteSortPopover();
     }
   }
@@ -1373,11 +1510,40 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private sortLiveServices(services: BusServiceArrival[]): BusServiceArrival[] {
-    return [...services].sort((a, b) => this.arrivalSortValue(a) - this.arrivalSortValue(b));
+    const pinnedServices = this.pinnedServicesForCurrentStop();
+
+    return [...services].sort((a, b) => {
+      const pinnedA = pinnedServices.indexOf(a.serviceNo);
+      const pinnedB = pinnedServices.indexOf(b.serviceNo);
+
+      if (pinnedA !== -1 || pinnedB !== -1) {
+        if (pinnedA === -1) {
+          return 1;
+        }
+
+        if (pinnedB === -1) {
+          return -1;
+        }
+
+        return pinnedA - pinnedB;
+      }
+
+      return this.arrivalSortValue(a) - this.arrivalSortValue(b);
+    });
   }
 
   private arrivalSortValue(service: BusServiceArrival): number {
     return service.nextBus.minutesAway === null ? Number.MAX_SAFE_INTEGER : service.nextBus.minutesAway;
+  }
+
+  private pinnedServicesForCurrentStop(): string[] {
+    const busStopCode = this.searchedBusStopCode.trim();
+
+    if (!busStopCode) {
+      return [];
+    }
+
+    return this.pinnedBusServices[busStopCode] || [];
   }
 
   private matchScore(stop: BusStop, query: string, tokens: string[]): number {
@@ -1581,9 +1747,38 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
     try {
       await this.sameTabScrollService.toTop(this.content);
+      this.resetHomeHorizontalScrollSections();
     } finally {
       this.isProgrammaticScroll = false;
     }
+  }
+
+  private resetHomeHorizontalScrollSections(): void {
+    window.requestAnimationFrame(() => {
+      this.resetHorizontalScroller('recent', this.recentStopsScroller?.nativeElement);
+      this.resetHorizontalScroller('favourite', this.favouriteStopsScroller?.nativeElement);
+    });
+  }
+
+  private resetHorizontalScroller(name: 'recent' | 'favourite', scroller?: HTMLElement): void {
+    console.log(`Home carousel reset: found ${name} scroller?`, !!scroller);
+
+    if (!scroller) {
+      return;
+    }
+
+    console.log(`Home carousel reset: ${name} scrollLeft before`, scroller.scrollLeft);
+
+    if (scroller.scrollLeft > 1) {
+      scroller.scrollTo({
+        left: 0,
+        behavior: 'smooth'
+      });
+    }
+
+    window.setTimeout(() => {
+      console.log(`Home carousel reset: ${name} scrollLeft after`, scroller.scrollLeft);
+    }, 280);
   }
 
   private restoreScrollPosition(scrollTop: number): void {
@@ -1592,8 +1787,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }, 90);
   }
 
-  private markArrivalsRefreshed(): void {
-    this.lastArrivalsRefreshedAt = Date.now();
+  private markArrivalsRefreshed(refreshedAt = Date.now()): void {
+    this.lastArrivalsRefreshedAt = refreshedAt;
     this.updateLastArrivalsRefreshedLabel();
 
     if (!this.lastArrivalsRefreshedTimer) {
@@ -1670,6 +1865,112 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private async startLiveActivityTracking(service: BusServiceArrival): Promise<void> {
+    const payload = this.buildLiveActivityPayload(service);
+
+    if (!payload) {
+      await this.refreshFeedbackService.info('Live Activities are unavailable here');
+      return;
+    }
+
+    try {
+      const started = await this.liveActivityTrackingService.start(payload);
+
+      if (!started) {
+        await this.refreshFeedbackService.info('Live Activities are unavailable here');
+        return;
+      }
+
+      await this.refreshFeedbackService.info(`Tracking bus ${payload.serviceNo}`);
+    } catch (error) {
+      console.warn('[LiveTrack] Live Activity start failed', error);
+      const message = error instanceof Error ? error.message : String((error as any)?.message || error || '');
+      await this.refreshFeedbackService.info(
+        message.includes('disabled')
+          ? 'Enable Live Activities in Settings'
+          : message.includes('push-enabled')
+            ? 'Live Activity push setup is unavailable on this device'
+            : 'Live Activity is unavailable'
+      );
+    }
+  }
+
+  private async updateLiveActivityTrackingFromArrivals(arrivalLookup: BusArrivalLookup): Promise<void> {
+    const tracked = this.liveActivityTrackingService.currentState;
+
+    if (!tracked.active) {
+      return;
+    }
+
+    if (Date.now() >= tracked.expiresAt) {
+      await this.liveActivityTrackingService.end(true);
+      return;
+    }
+
+    if (tracked.busStopCode !== this.searchedBusStopCode.trim()) {
+      return;
+    }
+
+    await this.liveActivityTrackingService.refreshTrackedBusAndUpdateLiveActivity('manual', arrivalLookup);
+  }
+
+  liveTrackDebugTime(timestamp: number): string {
+    if (!timestamp) {
+      return '--';
+    }
+
+    return new Date(timestamp).toLocaleTimeString('en-SG', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  }
+
+  private buildLiveActivityPayload(
+    service: BusServiceArrival,
+    tracked = this.liveActivityTrackingService.currentState,
+    options: {
+      busStopCode?: string;
+      busStopName?: string;
+      lastUpdatedAt?: number;
+    } = {}
+  ): BusLiveActivityPayload | null {
+    const busStopCode = (options.busStopCode || this.searchedBusStopCode).trim();
+
+    if (!busStopCode || !this.hasValidLiveActivityArrival(service)) {
+      return null;
+    }
+
+    const now = Date.now();
+    const startedAt = tracked.active ? tracked.startedAt : now;
+    const expiresAt = Math.min(startedAt + this.liveActivityTimeoutMs, now + this.liveActivityTimeoutMs);
+    const arrivalAt = new Date(service.nextBus.estimatedArrival || '').getTime();
+
+    return {
+      serviceNo: service.serviceNo,
+      busStopName: options.busStopName || this.arrivalStopTitle(),
+      busStopCode,
+      arrivalStatus: service.nextBus.timing,
+      nextArrivalTiming: service.subsequentBus.timing,
+      thirdArrivalTiming: service.thirdBus.timing,
+      busType: service.nextBus.type,
+      wheelchairAccessible: service.nextBus.wheelchairAccessible,
+      seatAvailability: service.nextBus.load,
+      arrivalAt,
+      lastUpdatedAt: options.lastUpdatedAt || now,
+      startedAt,
+      expiresAt
+    };
+  }
+
+  private hasValidLiveActivityArrival(service: BusServiceArrival): boolean {
+    return service.nextBus.minutesAway !== null
+      && !!service.nextBus.estimatedArrival
+      && Number.isFinite(new Date(service.nextBus.estimatedArrival).getTime())
+      && service.nextBus.timing !== 'No Bus';
+  }
+
   private rememberBusStop(stop: BusStop): void {
     this.recentBusStops = [
       stop,
@@ -1691,6 +1992,70 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     } catch {
       return [];
     }
+  }
+
+  private loadPinnedBusServices(): PinnedBusServicesByStop {
+    const storedPins = localStorage.getItem(this.pinnedBusServicesStorageKey);
+
+    if (!storedPins) {
+      return {};
+    }
+
+    try {
+      const parsedPins = JSON.parse(storedPins) as PinnedBusServicesByStop;
+
+      if (!parsedPins || typeof parsedPins !== 'object' || Array.isArray(parsedPins)) {
+        return {};
+      }
+
+      return Object.entries(parsedPins).reduce<PinnedBusServicesByStop>((pins, [busStopCode, serviceNos]) => {
+        if (!busStopCode || !Array.isArray(serviceNos)) {
+          return pins;
+        }
+
+        const normalizedServices = serviceNos
+          .filter((serviceNo): serviceNo is string => typeof serviceNo === 'string')
+          .map((serviceNo) => serviceNo.trim().toUpperCase())
+          .filter(Boolean);
+
+        if (normalizedServices.length) {
+          pins[busStopCode] = Array.from(new Set(normalizedServices));
+        }
+
+        return pins;
+      }, {});
+    } catch {
+      return {};
+    }
+  }
+
+  private savePinnedBusServices(): void {
+    localStorage.setItem(this.pinnedBusServicesStorageKey, JSON.stringify(this.pinnedBusServices));
+  }
+
+  private markPinnedBusStopUpdated(busStopCode: string): void {
+    const storedUpdatedAt = localStorage.getItem(this.pinnedBusServicesUpdatedAtStorageKey);
+    let updatedAtByStop: Record<string, number> = {};
+
+    if (storedUpdatedAt) {
+      try {
+        const parsedUpdatedAt = JSON.parse(storedUpdatedAt) as Record<string, number>;
+
+        if (parsedUpdatedAt && typeof parsedUpdatedAt === 'object' && !Array.isArray(parsedUpdatedAt)) {
+          updatedAtByStop = parsedUpdatedAt;
+        }
+      } catch {
+        updatedAtByStop = {};
+      }
+    }
+
+    if (this.pinnedBusServices[busStopCode]?.length) {
+      updatedAtByStop[busStopCode] = Date.now();
+    } else {
+      delete updatedAtByStop[busStopCode];
+    }
+
+    localStorage.setItem(this.pinnedBusServicesUpdatedAtStorageKey, JSON.stringify(updatedAtByStop));
   }
 
   private loadFavouriteBusStops(): FavouriteBusStop[] {

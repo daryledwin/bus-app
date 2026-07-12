@@ -85,6 +85,11 @@ export class SettingsPage {
     this.navController.navigateForward('/bus-routes', { animated: true });
   }
 
+  openPinnedBuses(): void {
+    void this.refreshFeedbackService.lightImpact();
+    this.navController.navigateForward('/pinned-buses', { animated: true });
+  }
+
   async openDataSourcePage(): Promise<void> {
     try {
       await Browser.open({ url: this.dataSourceUrl });

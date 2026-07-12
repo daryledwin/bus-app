@@ -763,7 +763,14 @@ ion-content.routes-page {
   padding: 8px 0;
   position: relative;
   text-align: left;
+  transition: background-color 120ms ease, opacity 120ms ease;
   width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.route-progress__stop:active {
+  background-color: rgba(25, 119, 201, 0.06);
+  opacity: 0.82;
 }
 
 .route-progress__stop:not(:last-child)::after {

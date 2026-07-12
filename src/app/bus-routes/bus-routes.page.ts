@@ -1,5 +1,6 @@
 import { Component, ElementRef, OnInit, Optional, ViewChild } from '@angular/core';
-import { Haptics } from '@capacitor/haptics';
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { IonContent, IonRouterOutlet, NavController } from '@ionic/angular';
 
 import { BusRoute, LtaBusRoutesService } from '../services/lta-bus-routes.service';
@@ -46,7 +47,7 @@ export class BusRoutesPage implements OnInit {
   private busStopLookup = new Map<string, BusStop>();
   private busStopsLoadPromise?: Promise<BusStop[]>;
   private inputAnimationTimer?: ReturnType<typeof setTimeout>;
-  private lastInputKeyHapticAt = 0;
+  private lastHapticInputValue = '';
   private readonly recentBusServicesStorageKey = 'recentBusRouteServices';
   private readonly serviceNumberIndex = [
     '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19',
@@ -179,7 +180,7 @@ export class BusRoutesPage implements OnInit {
     this.busServiceQuery = sanitizedValue;
     this.showSuggestions = true;
     this.animateInputValue();
-    this.triggerInputFallbackHaptic();
+    this.triggerInputValueHaptic(sanitizedValue);
   }
 
   preventNonNumericInput(event: KeyboardEvent): void {
@@ -187,13 +188,8 @@ export class BusRoutesPage implements OnInit {
       event.metaKey
       || event.ctrlKey
       || event.altKey
-      || ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Enter', 'Home', 'End'].includes(event.key)
+      || ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Tab', 'Enter', 'Home', 'End'].includes(event.key)
     ) {
-      return;
-    }
-
-    if (['Backspace', 'Delete'].includes(event.key) || /^\d$/.test(event.key)) {
-      this.triggerInputKeyHaptic();
       return;
     }
 
@@ -216,6 +212,7 @@ export class BusRoutesPage implements OnInit {
 
   clearBusServiceSearch(): void {
     this.busServiceQuery = '';
+    this.lastHapticInputValue = '';
     this.showSuggestions = false;
     this.isInputAnimating = false;
     this.isLoadingRoutes = false;
@@ -226,6 +223,7 @@ export class BusRoutesPage implements OnInit {
   }
 
   selectDirection(direction: number): void {
+    void this.refreshFeedbackService.lightImpact();
     this.selectedDirection = direction;
   }
 
@@ -273,25 +271,25 @@ export class BusRoutesPage implements OnInit {
     });
   }
 
-  private async inputSelectionHaptic(): Promise<void> {
+  private async inputImpactHaptic(): Promise<void> {
+    if (!Capacitor.isNativePlatform()) {
+      return;
+    }
+
     try {
-      await Haptics.selectionChanged();
+      await Haptics.impact({ style: ImpactStyle.Light });
     } catch {
       // Haptics are a nice-to-have and are unavailable in some browsers.
     }
   }
 
-  private triggerInputKeyHaptic(): void {
-    this.lastInputKeyHapticAt = Date.now();
-    void this.inputSelectionHaptic();
-  }
-
-  private triggerInputFallbackHaptic(): void {
-    if (Date.now() - this.lastInputKeyHapticAt < 80) {
+  private triggerInputValueHaptic(value: string): void {
+    if (value === this.lastHapticInputValue) {
       return;
     }
 
-    void this.inputSelectionHaptic();
+    this.lastHapticInputValue = value;
+    void this.inputImpactHaptic();
   }
 
   private hideSuggestions(): void {

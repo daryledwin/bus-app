@@ -4,7 +4,8 @@
 
 export const environment = {
   production: false,
-  apiBaseUrl: 'https://bus-app-vk72.onrender.com'
+  apiBaseUrl: 'https://bus-app-vk72.onrender.com',
+  liveActivitySessionToken: ''
 };
 
 /*
