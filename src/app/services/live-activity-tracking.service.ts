@@ -5,7 +5,7 @@ import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import { BehaviorSubject } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { BusArrivalLookup, BusServiceArrival, LtaBusService } from './lta-bus.service';
-import { BusLiveActivityPayload, WidgetBridgeService } from './widget-bridge.service';
+import { BusLiveActivityPayload, BusLiveActivityRestoreActivity, WidgetBridgeService } from './widget-bridge.service';
 
 export interface LiveActivityTrackingState {
   active: boolean;
@@ -103,7 +103,7 @@ const initialDebugState: LiveTrackDebugState = {
 export class LiveActivityTrackingService {
   private readonly trackingStateSubject = new BehaviorSubject<LiveActivityTrackingState>(inactiveTrackingState);
   private readonly debugStateSubject = new BehaviorSubject<LiveTrackDebugState>(initialDebugState);
-  private readonly pollIntervalMs = 10 * 1000;
+  private readonly pollIntervalMs = 15 * 1000;
   private readonly pollRequestTimeoutMs = 24 * 1000;
   // Foreground polling updates the Live Activity only while the app is active. Background and Lock Screen updates require ActivityKit push notifications through APNs.
   private trackingTimeout?: ReturnType<typeof setTimeout>;
@@ -117,6 +117,7 @@ export class LiveActivityTrackingService {
   private pushTokenListener?: PluginListenerHandle;
   private activeActivityId = '';
   private readonly pendingPushTokens = new Map<string, string>();
+  private readonly trackedActivities = new Map<string, BusLiveActivityRestoreActivity>();
 
   readonly trackingState$ = this.trackingStateSubject.asObservable();
   readonly debugState$ = this.debugStateSubject.asObservable();
@@ -153,11 +154,11 @@ export class LiveActivityTrackingService {
   }
 
   isTracking(busStopCode: string, serviceNo: string): boolean {
-    const state = this.currentState;
-
-    return state.active
-      && state.busStopCode === busStopCode
-      && state.serviceNo === serviceNo;
+    const normalizedServiceNo = serviceNo.trim().toUpperCase();
+    return Array.from(this.trackedActivities.values()).some((activity) => (
+      activity.busStopCode === busStopCode.trim()
+      && activity.serviceNo.trim().toUpperCase() === normalizedServiceNo
+    ));
   }
 
   async start(payload: BusLiveActivityPayload): Promise<boolean> {
@@ -166,7 +167,6 @@ export class LiveActivityTrackingService {
     }
 
     this.debugStateSubject.next(initialDebugState);
-    await this.clearNativeActivity(false);
     const startResult = await this.widgetBridgeService.startBusLiveActivity(payload);
 
     if (!startResult?.started || !startResult.activityId) {
@@ -175,6 +175,12 @@ export class LiveActivityTrackingService {
     }
 
     this.activeActivityId = startResult?.activityId || '';
+    this.trackedActivities.set(this.activeActivityId, {
+      ...payload,
+      activityId: this.activeActivityId,
+      pushToken: startResult.pushToken,
+      apnsEnvironment: startResult.apnsEnvironment
+    });
     this.setStateFromPayload(payload);
     console.debug('[LiveTrack] tracking started', {
       serviceNo: payload.serviceNo,
@@ -189,13 +195,13 @@ export class LiveActivityTrackingService {
 
     if (startResult.pushToken) {
       console.debug('[LiveTrack] push token received');
-      void this.registerPushUpdateSession(startResult.activityId, startResult.pushToken, payload);
+      void this.registerPushUpdateSession(startResult.activityId, startResult.pushToken, payload, startResult.apnsEnvironment);
     } else if (startResult.pushEnabled) {
       const pendingPushToken = this.pendingPushTokens.get(startResult.activityId);
 
       if (pendingPushToken) {
         this.pendingPushTokens.delete(startResult.activityId);
-        void this.registerPushUpdateSession(startResult.activityId, pendingPushToken, payload);
+        void this.registerPushUpdateSession(startResult.activityId, pendingPushToken, payload, startResult.apnsEnvironment);
       } else {
         console.debug('[LiveTrack] push token pending', {
           activityId: startResult.activityId
@@ -266,20 +272,29 @@ export class LiveActivityTrackingService {
     this.setStateFromPayload(payload);
   }
 
-  async end(endNative = true): Promise<void> {
-    if (!this.currentState.active) {
+  async end(endNative = true, activityId = this.activeActivityId): Promise<void> {
+    if (!activityId) {
       return;
     }
+    await this.clearNativeActivity(endNative, activityId);
+  }
 
-    await this.clearNativeActivity(endNative);
+  async endTracking(busStopCode: string, serviceNo: string): Promise<void> {
+    const normalizedServiceNo = serviceNo.trim().toUpperCase();
+    const match = Array.from(this.trackedActivities.values()).find((activity) => (
+      activity.busStopCode === busStopCode.trim()
+      && activity.serviceNo.trim().toUpperCase() === normalizedServiceNo
+    ));
+    if (match) {
+      await this.end(true, match.activityId);
+    }
   }
 
   clearIfTracking(busStopCode: string): Promise<void> {
-    if (this.currentState.active && this.currentState.busStopCode === busStopCode) {
-      return this.end(true);
-    }
-
-    return Promise.resolve();
+    const activityIds = Array.from(this.trackedActivities.values())
+      .filter((activity) => activity.busStopCode === busStopCode)
+      .map((activity) => activity.activityId);
+    return Promise.all(activityIds.map((activityId) => this.end(true, activityId))).then(() => undefined);
   }
 
   private setStateFromPayload(payload: BusLiveActivityPayload): void {
@@ -304,12 +319,18 @@ export class LiveActivityTrackingService {
 
   }
 
-  private async clearNativeActivity(endNative: boolean): Promise<void> {
-    const activityId = this.activeActivityId;
+  private async clearNativeActivity(endNative: boolean, activityId = this.activeActivityId): Promise<void> {
     this.clearTimer();
     this.stopPoller('tracking cleared');
-    this.trackingStateSubject.next(inactiveTrackingState);
-    this.activeActivityId = '';
+    this.trackedActivities.delete(activityId);
+    const remainingActivity = Array.from(this.trackedActivities.values())
+      .sort((a, b) => b.startedAt - a.startedAt)[0];
+    this.activeActivityId = remainingActivity?.activityId || '';
+    if (remainingActivity) {
+      this.setStateFromPayload(remainingActivity);
+    } else {
+      this.trackingStateSubject.next(inactiveTrackingState);
+    }
     this.pollTickCount = 0;
     const backendDeleted = await this.endPushUpdateSession(activityId);
 
@@ -318,7 +339,7 @@ export class LiveActivityTrackingService {
     }
 
     try {
-      await this.widgetBridgeService.endBusLiveActivity();
+      await this.widgetBridgeService.endBusLiveActivity(activityId);
       console.debug('[LiveTrack] stop action completed', { activityId, backendDeleted, nativeEnded: true });
     } catch (error) {
       console.warn('[LiveTrack] stop action native end failed', { activityId, backendDeleted, error });
@@ -407,7 +428,7 @@ export class LiveActivityTrackingService {
     const listenerPromise = this.widgetBridgeService.addLiveActivityPushTokenListener((event) => {
       const activityId = event.activityId || '';
       const pushToken = event.pushToken || '';
-      const state = this.currentState;
+      const trackedActivity = this.trackedActivities.get(activityId);
 
       if (!activityId || !pushToken) {
         console.debug('[LiveTrack] push token update ignored: missing activity ID or token', {
@@ -417,12 +438,12 @@ export class LiveActivityTrackingService {
         return;
       }
 
-      if (!state.active || activityId !== this.activeActivityId) {
+      if (!trackedActivity) {
         this.pendingPushTokens.set(activityId, pushToken);
         console.debug('[LiveTrack] push token buffered until the activity start resolves', {
           activityId,
           activeActivityId: this.activeActivityId,
-          activeTracking: state.active
+          activeTracking: this.currentState.active
         });
         return;
       }
@@ -431,7 +452,14 @@ export class LiveActivityTrackingService {
         activityId,
         tokenLength: pushToken.length
       });
-      void this.registerPushUpdateSession(activityId, pushToken, this.payloadFromState(state));
+      trackedActivity.pushToken = pushToken;
+      trackedActivity.apnsEnvironment = event.apnsEnvironment || trackedActivity.apnsEnvironment;
+      void this.registerPushUpdateSession(
+        activityId,
+        pushToken,
+        trackedActivity,
+        trackedActivity.apnsEnvironment
+      );
     });
 
     listenerPromise?.then((listener) => {
@@ -758,7 +786,8 @@ export class LiveActivityTrackingService {
   private async registerPushUpdateSession(
     activityId: string | undefined,
     pushToken: string | undefined,
-    payload: BusLiveActivityPayload
+    payload: BusLiveActivityPayload,
+    apnsEnvironment?: 'development' | 'production'
   ): Promise<boolean> {
     if (!activityId || !pushToken) {
       console.debug('[LiveTrack] push update session not registered: missing ActivityKit activity ID or push token', {
@@ -774,7 +803,8 @@ export class LiveActivityTrackingService {
       busStopCode: payload.busStopCode,
       serviceNo: payload.serviceNo,
       busStopName: payload.busStopName,
-      expiresAt: payload.expiresAt
+      expiresAt: payload.expiresAt,
+      apnsEnvironment
     };
     const requestOptions = this.liveActivitySessionRequestOptions();
 
@@ -785,6 +815,7 @@ export class LiveActivityTrackingService {
           activityId,
           serviceNo: payload.serviceNo,
           busStopCode: payload.busStopCode,
+          apnsEnvironment,
           attempt
         });
         return true;
@@ -837,14 +868,6 @@ export class LiveActivityTrackingService {
         activityIds: activities.map((activity) => activity.activityId)
       });
 
-      for (const orphanedActivityId of result?.orphanedActivityIds || []) {
-        const deleted = await this.endPushUpdateSession(orphanedActivityId);
-        console.debug('[LiveTrack Restore] orphan backend session cleanup', {
-          activityId: orphanedActivityId,
-          deleted
-        });
-      }
-
       const restored = activities[0];
       if (!restored) {
         if (this.currentState.active) {
@@ -864,6 +887,8 @@ export class LiveActivityTrackingService {
         return;
       }
 
+      this.trackedActivities.clear();
+      activities.forEach((activity) => this.trackedActivities.set(activity.activityId, activity));
       this.activeActivityId = restored.activityId;
       this.setStateFromPayload(restored);
       console.debug('[LiveTrack Restore] restored activity into app state', {
@@ -873,13 +898,22 @@ export class LiveActivityTrackingService {
         busStopCode: restored.busStopCode
       });
 
-      const reconciled = restored.pushToken
-        ? await this.registerPushUpdateSession(restored.activityId, restored.pushToken, restored)
-        : await this.requestBackendRefresh('foreground');
+      const reconciliationResults = await Promise.all(activities.map(async (activity) => (
+        activity.pushToken
+          ? this.registerPushUpdateSession(
+            activity.activityId,
+            activity.pushToken,
+            activity,
+            activity.apnsEnvironment
+          )
+          : false
+      )));
+      const reconciled = reconciliationResults.every(Boolean);
       console.debug('[LiveTrack Restore] backend session reconciliation', {
         reason,
         activityId: restored.activityId,
-        method: restored.pushToken ? 'registration' : 'refresh',
+        activityCount: activities.length,
+        method: 'registration',
         reconciled
       });
     } catch (error) {

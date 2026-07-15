@@ -50,9 +50,11 @@ The Bus Stops proxy response is sanitized to `BusStopCode`, `Description`, `Road
 
 ## Live Activity Updates
 
-The iOS app requests each Live Activity with `pushType: .token`, observes token updates, and registers the activity ID, push token, stop, and service with the backend. The backend is the source of truth in both foreground and background: it fetches LTA arrivals about every 10 seconds and sends complete replacement content state through APNs. The widget renders the supplied labels directly and does not run a local ETA countdown.
+The iOS app requests each Live Activity with `pushType: .token`, observes token updates, and registers the activity ID, push token, stop, service, and signed-build APNs environment with the backend. The backend is the source of truth in both foreground and background: it fetches LTA arrivals every 15 seconds and sends complete replacement content state through APNs. Each activity is stored and refreshed independently. The widget renders the supplied `ContentState` labels directly and does not run a local ETA countdown.
 
-Stopping tracking sends an APNs `end` event and deletes the backend session. Configure `APNS_TEAM_ID`, `APNS_KEY_ID`, an APNs private key, `APNS_LIVE_ACTIVITY_TOPIC`, and the correct `APNS_ENVIRONMENT` on Render.
+Stopping tracking sends an APNs `end` event and deletes only that activity's backend session. Configure `APNS_TEAM_ID`, `APNS_KEY_ID`, an APNs private key, and `APNS_LIVE_ACTIVITY_TOPIC=com.daryledwin.bus.push-type.liveactivity` on Render. Debug activity tokens are routed to the APNs sandbox and Release activity tokens are routed to production based on the environment registered with each token.
+
+During Live Activity diagnosis, `GET /health` reports the loop interval, APNs configuration status, exact topic, and active session count. The authorized `GET /api/live-activity-sessions` endpoint lists non-secret session diagnostics, including activity ID, stop, service, environment, timestamps, refresh state, and a one-way push-token fingerprint.
 
 ## Render Deployment
 

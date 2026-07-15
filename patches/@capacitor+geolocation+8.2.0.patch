@@ -1,0 +1,56 @@
+diff --git a/node_modules/@capacitor/geolocation/ios/Sources/GeolocationPlugin/GeolocationPlugin.swift b/node_modules/@capacitor/geolocation/ios/Sources/GeolocationPlugin/GeolocationPlugin.swift
+index c9252d5..ba69767 100644
+--- a/node_modules/@capacitor/geolocation/ios/Sources/GeolocationPlugin/GeolocationPlugin.swift
++++ b/node_modules/@capacitor/geolocation/ios/Sources/GeolocationPlugin/GeolocationPlugin.swift
+@@ -38,15 +38,16 @@ public class GeolocationPlugin: CAPPlugin, CAPBridgedPlugin {
+     @objc private func appDidBecomeActive() {
+         if let watchCallbacksEmpty = callbackManager?.watchCallbacks.isEmpty, !watchCallbacksEmpty {
+             print("App became active. Restarting location monitoring for watch callbacks.")
+-            locationCancellable?.cancel()
+-            locationCancellable = nil
++            resetLocationPublisherBinding()
+             timeoutCancellable?.cancel()
+             timeoutCancellable = nil
+-            locationInitialized = false
+ 
+             locationService?.stopMonitoringLocation()
+             locationService?.startMonitoringLocation()
+             bindLocationPublisher()
++        } else if !locationInitialized || locationCancellable == nil {
++            resetLocationPublisherBinding()
++            bindLocationPublisher()
+         }
+     }
+ 
+@@ -161,9 +162,15 @@ private extension GeolocationPlugin {
+                         .eraseToAnyPublisher()
+                 }
+             }
+-            .sink(receiveValue: { [weak self] position in
+-                self?.callbackManager?.sendSuccess(with: position)
+-            })
++            .sink(
++                receiveCompletion: { [weak self] _ in
++                    self?.locationCancellable = nil
++                    self?.locationInitialized = false
++                },
++                receiveValue: { [weak self] position in
++                    self?.callbackManager?.sendSuccess(with: position)
++                }
++            )
+ 
+         timeoutCancellable = locationService?.locationTimeoutPublisher
+             .sink(receiveValue: { [weak self] error in
+@@ -175,6 +182,12 @@ private extension GeolocationPlugin {
+             })
+     }
+ 
++    func resetLocationPublisherBinding() {
++        locationCancellable?.cancel()
++        locationCancellable = nil
++        locationInitialized = false
++    }
++
+     func requestLocationAuthorisation(type requestType: IONGLOCAuthorisationRequestType) {
+         DispatchQueue.global(qos: .background).async {
+             guard self.checkIfLocationServicesAreEnabled() else { return }

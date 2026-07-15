@@ -200,7 +200,7 @@
 
     <section #arrivalsSection class="arrivals-section fade-in-delayed" aria-labelledby="nearby-title">
       <div class="section-heading">
-        <div>
+        <div class="arrival-heading-copy">
           <div class="arrival-label-row">
             <p>Live Bus Arrival</p>
             <button
@@ -403,8 +403,8 @@
                     [attr.tabindex]="expandedLiveServiceNo === service.serviceNo ? 0 : -1"
                     (click)="openRouteModal(service)"
                   >
+                    <ion-icon name="map-outline" aria-hidden="true"></ion-icon>
                     <span>View Full Route</span>
-                    <ion-icon name="arrow-forward-outline"></ion-icon>
                   </button>
 
                   <button

@@ -618,11 +618,11 @@ ion-content.routes-page {
   border: 0;
   display: block;
   height: auto;
+  image-rendering: auto;
   object-fit: contain;
   transform-origin: top left;
   user-select: none;
   -webkit-user-drag: none;
-  will-change: transform;
   width: 100%;
 }
 
@@ -681,11 +681,11 @@ ion-content.routes-page {
 .mrt-map-fullscreen__viewer img {
   display: block;
   height: auto;
+  image-rendering: auto;
   object-fit: contain;
   transform-origin: top left;
   user-select: none;
   -webkit-user-drag: none;
-  will-change: transform;
   width: 100%;
 }
 

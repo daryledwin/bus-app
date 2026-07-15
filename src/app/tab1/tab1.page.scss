@@ -8940,7 +8940,7 @@ ion-modal.route-modal::part(content),
 .live-row__meta .metadata-line--accessible,
 .live-row__meta .metadata-line--accessible .wheelchair-access-icon,
 .live-row__meta .metadata-line--accessible .metadata-icon__stroke {
-  color: #6e737b;
+  color: #007aff;
   stroke: currentColor;
 }
 
@@ -9302,5 +9302,186 @@ ion-modal.route-modal::part(content),
   .live-tracking-header__status button {
     height: 31px;
     width: 31px;
+  }
+}
+
+/* Native iOS polish: preserve the existing layout while clarifying hierarchy. */
+.section-heading {
+  align-items: center;
+  gap: 12px;
+}
+
+.arrival-heading-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.arrival-title-row {
+  gap: 8px;
+}
+
+.arrival-title-row .favourite-stop-button {
+  background: rgba(255, 255, 255, 0.58);
+  border-color: rgba(151, 176, 194, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  height: 38px;
+  margin-top: 0;
+  min-height: 38px;
+  width: 38px;
+}
+
+.arrival-title-row .favourite-stop-button .favourite-icon-pop {
+  height: 38px;
+  width: 38px;
+}
+
+.arrival-title-row .favourite-stop-button ion-icon {
+  font-size: 19px;
+}
+
+.arrival-title-row .favourite-stop-button.active {
+  background: rgba(255, 241, 242, 0.68);
+  border-color: rgba(255, 90, 95, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.arrival-live-status {
+  align-content: center;
+  gap: 3px;
+  min-width: max-content;
+}
+
+.section-heading .arrival-live-status button {
+  background: rgba(52, 168, 83, 0.07);
+  border-color: rgba(52, 168, 83, 0.1);
+  color: rgba(35, 132, 72, 0.82);
+  font-size: 10px;
+  min-height: 28px;
+  padding: 0 9px;
+}
+
+.section-heading .arrival-live-status button ion-icon {
+  font-size: 13px;
+}
+
+.arrival-updated {
+  color: rgba(60, 60, 67, 0.48);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.live-row__meta .metadata-line--accessible,
+.live-row__meta .metadata-line--not-accessible {
+  opacity: 0.72;
+}
+
+.live-row__origin {
+  color: rgba(60, 60, 67, 0.56);
+  font-weight: 650;
+  opacity: 1;
+}
+
+.live-row__details-inner {
+  gap: 7px;
+  padding-bottom: 10px;
+}
+
+.timing-row--compact {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0;
+  width: 100%;
+}
+
+.timing-row--compact .timing-card {
+  align-content: center;
+  border-radius: 13px;
+  gap: 3px;
+  height: 46px;
+  min-height: 46px;
+  min-width: 0;
+  padding: 5px 8px;
+  width: 100%;
+}
+
+.timing-row--compact .timing-card span {
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.timing-row--compact .timing-card strong {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.arrival-action-buttons {
+  border-top: 1px solid rgba(60, 60, 67, 0.08);
+  gap: 8px;
+  margin-top: 1px;
+  padding-top: 6px;
+  width: min(244px, calc(100% - 42px));
+}
+
+.arrival-action-buttons .view-route-button,
+.arrival-action-buttons .track-live-button {
+  align-items: center;
+  border: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  height: 40px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.arrival-action-buttons .view-route-button {
+  background: rgba(25, 119, 201, 0.16);
+  color: #1977c9;
+}
+
+.arrival-action-buttons .view-route-button ion-icon,
+.arrival-action-buttons .track-live-button ion-icon {
+  color: currentColor;
+  flex: 0 0 auto;
+  font-size: 16px;
+}
+
+.arrival-action-buttons .view-route-button:active {
+  background: rgba(25, 119, 201, 0.17);
+}
+
+.arrival-action-buttons .track-live-button {
+  background: rgba(124, 92, 230, 0.16);
+  color: #7052d3;
+}
+
+.arrival-action-buttons .track-live-button--active {
+  background: rgba(52, 168, 83, 0.13);
+  border-color: rgba(52, 168, 83, 0.12);
+  color: #2f8f61;
+}
+
+@media (max-width: 390px) {
+  .section-heading {
+    gap: 9px;
+  }
+
+  .arrival-title-row {
+    gap: 6px;
+  }
+
+  .arrival-live-status {
+    max-width: 92px;
+  }
+
+  .arrival-updated {
+    white-space: normal;
   }
 }

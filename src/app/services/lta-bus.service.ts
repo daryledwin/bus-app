@@ -1,9 +1,9 @@
-import { HttpClient, HttpErrorResponse, HttpParams, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, OnDestroy } from '@angular/core';
 import { App } from '@capacitor/app';
-import { Capacitor, PluginListenerHandle } from '@capacitor/core';
-import { defer, Observable, throwError, timer } from 'rxjs';
-import { map, mergeMap, retryWhen, tap, timeout } from 'rxjs/operators';
+import { Capacitor, CapacitorHttp, PluginListenerHandle } from '@capacitor/core';
+import { defer, from, Observable, of, throwError, timer } from 'rxjs';
+import { catchError, map, mergeMap, retryWhen, tap, timeout } from 'rxjs/operators';
 
 import { environment } from '../../environments/environment';
 
@@ -154,7 +154,7 @@ export class LtaBusService implements OnDestroy {
         performanceNow: performanceStartedAt
       });
 
-      return this.http.get<LtaBusResponse>(this.endpoint, { params, observe: 'response' }).pipe(
+      return this.arrivalResponse(params).pipe(
         timeout(requestTimeoutMs),
         retryWhen((errors) => errors.pipe(
           mergeMap((error, retryIndex) => {
@@ -193,6 +193,55 @@ export class LtaBusService implements OnDestroy {
         })
       );
     });
+  }
+
+  private arrivalResponse(params: HttpParams): Observable<HttpResponse<LtaBusResponse>> {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'ios') {
+      return this.http.get<LtaBusResponse>(this.endpoint, { params, observe: 'response' });
+    }
+
+    return defer(() => from(CapacitorHttp.get({
+      url: this.endpoint,
+      params: this.nativeHttpParams(params),
+      responseType: 'json'
+    }))).pipe(
+      mergeMap((response) => {
+        const angularResponse = new HttpResponse<LtaBusResponse>({
+          body: response.data as LtaBusResponse,
+          headers: new HttpHeaders(response.headers),
+          status: response.status,
+          url: response.url || this.endpoint
+        });
+
+        if (response.status >= 200 && response.status < 300) {
+          return of(angularResponse);
+        }
+
+        return throwError(new HttpErrorResponse({
+          error: response.data,
+          headers: angularResponse.headers,
+          status: response.status,
+          statusText: `HTTP ${response.status}`,
+          url: angularResponse.url || this.endpoint
+        }));
+      }),
+      catchError((error) => error instanceof HttpErrorResponse
+        ? throwError(error)
+        : throwError(new HttpErrorResponse({
+          error,
+          status: Number((error as any)?.status) || 0,
+          statusText: (error as any)?.message || 'Native HTTP request failed',
+          url: this.endpoint
+        })))
+    );
+  }
+
+  private nativeHttpParams(params: HttpParams): Record<string, string | string[]> {
+    return params.keys().reduce<Record<string, string | string[]>>((nativeParams, key) => {
+      const values = params.getAll(key) || [];
+      nativeParams[key] = values.length > 1 ? values : values[0] || '';
+      return nativeParams;
+    }, {});
   }
 
   private currentAppState(): 'active' | 'inactive' | 'background' {

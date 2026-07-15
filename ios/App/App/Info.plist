@@ -27,6 +27,7 @@
 			<string>com.daryledwin.bus</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>mybussg</string>
 				<string>skibidi</string>
 			</array>
 		</dict>

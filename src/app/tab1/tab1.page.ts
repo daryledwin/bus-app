@@ -1,6 +1,5 @@
 import { AfterViewInit, Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, Optional, QueryList, ViewChild, ViewChildren } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
-import { Geolocation } from '@capacitor/geolocation';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -14,8 +13,10 @@ import { LiveActivityTrackingService, LiveActivityTrackingState, LiveTrackDebugS
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { ReviewService } from '../services/review.service';
 import { SameTabScrollService } from '../services/same-tab-scroll.service';
+import { LocationService } from '../services/location.service';
 import { SPLASH_TAGLINES } from '../app.component';
 import { formatBusStopName as formatBusStopDisplayName } from '../utils/bus-stop-display';
+import { rankBusStopSearchResults } from '../utils/bus-stop-search';
 
 interface NavItem {
   label: string;
@@ -50,6 +51,7 @@ interface RouteProgression {
 }
 
 interface ArrivalSearchOptions {
+  forceRefresh?: boolean;
   preserveRouteState?: boolean;
   preserveScrollPosition?: boolean;
   scrollToArrivals?: boolean;
@@ -131,6 +133,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   private liveActivityTrackingSubscription?: Subscription;
   private liveActivityDebugSubscription?: Subscription;
   private arrivalRequestId = 0;
+  private normalArrivalSubscription?: Subscription;
+  private normalArrivalInFlightStopCode = '';
+  private normalArrivalOnComplete?: () => void;
+  private normalArrivalStartedAt = 0;
+  private normalArrivalCorrelationId = '';
   private refreshInProgress = false;
   private arrivalStickyThreshold = 0;
   private homeScrollElement?: HTMLElement;
@@ -181,6 +188,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     private readonly refreshFeedbackService: RefreshFeedbackService,
     private readonly reviewService: ReviewService,
     private readonly sameTabScrollService: SameTabScrollService,
+    private readonly locationService: LocationService,
     private readonly widgetBridgeService: WidgetBridgeService,
     private readonly liveActivityTrackingService: LiveActivityTrackingService,
     private readonly ngZone: NgZone,
@@ -209,12 +217,13 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     });
     this.routeQuerySubscription = this.activatedRoute.queryParamMap.subscribe((params) => {
       const busStopCode = params.get('busStopCode')?.trim();
+      const busStopName = params.get('busStopName')?.trim() || '';
 
       if (!busStopCode) {
         return;
       }
 
-      this.openBusStopFromDeepLink(busStopCode);
+      this.openBusStopFromDeepLink(busStopCode, busStopName);
     });
     this.liveActivityTrackingSubscription = this.liveActivityTrackingService.trackingState$.subscribe((state) => {
       this.liveTrackingState = state;
@@ -253,6 +262,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.cancelNormalArrivalRequest('page destroyed');
     this.selectedStopSubscription?.unsubscribe();
     this.routeQuerySubscription?.unsubscribe();
     this.liveActivityTrackingSubscription?.unsubscribe();
@@ -416,6 +426,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       this.searchTimer = undefined;
     }
 
+    this.cancelNormalArrivalRequest('search cleared');
+
     this.arrivalRequestId++;
     this.searchTerm = '';
     this.busStopResults = [];
@@ -428,7 +440,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.isLoadingArrivals = false;
     this.arrivalError = '';
     this.liveBusServices = [];
-    void this.liveActivityTrackingService.end(true);
     this.resetLastArrivalsRefreshed();
     this.resetRouteState();
     this.logMatchesFound(0);
@@ -446,12 +457,30 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const isNormalArrivalRequest = options.silentLiveActivityRefresh !== true;
+    if (isNormalArrivalRequest && this.normalArrivalSubscription && !this.normalArrivalSubscription.closed) {
+      if (this.normalArrivalInFlightStopCode === normalizedBusStopCode) {
+        console.info('[Arrivals] duplicate request suppressed', {
+          stopCode: normalizedBusStopCode,
+          activeRequestId: this.arrivalRequestId,
+          correlationId: this.normalArrivalCorrelationId
+        });
+        onComplete?.();
+        return;
+      }
+
+      this.cancelNormalArrivalRequest('replaced by different stop', normalizedBusStopCode);
+    }
+
     const requestId = ++this.arrivalRequestId;
     const startedAt = performance.now();
     const correlationId = isNormalArrivalRequest
       ? `arrival-${Date.now()}-${requestId}`
       : '';
     if (isNormalArrivalRequest) {
+      this.normalArrivalInFlightStopCode = normalizedBusStopCode;
+      this.normalArrivalOnComplete = onComplete;
+      this.normalArrivalStartedAt = startedAt;
+      this.normalArrivalCorrelationId = correlationId;
       console.info('[Arrivals] request start', {
         stopCode: normalizedBusStopCode,
         requestId,
@@ -477,9 +506,15 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       this.liveActivityTrackingService.markDebug('httpRequest', true, `searchArrivals stop ${normalizedBusStopCode}`);
     }
 
-    this.ltaBusService.getBusArrivals(normalizedBusStopCode, options.silentLiveActivityRefresh
+    const arrivalSubscription = this.ltaBusService.getBusArrivals(normalizedBusStopCode, options.silentLiveActivityRefresh
       ? { forceRefresh: true, reason: 'manual', retry: true }
-      : { retry: false, timeoutMs: 35000, correlationId }
+      : {
+        forceRefresh: options.forceRefresh,
+        reason: options.forceRefresh ? 'deep-link' : undefined,
+        retry: options.forceRefresh === true,
+        timeoutMs: 35000,
+        correlationId
+      }
     ).subscribe({
       next: (arrivalLookup) => {
         if (requestId !== this.arrivalRequestId) {
@@ -502,6 +537,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
             durationMs: Math.round(performance.now() - startedAt),
             serviceCount: arrivalLookup.services.length
           });
+          this.clearNormalArrivalRequest(requestId);
         }
         if (options.confirmLoadedHaptic === true) {
           void this.refreshFeedbackService.lightImpact();
@@ -536,6 +572,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
             timeout: error?.name === 'TimeoutError',
             error
           });
+          this.clearNormalArrivalRequest(requestId);
         }
         this.resolveSelectedBusStopForCode(normalizedBusStopCode, requestId);
         this.arrivalError = this.errorMessage(error);
@@ -545,6 +582,10 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         onComplete?.();
       }
     });
+
+    if (isNormalArrivalRequest) {
+      this.normalArrivalSubscription = arrivalSubscription;
+    }
   }
 
   async refreshLiveArrivals(event?: CustomEvent<{ complete: () => Promise<void> | void }>): Promise<void> {
@@ -613,7 +654,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.searchArrivals(this.searchedBusStopCode);
   }
 
-  selectBusStop(stop: BusStop): void {
+  selectBusStop(stop: BusStop, arrivalOptions: ArrivalSearchOptions = {}): void {
     if (this.searchTimer) {
       clearTimeout(this.searchTimer);
       this.searchTimer = undefined;
@@ -629,35 +670,92 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.searchTerm = `${stop.Description} (${stop.BusStopCode})`;
     this.busStopResults = [];
     this.rememberBusStop(stop);
-    this.searchArrivals(stop.BusStopCode, undefined, { confirmLoadedHaptic: true });
+    this.searchArrivals(stop.BusStopCode, undefined, {
+      confirmLoadedHaptic: true,
+      ...arrivalOptions
+    });
   }
 
-  private openBusStopFromDeepLink(busStopCode: string): void {
-    const knownStop = this.busStopLookup.get(busStopCode)
-      || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
-
-    if (knownStop) {
-      this.selectBusStop(knownStop);
+  private cancelNormalArrivalRequest(reason: string, replacementStopCode?: string): void {
+    if (!this.normalArrivalSubscription || this.normalArrivalSubscription.closed) {
       return;
     }
 
-    const favouriteStop = this.favouriteBusStops.find((stop) => stop.BusStopCode === busStopCode);
+    const requestId = this.arrivalRequestId;
+    const stopCode = this.normalArrivalInFlightStopCode;
+    const durationMs = this.normalArrivalStartedAt
+      ? Math.round(performance.now() - this.normalArrivalStartedAt)
+      : 0;
+    const completion = this.normalArrivalOnComplete;
 
-    if (favouriteStop) {
-      this.selectBusStop({
-        BusStopCode: favouriteStop.BusStopCode,
-        Description: favouriteStop.Description,
-        RoadName: favouriteStop.RoadName,
-        Latitude: favouriteStop.Latitude || 0,
-        Longitude: favouriteStop.Longitude || 0
+    console.info('[Arrivals] request cancelled', {
+      stopCode,
+      requestId,
+      correlationId: this.normalArrivalCorrelationId,
+      reason,
+      replacementStopCode,
+      durationMs
+    });
+    this.normalArrivalSubscription.unsubscribe();
+    this.normalArrivalSubscription = undefined;
+    this.normalArrivalInFlightStopCode = '';
+    this.normalArrivalOnComplete = undefined;
+    this.normalArrivalStartedAt = 0;
+    this.normalArrivalCorrelationId = '';
+    this.isLoadingArrivals = false;
+    completion?.();
+  }
+
+  private clearNormalArrivalRequest(requestId: number): void {
+    if (requestId !== this.arrivalRequestId) {
+      return;
+    }
+
+    this.normalArrivalSubscription = undefined;
+    this.normalArrivalInFlightStopCode = '';
+    this.normalArrivalOnComplete = undefined;
+    this.normalArrivalStartedAt = 0;
+    this.normalArrivalCorrelationId = '';
+  }
+
+  private openBusStopFromDeepLink(busStopCode: string, busStopName: string): void {
+    const knownStop = this.busStopLookup.get(busStopCode)
+      || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
+    const favouriteStop = this.favouriteBusStops.find((stop) => stop.BusStopCode === busStopCode);
+    const resolvedStop: BusStop = knownStop || (favouriteStop ? {
+      BusStopCode: favouriteStop.BusStopCode,
+      Description: favouriteStop.Description,
+      RoadName: favouriteStop.RoadName,
+      Latitude: favouriteStop.Latitude || 0,
+      Longitude: favouriteStop.Longitude || 0
+    } : {
+      BusStopCode: busStopCode,
+      Description: busStopName || `Bus stop ${busStopCode}`,
+      RoadName: '',
+      Latitude: 0,
+      Longitude: 0
+    });
+    const stop: BusStop = busStopName
+      ? { ...resolvedStop, Description: busStopName }
+      : resolvedStop;
+
+    if (this.searchedBusStopCode.trim() === busStopCode) {
+      this.selectedBusStop = stop;
+      this.searchTerm = `${stop.Description} (${busStopCode})`;
+      this.busStopResults = [];
+      this.searchArrivals(busStopCode, undefined, {
+        forceRefresh: true,
+        preserveRouteState: true,
+        preserveScrollPosition: true,
+        scrollToArrivals: false
       });
       return;
     }
 
-    this.searchTerm = busStopCode;
-    this.busStopResults = [];
-    this.selectedBusStop = undefined;
-    this.searchArrivals(busStopCode);
+    this.selectBusStop(stop, {
+      forceRefresh: true,
+      confirmLoadedHaptic: false
+    });
   }
 
   trackBusStop(index: number, stop: BusStop): string {
@@ -717,7 +815,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     event?.stopPropagation();
 
     if (this.isTrackingLiveActivity(service)) {
-      await this.stopLiveActivityTracking(true);
+      await this.liveActivityTrackingService.endTracking(this.searchedBusStopCode.trim(), service.serviceNo);
+      await this.refreshFeedbackService.info('Stopped tracking');
       return;
     }
 
@@ -955,11 +1054,11 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
 
   private async sortFavouriteStopsByDistance(options: { persist: boolean; silentDistanceFailure?: boolean }): Promise<boolean> {
     try {
-      const position = await Geolocation.getCurrentPosition({
+      const location = await this.locationService.currentLocation({
         enableHighAccuracy: false,
         timeout: 8000
       });
-      const { latitude, longitude } = position.coords;
+      const { latitude, longitude } = location;
 
       this.favouriteBusStops = [...this.favouriteBusStops].sort((a, b) =>
         this.distanceToFavouriteStop(a, latitude, longitude) - this.distanceToFavouriteStop(b, latitude, longitude)
@@ -1587,18 +1686,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private rankBusStops(query: string, stops = this.busStops): BusStop[] {
-    const normalizedQuery = this.normalize(query);
-    const queryTokens = normalizedQuery.split(' ').filter(Boolean);
-
-    return stops
-      .map((stop) => ({
-        stop,
-        score: this.matchScore(stop, normalizedQuery, queryTokens)
-      }))
-      .filter((result) => result.score > 0)
-      .sort((a, b) => b.score - a.score || String(a.stop.Description || '').localeCompare(String(b.stop.Description || '')))
-      .slice(0, 8)
-      .map((result) => result.stop);
+    return rankBusStopSearchResults(stops, query);
   }
 
   private sortLiveServices(services: BusServiceArrival[]): BusServiceArrival[] {
@@ -1636,46 +1724,6 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
 
     return this.pinnedBusServices[busStopCode] || [];
-  }
-
-  private matchScore(stop: BusStop, query: string, tokens: string[]): number {
-    const description = this.normalize(stop.Description);
-    const road = this.normalize(stop.RoadName);
-    const code = this.normalize(stop.BusStopCode);
-    const searchableText = `${description} ${road} ${code}`;
-    let score = 0;
-
-    if (code === query) {
-      score += 120;
-    }
-
-    if (description.startsWith(query)) {
-      score += 70;
-    } else if (description.includes(query)) {
-      score += 48;
-    }
-
-    if (road.startsWith(query)) {
-      score += 42;
-    } else if (road.includes(query)) {
-      score += 30;
-    }
-
-    if (code.startsWith(query)) {
-      score += 36;
-    }
-
-    const matchingTokens = tokens.filter((token) => searchableText.includes(token)).length;
-
-    if (matchingTokens === tokens.length) {
-      score += matchingTokens * 16;
-    }
-
-    return score;
-  }
-
-  private normalize(value: string | undefined): string {
-    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
 
   private isBusStopCode(value: string): boolean {

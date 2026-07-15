@@ -99,8 +99,8 @@
         class="mrt-map-viewer"
         (touchstart)="onMrtMapTouchStart($event)"
         (touchmove)="onMrtMapTouchMove($event)"
-        (touchend)="onMrtMapTouchEnd()"
-        (touchcancel)="onMrtMapTouchEnd()"
+        (touchend)="onMrtMapTouchEnd($event)"
+        (touchcancel)="onMrtMapTouchEnd($event)"
       >
         <img
           #mrtMapImage

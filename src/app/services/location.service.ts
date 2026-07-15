@@ -12,6 +12,7 @@ export interface AppLocation {
 })
 export class LocationService {
   private readonly fallbackTimeoutPaddingMs = 1500;
+  private activeNativeLocationRequest?: Promise<AppLocation>;
 
   async requestPermissionAndLocation(options: PositionOptions): Promise<AppLocation> {
     if (Capacitor.isNativePlatform()) {
@@ -25,26 +26,16 @@ export class LocationService {
     return this.currentLocation(options);
   }
 
-  async currentLocation(options: PositionOptions): Promise<AppLocation> {
-    const timeoutMs = this.timeoutMs(options);
-
+  currentLocation(options: PositionOptions): Promise<AppLocation> {
     if (Capacitor.isNativePlatform()) {
-      const position = await this.withTimeout(
-        Geolocation.getCurrentPosition(options),
-        timeoutMs,
-        'native-geolocation-timeout'
-      );
-      return {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude
-      };
+      return this.serializedNativeLocation(options);
     }
 
     if (!navigator.geolocation) {
-      throw new Error('geolocation-unavailable');
+      return Promise.reject(new Error('geolocation-unavailable'));
     }
 
-    const coordinates = await this.withTimeout(
+    return this.withTimeout(
       new Promise<GeolocationCoordinates>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           (position) => resolve(position.coords),
@@ -52,14 +43,41 @@ export class LocationService {
           options
         );
       }),
-      timeoutMs,
+      this.timeoutMs(options),
       'browser-geolocation-timeout'
-    );
-
-    return {
+    ).then((coordinates) => ({
       latitude: coordinates.latitude,
       longitude: coordinates.longitude
-    };
+    }));
+  }
+
+  hasActiveNativeLocationRequest(): boolean {
+    return this.activeNativeLocationRequest !== undefined;
+  }
+
+  private serializedNativeLocation(options: PositionOptions): Promise<AppLocation> {
+    if (this.activeNativeLocationRequest) {
+      return this.activeNativeLocationRequest;
+    }
+
+    let activeRequest: Promise<AppLocation>;
+    activeRequest = this.withTimeout(
+      Geolocation.getCurrentPosition(options),
+      this.timeoutMs(options),
+      'native-geolocation-timeout'
+    )
+      .then((position) => ({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      }))
+      .finally(() => {
+        if (this.activeNativeLocationRequest === activeRequest) {
+          this.activeNativeLocationRequest = undefined;
+        }
+      });
+
+    this.activeNativeLocationRequest = activeRequest;
+    return activeRequest;
   }
 
   private isGranted(permission: PermissionStatus): boolean {

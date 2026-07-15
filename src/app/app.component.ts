@@ -177,6 +177,9 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   private nativeSplashHidden = false;
   private routerSubscription?: Subscription;
   private appUrlOpenListener?: PluginListenerHandle;
+  private lastDeepLinkKey = '';
+  private lastDeepLinkHandledAt = 0;
+  private deepLinkSequence = 0;
   private statusTapListener?: PluginListenerHandle;
   private readonly statusTapWindowHandler = () => this.scrollActiveIonContentToTop();
   private readonly visibilityChangeHandler = () => {
@@ -255,41 +258,73 @@ export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private handleAppUrlOpen(event: URLOpenListenerEvent): void {
-    const targetUrl = this.routeFromDeepLink(event.url);
+    const deepLink = this.parseDeepLink(event.url);
 
-    if (!targetUrl) {
+    if (!deepLink) {
       return;
     }
 
-    void this.router.navigateByUrl(targetUrl);
+    const now = Date.now();
+    if (deepLink.key === this.lastDeepLinkKey && now - this.lastDeepLinkHandledAt < 2000) {
+      return;
+    }
+
+    this.lastDeepLinkKey = deepLink.key;
+    this.lastDeepLinkHandledAt = now;
+    this.deepLinkSequence++;
+
+    const params = new URLSearchParams({
+      busStopCode: deepLink.busStopCode,
+      busStopName: deepLink.busStopName,
+      source: deepLink.source,
+      event: `${now}-${this.deepLinkSequence}`
+    });
+
+    void this.router.navigateByUrl(`/tabs/tab1?${params.toString()}`);
   }
 
-  private routeFromDeepLink(url: string): string | undefined {
+  private parseDeepLink(url: string): {
+    key: string;
+    busStopCode: string;
+    busStopName: string;
+    source: string;
+  } | undefined {
     try {
       const parsedUrl = new URL(url);
 
-      if (parsedUrl.protocol !== 'skibidi:') {
-        return undefined;
-      }
+      if (parsedUrl.protocol === 'mybussg:' && parsedUrl.hostname === 'bus-stop') {
+        const busStopCode = parsedUrl.searchParams.get('code')?.trim() || '';
+        const busStopName = parsedUrl.searchParams.get('name')?.trim() || '';
 
-      if (parsedUrl.hostname === 'stop') {
-        const busStopCode = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, '')).trim();
-
-        if (!busStopCode) {
-          return '/tabs/tab1';
+        if (!/^\d{5}$/.test(busStopCode)) {
+          return undefined;
         }
 
-        const params = new URLSearchParams({
+        return {
+          key: `bus-stop:${busStopCode}:${busStopName}`,
           busStopCode,
-          source: 'widget',
-          t: String(Date.now())
-        });
-
-        return `/tabs/tab1?${params.toString()}`;
+          busStopName,
+          source: 'live-activity'
+        };
       }
 
-      if (parsedUrl.hostname === 'home') {
-        return '/tabs/tab1';
+      if (parsedUrl.protocol === 'skibidi:' && parsedUrl.hostname === 'stop') {
+        const busStopCode = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, '')).trim();
+
+        if (!/^\d{5}$/.test(busStopCode)) {
+          return undefined;
+        }
+
+        return {
+          key: `bus-stop:${busStopCode}:`,
+          busStopCode,
+          busStopName: '',
+          source: 'widget'
+        };
+      }
+
+      if (parsedUrl.protocol === 'skibidi:' && parsedUrl.hostname === 'home') {
+        void this.router.navigateByUrl('/tabs/tab1');
       }
     } catch {
       return undefined;

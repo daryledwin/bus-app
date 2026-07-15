@@ -5,7 +5,8 @@
   "description": "Local proxy for the LTA DataMall Bus Arrival API.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test *.test.js"
   },
   "dependencies": {
     "axios": "^1.7.9",

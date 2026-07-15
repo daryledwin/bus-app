@@ -24,7 +24,7 @@ interface WidgetBridgePlugin {
   startBusLiveActivity(payload: { payload: string }): Promise<BusLiveActivityStartResult>;
   getActiveBusLiveActivities(): Promise<BusLiveActivityRestoreResult>;
   updateBusLiveActivity(payload: { payload: string }): Promise<void>;
-  endBusLiveActivity(): Promise<void>;
+  endBusLiveActivity(options?: { activityId?: string }): Promise<void>;
   addListener(
     eventName: 'busLiveActivityPushToken',
     listenerFunc: (event: BusLiveActivityPushTokenEvent) => void
@@ -65,16 +65,19 @@ export interface BusLiveActivityStartResult {
   pushToken?: string;
   pushEnabled?: boolean;
   pushTokenPending?: boolean;
+  apnsEnvironment?: 'development' | 'production';
 }
 
 export interface BusLiveActivityPushTokenEvent {
   activityId?: string;
   pushToken?: string;
+  apnsEnvironment?: 'development' | 'production';
 }
 
 export interface BusLiveActivityRestoreActivity extends BusLiveActivityPayload {
   activityId: string;
   pushToken?: string;
+  apnsEnvironment?: 'development' | 'production';
 }
 
 export interface BusLiveActivityRestoreResult {
@@ -163,12 +166,12 @@ export class WidgetBridgeService {
     });
   }
 
-  async endBusLiveActivity(): Promise<void> {
+  async endBusLiveActivity(activityId?: string): Promise<void> {
     if (!Capacitor.isNativePlatform()) {
       return;
     }
 
-    await WidgetBridge.endBusLiveActivity();
+    await WidgetBridge.endBusLiveActivity(activityId ? { activityId } : undefined);
   }
 
   addLiveActivityPushTokenListener(

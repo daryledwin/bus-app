@@ -7,6 +7,17 @@ private let appGroupId = "group.com.daryledwin.bus"
 private let arrivalEndpoint = URL(string: "https://bus-app-vk72.onrender.com/api/bus-arrival")!
 private let widgetKind = "BusArrivalWidget"
 
+private func busStopDeepLink(busStopCode: String, busStopName: String) -> URL? {
+    var components = URLComponents()
+    components.scheme = "mybussg"
+    components.host = "bus-stop"
+    components.queryItems = [
+        URLQueryItem(name: "code", value: busStopCode),
+        URLQueryItem(name: "name", value: busStopName)
+    ]
+    return components.url
+}
+
 struct FavouriteStop: Codable, Identifiable {
     let busStopCode: String
     let name: String
@@ -953,11 +964,11 @@ struct BusWidgetView: View {
     }
 
     private var widgetURL: URL? {
-        guard let code = entry.stop?.busStopCode else {
+        guard let stop = entry.stop else {
             return URL(string: "skibidi://home")
         }
 
-        return URL(string: "skibidi://stop/\(code)")
+        return busStopDeepLink(busStopCode: stop.busStopCode, busStopName: stop.name)
     }
 
     private func loadColor(_ load: String) -> Color {
@@ -1218,6 +1229,10 @@ struct BusLiveActivityWidget: Widget {
             BusLiveActivityLockScreenView(context: context)
                 .activityBackgroundTint(Color(red: 0.95, green: 0.99, blue: 1.0))
                 .activitySystemActionForegroundColor(Color(red: 0.08, green: 0.18, blue: 0.30))
+                .widgetURL(busStopDeepLink(
+                    busStopCode: context.attributes.busStopCode,
+                    busStopName: context.attributes.busStopName
+                ))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -1277,21 +1292,31 @@ struct BusLiveActivityWidget: Widget {
                     .offset(y: -6)
                 }
             } compactLeading: {
-                Text("Bus \(context.attributes.serviceNo)")
+                Text(context.attributes.serviceNo)
                     .font(.system(size: 15, weight: .heavy, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             } compactTrailing: {
-                Text(context.state.arrivalStatus)
+                Text(compactLiveActivityArrival(context.state.arrivalStatus))
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(liveActivityBlue)
+                    .lineLimit(1)
                     .minimumScaleFactor(0.72)
             } minimal: {
-                Text("Bus \(context.attributes.serviceNo)")
-                    .font(.system(size: 11, weight: .heavy, design: .rounded))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                VStack(spacing: -2) {
+                    Text(context.attributes.serviceNo)
+                        .font(.system(size: 9, weight: .heavy, design: .rounded))
+                    Text(compactLiveActivityArrival(context.state.arrivalStatus))
+                        .font(.system(size: 7, weight: .bold, design: .rounded))
+                        .foregroundStyle(liveActivityBlue)
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             }
+            .widgetURL(busStopDeepLink(
+                busStopCode: context.attributes.busStopCode,
+                busStopName: context.attributes.busStopName
+            ))
             .keylineTint(liveActivityBlue)
         }
     }
@@ -1454,6 +1479,17 @@ private let liveActivityBlue = Color(red: 25 / 255, green: 119 / 255, blue: 201 
 
 private func liveActivityArrivalColor(_ arrivalStatus: String) -> Color {
     arrivalStatus == "Arriving" ? Color(red: 47 / 255, green: 158 / 255, blue: 110 / 255) : liveActivityBlue
+}
+
+private func compactLiveActivityArrival(_ arrivalStatus: String) -> String {
+    switch arrivalStatus {
+    case "Arriving":
+        return "Arr"
+    case "No Bus":
+        return "—"
+    default:
+        return arrivalStatus.replacingOccurrences(of: " min", with: "m")
+    }
 }
 
 private func updatedSecondsText(from date: Date, now: Date = Date()) -> String {

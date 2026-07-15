@@ -19,6 +19,14 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
     private let liveActivityPushTokensKey = "liveActivityPushTokensByActivityId"
     private let pushTokenObservationStore = PushTokenObservationStore()
 
+    private var apnsEnvironment: String {
+        #if DEBUG
+        return "development"
+        #else
+        return "production"
+        #endif
+    }
+
     @objc func syncWidgetData(_ call: CAPPluginCall) {
         guard let defaults = UserDefaults(suiteName: appGroupId) else {
             call.reject("App Group storage is unavailable. Check App Group signing capability.")
@@ -92,8 +100,6 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         Task {
-            await endAllBusLiveActivities()
-
             do {
                 let activity = try requestLiveActivity(payload: payload)
                 observePushTokenUpdates(for: activity)
@@ -102,6 +108,7 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve([
                     "started": true,
                     "activityId": activity.id,
+                    "apnsEnvironment": apnsEnvironment,
                     "pushEnabled": true,
                     "pushTokenPending": true
                 ])
@@ -155,45 +162,39 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             }
             print("[LiveTrack Restore] active ActivityKit activities found count=\(activities.count) ids=\(activities.map(\.id))")
 
-            guard let retainedActivity = activities.first else {
+            guard !activities.isEmpty else {
                 clearStoredPushTokens()
                 call.resolve(["activities": [], "orphanedActivityIds": []])
                 return
             }
-
-            let orphanedActivities = Array(activities.dropFirst())
-            for activity in orphanedActivities {
-                await activity.end(nil, dismissalPolicy: .immediate)
-                removeStoredPushToken(activityId: activity.id)
-                print("[LiveTrack Restore] ended extra ActivityKit activity id=\(activity.id)")
+            let snapshots: [[String: Any]] = activities.map { activity in
+                observePushTokenUpdates(for: activity)
+                let state = activity.content.state
+                let expiresAt = activity.content.staleDate
+                    ?? activity.attributes.startedAt.addingTimeInterval(30 * 60)
+                print("[LiveTrack Restore] restoring ActivityKit activity id=\(activity.id) service=\(activity.attributes.serviceNo) stop=\(activity.attributes.busStopCode) stateUpdatedAt=\(state.lastUpdatedAt)")
+                return [
+                    "activityId": activity.id,
+                    "pushToken": storedPushToken(activityId: activity.id) ?? "",
+                    "apnsEnvironment": apnsEnvironment,
+                    "serviceNo": activity.attributes.serviceNo,
+                    "busStopName": activity.attributes.busStopName,
+                    "busStopCode": activity.attributes.busStopCode,
+                    "arrivalStatus": state.arrivalStatus,
+                    "nextArrivalTiming": state.nextArrivalTiming,
+                    "thirdArrivalTiming": state.thirdArrivalTiming,
+                    "busType": state.busType,
+                    "wheelchairAccessible": state.wheelchairAccessible,
+                    "seatAvailability": state.seatAvailability,
+                    "arrivalAt": state.arrivalAt.timeIntervalSince1970 * 1000,
+                    "lastUpdatedAt": state.lastUpdatedAt.timeIntervalSince1970 * 1000,
+                    "startedAt": activity.attributes.startedAt.timeIntervalSince1970 * 1000,
+                    "expiresAt": expiresAt.timeIntervalSince1970 * 1000
+                ]
             }
-
-            observePushTokenUpdates(for: retainedActivity)
-            let state = retainedActivity.content.state
-            let expiresAt = retainedActivity.content.staleDate
-                ?? retainedActivity.attributes.startedAt.addingTimeInterval(30 * 60)
-            let snapshot: [String: Any] = [
-                "activityId": retainedActivity.id,
-                "pushToken": storedPushToken(activityId: retainedActivity.id) ?? "",
-                "serviceNo": retainedActivity.attributes.serviceNo,
-                "busStopName": retainedActivity.attributes.busStopName,
-                "busStopCode": retainedActivity.attributes.busStopCode,
-                "arrivalStatus": state.arrivalStatus,
-                "nextArrivalTiming": state.nextArrivalTiming,
-                "thirdArrivalTiming": state.thirdArrivalTiming,
-                "busType": state.busType,
-                "wheelchairAccessible": state.wheelchairAccessible,
-                "seatAvailability": state.seatAvailability,
-                "arrivalAt": state.arrivalAt.timeIntervalSince1970 * 1000,
-                "lastUpdatedAt": state.lastUpdatedAt.timeIntervalSince1970 * 1000,
-                "startedAt": retainedActivity.attributes.startedAt.timeIntervalSince1970 * 1000,
-                "expiresAt": expiresAt.timeIntervalSince1970 * 1000
-            ]
-
-            print("[LiveTrack Restore] restoring ActivityKit activity id=\(retainedActivity.id) service=\(retainedActivity.attributes.serviceNo) stop=\(retainedActivity.attributes.busStopCode)")
             call.resolve([
-                "activities": [snapshot],
-                "orphanedActivityIds": orphanedActivities.map(\.id)
+                "activities": snapshots,
+                "orphanedActivityIds": []
             ])
         }
     }
@@ -205,9 +206,26 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         Task {
-            await endAllBusLiveActivities()
+            let requestedActivityId = call.getString("activityId")
+            if let activityId = requestedActivityId, !activityId.isEmpty {
+                await endBusLiveActivity(activityId: activityId)
+            } else {
+                await endAllBusLiveActivities()
+            }
             call.resolve()
         }
+    }
+
+    @available(iOS 16.2, *)
+    private func endBusLiveActivity(activityId: String) async {
+        guard let activity = Activity<BusLiveActivityAttributes>.activities.first(where: { $0.id == activityId }) else {
+            print("[LiveTrack] end requested for missing ActivityKit activity id=\(activityId)")
+            removeStoredPushToken(activityId: activityId)
+            return
+        }
+        await activity.end(nil, dismissalPolicy: .immediate)
+        removeStoredPushToken(activityId: activityId)
+        print("[LiveTrack] ended ActivityKit activity id=\(activityId)")
     }
 
     @available(iOS 16.2, *)
@@ -258,8 +276,21 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
                 print("[LiveTrack] push token received")
                 plugin.notifyListeners("busLiveActivityPushToken", data: [
                     "activityId": activity.id,
-                    "pushToken": token
+                    "pushToken": token,
+                    "apnsEnvironment": plugin.apnsEnvironment
                 ])
+            }
+        }
+
+        Task {
+            for await content in activity.contentUpdates {
+                print("[LiveTrack] ActivityKit ContentState updated id=\(activity.id) service=\(activity.attributes.serviceNo) stop=\(activity.attributes.busStopCode) next=\(content.state.arrivalStatus) subsequent=\(content.state.nextArrivalTiming) third=\(content.state.thirdArrivalTiming) lastUpdatedAt=\(content.state.lastUpdatedAt)")
+            }
+        }
+
+        Task {
+            for await state in activity.activityStateUpdates {
+                print("[LiveTrack] ActivityKit lifecycle changed id=\(activity.id) state=\(String(describing: state))")
             }
         }
 

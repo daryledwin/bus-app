@@ -4,6 +4,13 @@ import { IonRouterOutlet, NavController } from '@ionic/angular';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { LtaTrainServiceAlertsService, TrainServiceAlert } from '../services/lta-train-service-alerts.service';
 
+interface MapPinchAnchor {
+  baseOffsetX: number;
+  baseOffsetY: number;
+  contentX: number;
+  contentY: number;
+}
+
 @Component({
   selector: 'app-mrt-map',
   templateUrl: 'mrt-map.page.html',
@@ -25,20 +32,25 @@ export class MrtMapPage implements OnInit {
   mrtMapFullscreenScale = 1;
   mrtMapFullscreenPanX = 0;
   mrtMapFullscreenPanY = 0;
-  readonly mrtMapPdfUrl = 'assets/images/mrt%20map.pdf';
-  readonly mrtMapImageUrl = 'assets/images/mrt-map.png';
+  readonly mrtMapImageUrl = 'assets/images/mrt-map-2026.png';
   private pinchStartDistance = 0;
   private pinchStartScale = 1;
+  private pinchAnchor?: MapPinchAnchor;
   private panStartX = 0;
   private panStartY = 0;
   private touchStartX = 0;
   private touchStartY = 0;
+  private mapBaseOffsetX = 0;
+  private mapBaseOffsetY = 0;
   private fullscreenPinchStartDistance = 0;
   private fullscreenPinchStartScale = 1;
+  private fullscreenPinchAnchor?: MapPinchAnchor;
   private fullscreenPanStartX = 0;
   private fullscreenPanStartY = 0;
   private fullscreenTouchStartX = 0;
   private fullscreenTouchStartY = 0;
+  private fullscreenBaseOffsetX = 0;
+  private fullscreenBaseOffsetY = 0;
   private fullscreenTouchMoved = false;
   private fullscreenLastTapAt = 0;
   private fullscreenLastTapX = 0;
@@ -82,11 +94,11 @@ export class MrtMapPage implements OnInit {
   }
 
   get mrtMapTransform(): string {
-    return `translate3d(${this.mrtMapPanX}px, ${this.mrtMapPanY}px, 0) scale(${this.mrtMapScale})`;
+    return `translate(${this.mrtMapPanX}px, ${this.mrtMapPanY}px) scale(${this.mrtMapScale})`;
   }
 
   get mrtMapFullscreenTransform(): string {
-    return `translate3d(${this.mrtMapFullscreenPanX}px, ${this.mrtMapFullscreenPanY}px, 0) scale(${this.mrtMapFullscreenScale})`;
+    return `translate(${this.mrtMapFullscreenPanX}px, ${this.mrtMapFullscreenPanY}px) scale(${this.mrtMapFullscreenScale})`;
   }
 
   goBack(): void {
@@ -192,10 +204,25 @@ export class MrtMapPage implements OnInit {
     if (event.touches.length === 2) {
       this.pinchStartDistance = this.touchDistance(event.touches[0], event.touches[1]);
       this.pinchStartScale = this.mrtMapScale;
+      this.pinchAnchor = this.createPinchAnchor(
+        this.mrtMapViewer?.nativeElement,
+        this.mrtMapImage?.nativeElement,
+        this.mrtMapPanX,
+        this.mrtMapPanY,
+        this.mrtMapScale,
+        event.touches[0],
+        event.touches[1]
+      );
+
+      if (this.pinchAnchor) {
+        this.mapBaseOffsetX = this.pinchAnchor.baseOffsetX;
+        this.mapBaseOffsetY = this.pinchAnchor.baseOffsetY;
+      }
       return;
     }
 
     if (event.touches.length === 1 && this.mrtMapScale > 1) {
+      this.captureMapBaseOffset();
       this.touchStartX = event.touches[0].clientX;
       this.touchStartY = event.touches[0].clientY;
       this.panStartX = this.mrtMapPanX;
@@ -207,10 +234,24 @@ export class MrtMapPage implements OnInit {
     if (event.touches.length === 2 && this.pinchStartDistance > 0) {
       event.preventDefault();
       const distance = this.touchDistance(event.touches[0], event.touches[1]);
-      const nextScale = this.clamp(this.pinchStartScale * (distance / this.pinchStartDistance), 1, 3);
+      const maximumScale = this.maximumNativeMapScale(
+        this.mrtMapViewer?.nativeElement,
+        this.mrtMapImage?.nativeElement,
+        this.mrtMapScale,
+        3
+      );
+      const nextScale = this.clamp(this.pinchStartScale * (distance / this.pinchStartDistance), 1, maximumScale);
+      const midpoint = this.touchMidpoint(event.touches[0], event.touches[1]);
+      const viewer = this.mrtMapViewer?.nativeElement;
+
+      if (viewer && this.pinchAnchor) {
+        const rect = viewer.getBoundingClientRect();
+        this.mrtMapPanX = midpoint.x - rect.left - this.pinchAnchor.baseOffsetX - this.pinchAnchor.contentX * nextScale;
+        this.mrtMapPanY = midpoint.y - rect.top - this.pinchAnchor.baseOffsetY - this.pinchAnchor.contentY * nextScale;
+      }
 
       this.mrtMapScale = nextScale;
-      this.clampMapPan();
+      this.clampMapPan(this.mapBaseOffsetX, this.mapBaseOffsetY);
       return;
     }
 
@@ -218,12 +259,13 @@ export class MrtMapPage implements OnInit {
       event.preventDefault();
       this.mrtMapPanX = this.panStartX + event.touches[0].clientX - this.touchStartX;
       this.mrtMapPanY = this.panStartY + event.touches[0].clientY - this.touchStartY;
-      this.clampMapPan();
+      this.clampMapPan(this.mapBaseOffsetX, this.mapBaseOffsetY);
     }
   }
 
-  onMrtMapTouchEnd(): void {
+  onMrtMapTouchEnd(event: TouchEvent): void {
     this.pinchStartDistance = 0;
+    this.pinchAnchor = undefined;
 
     if (this.mrtMapScale <= 1.02) {
       this.mrtMapScale = 1;
@@ -232,7 +274,14 @@ export class MrtMapPage implements OnInit {
       return;
     }
 
-    this.clampMapPan();
+    this.clampMapPan(this.mapBaseOffsetX, this.mapBaseOffsetY);
+
+    if (event.touches.length === 1) {
+      this.touchStartX = event.touches[0].clientX;
+      this.touchStartY = event.touches[0].clientY;
+      this.panStartX = this.mrtMapPanX;
+      this.panStartY = this.mrtMapPanY;
+    }
   }
 
   onMrtMapFullscreenTouchStart(event: TouchEvent): void {
@@ -241,10 +290,25 @@ export class MrtMapPage implements OnInit {
     if (event.touches.length === 2) {
       this.fullscreenPinchStartDistance = this.touchDistance(event.touches[0], event.touches[1]);
       this.fullscreenPinchStartScale = this.mrtMapFullscreenScale;
+      this.fullscreenPinchAnchor = this.createPinchAnchor(
+        this.mrtMapFullscreenViewer?.nativeElement,
+        this.mrtMapFullscreenImage?.nativeElement,
+        this.mrtMapFullscreenPanX,
+        this.mrtMapFullscreenPanY,
+        this.mrtMapFullscreenScale,
+        event.touches[0],
+        event.touches[1]
+      );
+
+      if (this.fullscreenPinchAnchor) {
+        this.fullscreenBaseOffsetX = this.fullscreenPinchAnchor.baseOffsetX;
+        this.fullscreenBaseOffsetY = this.fullscreenPinchAnchor.baseOffsetY;
+      }
       return;
     }
 
     if (event.touches.length === 1) {
+      this.captureFullscreenBaseOffset();
       this.fullscreenTouchStartX = event.touches[0].clientX;
       this.fullscreenTouchStartY = event.touches[0].clientY;
       this.fullscreenPanStartX = this.mrtMapFullscreenPanX;
@@ -257,10 +321,30 @@ export class MrtMapPage implements OnInit {
       event.preventDefault();
       this.fullscreenTouchMoved = true;
       const distance = this.touchDistance(event.touches[0], event.touches[1]);
-      const nextScale = this.clamp(this.fullscreenPinchStartScale * (distance / this.fullscreenPinchStartDistance), 1, 4);
+      const maximumScale = this.maximumNativeMapScale(
+        this.mrtMapFullscreenViewer?.nativeElement,
+        this.mrtMapFullscreenImage?.nativeElement,
+        this.mrtMapFullscreenScale,
+        4
+      );
+      const nextScale = this.clamp(
+        this.fullscreenPinchStartScale * (distance / this.fullscreenPinchStartDistance),
+        1,
+        maximumScale
+      );
+      const midpoint = this.touchMidpoint(event.touches[0], event.touches[1]);
+      const viewer = this.mrtMapFullscreenViewer?.nativeElement;
+
+      if (viewer && this.fullscreenPinchAnchor) {
+        const rect = viewer.getBoundingClientRect();
+        this.mrtMapFullscreenPanX = midpoint.x - rect.left - this.fullscreenPinchAnchor.baseOffsetX
+          - this.fullscreenPinchAnchor.contentX * nextScale;
+        this.mrtMapFullscreenPanY = midpoint.y - rect.top - this.fullscreenPinchAnchor.baseOffsetY
+          - this.fullscreenPinchAnchor.contentY * nextScale;
+      }
 
       this.mrtMapFullscreenScale = nextScale;
-      this.clampFullscreenMapPan();
+      this.clampFullscreenMapPan(this.fullscreenBaseOffsetX, this.fullscreenBaseOffsetY);
       return;
     }
 
@@ -271,7 +355,7 @@ export class MrtMapPage implements OnInit {
       this.fullscreenTouchMoved = Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4;
       this.mrtMapFullscreenPanX = this.fullscreenPanStartX + deltaX;
       this.mrtMapFullscreenPanY = this.fullscreenPanStartY + deltaY;
-      this.clampFullscreenMapPan();
+      this.clampFullscreenMapPan(this.fullscreenBaseOffsetX, this.fullscreenBaseOffsetY);
     }
   }
 
@@ -279,11 +363,20 @@ export class MrtMapPage implements OnInit {
     const endedTouch = event.changedTouches.item(0);
 
     this.fullscreenPinchStartDistance = 0;
+    this.fullscreenPinchAnchor = undefined;
 
     if (this.mrtMapFullscreenScale <= 1.02) {
       this.resetMrtMapFullscreenZoom();
     } else {
-      this.clampFullscreenMapPan();
+      this.clampFullscreenMapPan(this.fullscreenBaseOffsetX, this.fullscreenBaseOffsetY);
+    }
+
+    if (event.touches.length === 1) {
+      this.fullscreenTouchStartX = event.touches[0].clientX;
+      this.fullscreenTouchStartY = event.touches[0].clientY;
+      this.fullscreenPanStartX = this.mrtMapFullscreenPanX;
+      this.fullscreenPanStartY = this.mrtMapFullscreenPanY;
+      return;
     }
 
     if (!endedTouch || this.fullscreenTouchMoved || event.touches.length) {
@@ -308,6 +401,7 @@ export class MrtMapPage implements OnInit {
 
   onMrtMapFullscreenTouchCancel(): void {
     this.fullscreenPinchStartDistance = 0;
+    this.fullscreenPinchAnchor = undefined;
     this.fullscreenTouchMoved = false;
   }
 
@@ -344,23 +438,78 @@ export class MrtMapPage implements OnInit {
     return Math.hypot(firstTouch.clientX - secondTouch.clientX, firstTouch.clientY - secondTouch.clientY);
   }
 
-  private clampMapPan(): void {
-    const viewer = this.mrtMapViewer?.nativeElement;
+  private touchMidpoint(firstTouch: Touch, secondTouch: Touch): { x: number; y: number } {
+    return {
+      x: (firstTouch.clientX + secondTouch.clientX) / 2,
+      y: (firstTouch.clientY + secondTouch.clientY) / 2
+    };
+  }
 
-    if (!viewer || this.mrtMapScale <= 1) {
+  private createPinchAnchor(
+    viewer: HTMLElement | undefined,
+    image: HTMLImageElement | undefined,
+    panX: number,
+    panY: number,
+    scale: number,
+    firstTouch: Touch,
+    secondTouch: Touch
+  ): MapPinchAnchor | undefined {
+    if (!viewer || !image) {
+      return undefined;
+    }
+
+    const viewerRect = viewer.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    const midpoint = this.touchMidpoint(firstTouch, secondTouch);
+    const baseOffsetX = imageRect.left - viewerRect.left - panX;
+    const baseOffsetY = imageRect.top - viewerRect.top - panY;
+
+    return {
+      baseOffsetX,
+      baseOffsetY,
+      contentX: (midpoint.x - viewerRect.left - baseOffsetX - panX) / scale,
+      contentY: (midpoint.y - viewerRect.top - baseOffsetY - panY) / scale
+    };
+  }
+
+  private captureMapBaseOffset(): void {
+    const viewer = this.mrtMapViewer?.nativeElement;
+    const image = this.mrtMapImage?.nativeElement;
+
+    if (!viewer || !image) {
+      return;
+    }
+
+    const viewerRect = viewer.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    this.mapBaseOffsetX = imageRect.left - viewerRect.left - this.mrtMapPanX;
+    this.mapBaseOffsetY = imageRect.top - viewerRect.top - this.mrtMapPanY;
+  }
+
+  private clampMapPan(baseOffsetX = this.mapBaseOffsetX, baseOffsetY = this.mapBaseOffsetY): void {
+    const viewer = this.mrtMapViewer?.nativeElement;
+    const image = this.mrtMapImage?.nativeElement;
+
+    if (!viewer || !image || this.mrtMapScale <= 1) {
       this.mrtMapPanX = 0;
       this.mrtMapPanY = 0;
       return;
     }
 
-    const image = this.mrtMapImage?.nativeElement;
-    const renderedWidth = image?.clientWidth || viewer.clientWidth;
-    const renderedHeight = image?.clientHeight || viewer.clientHeight;
-    const maxPanX = Math.max(0, renderedWidth * this.mrtMapScale - viewer.clientWidth);
-    const maxPanY = Math.max(0, renderedHeight * this.mrtMapScale - viewer.clientHeight);
-
-    this.mrtMapPanX = this.clamp(this.mrtMapPanX, -maxPanX, 0);
-    this.mrtMapPanY = this.clamp(this.mrtMapPanY, -maxPanY, 0);
+    this.mrtMapPanX = this.clampMapAxis(
+      this.mrtMapPanX,
+      image.clientWidth * this.mrtMapScale,
+      viewer.clientWidth,
+      viewer.clientLeft,
+      baseOffsetX
+    );
+    this.mrtMapPanY = this.clampMapAxis(
+      this.mrtMapPanY,
+      image.clientHeight * this.mrtMapScale,
+      viewer.clientHeight,
+      viewer.clientTop,
+      baseOffsetY
+    );
   }
 
   private resetMrtMapFullscreenZoom(): void {
@@ -368,6 +517,7 @@ export class MrtMapPage implements OnInit {
     this.mrtMapFullscreenPanX = 0;
     this.mrtMapFullscreenPanY = 0;
     this.fullscreenPinchStartDistance = 0;
+    this.fullscreenPinchAnchor = undefined;
     this.fullscreenTouchMoved = false;
     this.fullscreenLastTapAt = 0;
   }
@@ -385,38 +535,125 @@ export class MrtMapPage implements OnInit {
     }
 
     const rect = viewer.getBoundingClientRect();
-    const imageRect = this.mrtMapFullscreenImage?.nativeElement.getBoundingClientRect();
-    const imageLeft = imageRect?.left ?? rect.left;
-    const imageTop = imageRect?.top ?? rect.top;
-    const baseOffsetX = imageLeft - rect.left;
-    const baseOffsetY = imageTop - rect.top;
-    const tapX = clientX - imageLeft;
-    const tapY = clientY - imageTop;
-    const nextScale = 2.35;
+    const image = this.mrtMapFullscreenImage?.nativeElement;
 
+    if (!image) {
+      return;
+    }
+
+    const imageRect = image.getBoundingClientRect();
+    const baseOffsetX = imageRect.left - rect.left - this.mrtMapFullscreenPanX;
+    const baseOffsetY = imageRect.top - rect.top - this.mrtMapFullscreenPanY;
+    const tapX = (clientX - rect.left - baseOffsetX - this.mrtMapFullscreenPanX) / this.mrtMapFullscreenScale;
+    const tapY = (clientY - rect.top - baseOffsetY - this.mrtMapFullscreenPanY) / this.mrtMapFullscreenScale;
+    const nextScale = Math.min(
+      2.35,
+      this.maximumNativeMapScale(viewer, image, this.mrtMapFullscreenScale, 4)
+    );
+
+    this.fullscreenBaseOffsetX = baseOffsetX;
+    this.fullscreenBaseOffsetY = baseOffsetY;
     this.mrtMapFullscreenScale = nextScale;
-    this.mrtMapFullscreenPanX = viewer.clientWidth / 2 - baseOffsetX - tapX * nextScale;
-    this.mrtMapFullscreenPanY = viewer.clientHeight / 2 - baseOffsetY - tapY * nextScale;
-    this.clampFullscreenMapPan();
+    this.mrtMapFullscreenPanX = clientX - rect.left - baseOffsetX - tapX * nextScale;
+    this.mrtMapFullscreenPanY = clientY - rect.top - baseOffsetY - tapY * nextScale;
+    this.clampFullscreenMapPan(baseOffsetX, baseOffsetY);
   }
 
-  private clampFullscreenMapPan(): void {
+  private captureFullscreenBaseOffset(): void {
     const viewer = this.mrtMapFullscreenViewer?.nativeElement;
+    const image = this.mrtMapFullscreenImage?.nativeElement;
 
-    if (!viewer || this.mrtMapFullscreenScale <= 1) {
+    if (!viewer || !image) {
+      return;
+    }
+
+    const viewerRect = viewer.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    this.fullscreenBaseOffsetX = imageRect.left - viewerRect.left - this.mrtMapFullscreenPanX;
+    this.fullscreenBaseOffsetY = imageRect.top - viewerRect.top - this.mrtMapFullscreenPanY;
+  }
+
+  private clampFullscreenMapPan(
+    baseOffsetX = this.fullscreenBaseOffsetX,
+    baseOffsetY = this.fullscreenBaseOffsetY
+  ): void {
+    const viewer = this.mrtMapFullscreenViewer?.nativeElement;
+    const image = this.mrtMapFullscreenImage?.nativeElement;
+
+    if (!viewer || !image || this.mrtMapFullscreenScale <= 1) {
       this.mrtMapFullscreenPanX = 0;
       this.mrtMapFullscreenPanY = 0;
       return;
     }
 
-    const image = this.mrtMapFullscreenImage?.nativeElement;
-    const renderedWidth = image?.clientWidth || viewer.clientWidth;
-    const renderedHeight = image?.clientHeight || viewer.clientHeight;
-    const maxPanX = Math.max(0, renderedWidth * this.mrtMapFullscreenScale - viewer.clientWidth);
-    const maxPanY = Math.max(0, renderedHeight * this.mrtMapFullscreenScale - viewer.clientHeight);
+    this.mrtMapFullscreenPanX = this.clampMapAxis(
+      this.mrtMapFullscreenPanX,
+      image.clientWidth * this.mrtMapFullscreenScale,
+      viewer.clientWidth,
+      viewer.clientLeft,
+      baseOffsetX
+    );
+    this.mrtMapFullscreenPanY = this.clampMapAxis(
+      this.mrtMapFullscreenPanY,
+      image.clientHeight * this.mrtMapFullscreenScale,
+      viewer.clientHeight,
+      viewer.clientTop,
+      baseOffsetY
+    );
+  }
 
-    this.mrtMapFullscreenPanX = this.clamp(this.mrtMapFullscreenPanX, -maxPanX, 0);
-    this.mrtMapFullscreenPanY = this.clamp(this.mrtMapFullscreenPanY, -maxPanY, 0);
+  private clampMapAxis(
+    pan: number,
+    scaledContentSize: number,
+    viewportSize: number,
+    viewportStart: number,
+    baseOffset: number
+  ): number {
+    if (scaledContentSize <= viewportSize) {
+      return this.alignToDevicePixel(viewportStart + (viewportSize - scaledContentSize) / 2 - baseOffset);
+    }
+
+    const minPan = viewportStart + viewportSize - baseOffset - scaledContentSize;
+    const maxPan = viewportStart - baseOffset;
+    const clampedPan = this.clamp(pan, minPan, maxPan);
+    const alignedPan = this.alignToDevicePixel(clampedPan);
+
+    return alignedPan >= minPan && alignedPan <= maxPan ? alignedPan : clampedPan;
+  }
+
+  private maximumNativeMapScale(
+    viewer: HTMLElement | undefined,
+    image: HTMLImageElement | undefined,
+    currentScale: number,
+    interactionLimit: number
+  ): number {
+    if (!viewer || !image || !image.naturalWidth || !image.naturalHeight) {
+      return interactionLimit;
+    }
+
+    const imageRect = image.getBoundingClientRect();
+    const safeCurrentScale = Math.max(1, currentScale);
+    const baseRenderedWidth = imageRect.width / safeCurrentScale;
+    const baseRenderedHeight = imageRect.height / safeCurrentScale;
+    const devicePixelRatio = this.devicePixelRatio();
+
+    if (!baseRenderedWidth || !baseRenderedHeight) {
+      return interactionLimit;
+    }
+
+    const nativeWidthScale = image.naturalWidth / (baseRenderedWidth * devicePixelRatio);
+    const nativeHeightScale = image.naturalHeight / (baseRenderedHeight * devicePixelRatio);
+
+    return Math.max(1, Math.min(interactionLimit, nativeWidthScale, nativeHeightScale));
+  }
+
+  private alignToDevicePixel(value: number): number {
+    const devicePixelRatio = this.devicePixelRatio();
+    return Math.round(value * devicePixelRatio) / devicePixelRatio;
+  }
+
+  private devicePixelRatio(): number {
+    return typeof window === 'undefined' ? 1 : Math.max(1, window.devicePixelRatio || 1);
   }
 
   private clamp(value: number, min: number, max: number): number {

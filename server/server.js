@@ -7,6 +7,7 @@ const express = require('express');
 const fs = require('fs');
 const https = require('https');
 const http2 = require('http2');
+const { filterBusStops } = require('./bus-stop-search');
 
 const app = express();
 // Render provides PORT at runtime; local development falls back to 3000.
@@ -19,11 +20,12 @@ const apnsKeyId = process.env.APNS_KEY_ID;
 const apnsPrivateKey = process.env.APNS_PRIVATE_KEY;
 const apnsPrivateKeyBase64 = process.env.APNS_PRIVATE_KEY_BASE64;
 const apnsPrivateKeyPath = process.env.APNS_PRIVATE_KEY_PATH;
-const apnsTopic = process.env.APNS_LIVE_ACTIVITY_TOPIC
-  || `${process.env.APNS_BUNDLE_ID || 'com.daryledwin.bus'}.push-type.liveactivity`;
+const apnsTopic = 'com.daryledwin.bus.push-type.liveactivity';
+const configuredApnsTopic = process.env.APNS_LIVE_ACTIVITY_TOPIC || apnsTopic;
 const apnsEnvironment = (process.env.APNS_ENVIRONMENT || 'development').toLowerCase();
-const liveActivityPushIntervalMs = Number(process.env.LIVE_ACTIVITY_PUSH_INTERVAL_MS) || 10 * 1000;
+const liveActivityPushIntervalMs = Number(process.env.LIVE_ACTIVITY_PUSH_INTERVAL_MS) || 15 * 1000;
 const liveActivityPushStaleAfterMs = Number(process.env.LIVE_ACTIVITY_PUSH_STALE_AFTER_MS) || 20 * 1000;
+const apnsRequestTimeoutMs = Number(process.env.APNS_REQUEST_TIMEOUT_MS) || 12 * 1000;
 const ltaArrivalEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/v3/BusArrival';
 const ltaBusStopsEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/BusStops';
 const ltaBusRoutesEndpoint = 'https://datamall2.mytransport.sg/ltaodataservice/BusRoutes';
@@ -74,7 +76,9 @@ function ltaRequestOptions(params) {
   return {
     headers: {
       AccountKey: accountKey,
-      accept: 'application/json'
+      accept: 'application/json',
+      'cache-control': 'no-cache, no-store, max-age=0',
+      pragma: 'no-cache'
     },
     httpsAgent: ltaHttpsAgent,
     params,
@@ -308,8 +312,12 @@ function buildLiveActivityContentState(service) {
   };
 }
 
-function apnsHost() {
-  return apnsEnvironment === 'production'
+function normalizeApnsEnvironment(value) {
+  return String(value || '').toLowerCase() === 'production' ? 'production' : 'development';
+}
+
+function apnsHost(environment = apnsEnvironment) {
+  return normalizeApnsEnvironment(environment) === 'production'
     ? 'https://api.push.apple.com'
     : 'https://api.sandbox.push.apple.com';
 }
@@ -331,7 +339,12 @@ function loadApnsPrivateKey() {
 }
 
 function apnsIsConfigured() {
-  return Boolean(apnsTeamId && apnsKeyId && (apnsPrivateKey || apnsPrivateKeyBase64 || apnsPrivateKeyPath) && apnsTopic);
+  return Boolean(
+    apnsTeamId
+    && apnsKeyId
+    && (apnsPrivateKey || apnsPrivateKeyBase64 || apnsPrivateKeyPath)
+    && configuredApnsTopic === apnsTopic
+  );
 }
 
 function apnsConfigStatus() {
@@ -341,7 +354,9 @@ function apnsConfigStatus() {
     hasKeyId: Boolean(apnsKeyId),
     hasPrivateKey: Boolean(apnsPrivateKey || apnsPrivateKeyBase64 || apnsPrivateKeyPath),
     topic: apnsTopic,
-    environment: apnsEnvironment
+    configuredTopic: configuredApnsTopic,
+    topicMatchesExpected: configuredApnsTopic === apnsTopic,
+    defaultEnvironment: normalizeApnsEnvironment(apnsEnvironment)
   };
 }
 
@@ -432,12 +447,15 @@ async function sendApnsLiveActivityPush(session, payload, reason) {
     };
   }
 
-  const client = http2.connect(apnsHost());
+  const environment = normalizeApnsEnvironment(session.apnsEnvironment || apnsEnvironment);
+  const host = apnsHost(environment);
+  const client = http2.connect(host);
   const body = JSON.stringify(payload);
 
   return new Promise((resolve, reject) => {
     let responseBody = '';
     let settled = false;
+    const sentAt = Date.now();
     const request = client.request({
       ':method': 'POST',
       ':path': `/3/device/${session.pushToken}`,
@@ -449,6 +467,9 @@ async function sendApnsLiveActivityPush(session, payload, reason) {
     });
 
     request.setEncoding('utf8');
+    request.setTimeout(apnsRequestTimeoutMs, () => {
+      request.destroy(new Error(`APNs request timed out after ${apnsRequestTimeoutMs}ms`));
+    });
 
     request.on('response', (headers) => {
       request.statusCode = Number(headers[':status']) || 0;
@@ -484,9 +505,14 @@ async function sendApnsLiveActivityPush(session, payload, reason) {
         busStopCode: session.busStopCode,
         statusCode: request.statusCode,
         apnsReason: reasonText || 'OK',
+        responseBody: responseBody || '',
         apnsId: request.apnsId,
-        environment: apnsEnvironment,
-        topic: apnsTopic
+        environment,
+        host,
+        topic: apnsTopic,
+        requestTimestamp: payload.aps && payload.aps.timestamp,
+        responseAt: new Date().toISOString(),
+        durationMs: Date.now() - sentAt
       });
 
       if (request.statusCode >= 200 && request.statusCode < 300) {
@@ -563,18 +589,26 @@ async function refreshLiveActivitySession(session, reason) {
   }
 
   session.refreshInFlight = true;
+  const refreshStartedAt = Date.now();
 
   try {
 
   console.log('[LiveActivity Push] Backend LTA fetch started.', {
     reason,
+    refreshTimestamp: new Date(refreshStartedAt).toISOString(),
     activityId: session.activityId,
     serviceNo: session.serviceNo,
     busStopCode: session.busStopCode
   });
   const response = await getFromLta(ltaArrivalEndpoint, {
     BusStopCode: session.busStopCode
-  }, 3);
+  }, 3, {
+    pipeline: 'live-activity',
+    reason,
+    activityId: session.activityId,
+    serviceNo: session.serviceNo,
+    busStopCode: session.busStopCode
+  });
   const services = Array.isArray(response.data.Services) ? response.data.Services : [];
   const service = services.find((item) => normalizeServiceNo(item.ServiceNo) === session.serviceNo);
 
@@ -593,14 +627,22 @@ async function refreshLiveActivitySession(session, reason) {
   }
 
   const contentState = buildLiveActivityContentState(service);
+  const estimatedArrivals = [service.NextBus, service.NextBus2, service.NextBus3]
+    .map((bus) => (bus || {}).EstimatedArrival || null);
+  const arrivalSignature = JSON.stringify(estimatedArrivals);
+  const arrivalDataChanged = session.lastArrivalSignature !== arrivalSignature;
 
   console.log('[LiveActivity Push] Parsed arrival values.', {
     reason,
     activityId: session.activityId,
     serviceNo: session.serviceNo,
     busStopCode: session.busStopCode,
-    estimatedArrivals: [service.NextBus, service.NextBus2, service.NextBus3]
-      .map((bus) => (bus || {}).EstimatedArrival || null),
+    refreshTimestamp: new Date(refreshStartedAt).toISOString(),
+    ltaResponseDate: response.headers && response.headers.date,
+    ltaResponseAge: response.headers && response.headers.age,
+    ltaCacheControl: response.headers && response.headers['cache-control'],
+    estimatedArrivals,
+    arrivalDataChanged,
     arrivalStatus: contentState.arrivalStatus,
     nextArrivalTiming: contentState.nextArrivalTiming,
     thirdArrivalTiming: contentState.thirdArrivalTiming
@@ -616,6 +658,7 @@ async function refreshLiveActivitySession(session, reason) {
   }
 
   await sendActivityKitUpdatePush(session, contentState, reason);
+  session.lastArrivalSignature = arrivalSignature;
   session.lastContentState = contentState;
   session.updatedAt = Date.now();
   } finally {
@@ -639,7 +682,8 @@ async function sendActivityKitUpdatePush(session, contentState, reason) {
     seatAvailability: contentState.seatAvailability,
     arrivalAt: contentState.arrivalAt,
     lastUpdatedAt: contentState.lastUpdatedAt,
-    environment: apnsEnvironment,
+    payloadTimestamp: payload.aps.timestamp,
+    environment: normalizeApnsEnvironment(session.apnsEnvironment || apnsEnvironment),
     topic: apnsTopic
   });
 
@@ -648,14 +692,13 @@ async function sendActivityKitUpdatePush(session, contentState, reason) {
 
 async function refreshAllLiveActivitySessions(reason) {
   const sessions = Array.from(liveActivitySessions.values());
-
-  if (!sessions.length) {
-    return;
-  }
+  const cycleStartedAt = Date.now();
 
   console.log('[LiveActivity Push] Refresh cycle started.', {
     reason,
-    sessionCount: sessions.length
+    sessionCount: sessions.length,
+    activityIds: sessions.map((session) => session.activityId),
+    refreshTimestamp: new Date(cycleStartedAt).toISOString()
   });
 
   await Promise.allSettled(sessions.map(async (session) => {
@@ -672,10 +715,7 @@ async function refreshAllLiveActivitySessions(reason) {
         message: error.message
       });
 
-      if (error.apnsReason === 'BadDeviceToken'
-        || error.apnsReason === 'DeviceTokenNotForTopic'
-        || error.apnsReason === 'Unregistered'
-        || error.apnsReason === 'ExpiredProviderToken') {
+      if (error.apnsReason === 'Unregistered') {
         liveActivitySessions.delete(session.activityId);
         console.log('[LiveActivity Push] Session removed after APNs failure.', {
           activityId: session.activityId,
@@ -686,6 +726,14 @@ async function refreshAllLiveActivitySessions(reason) {
       }
     }
   }));
+
+  console.log('[LiveActivity Push] Refresh cycle completed.', {
+    reason,
+    sessionCount: sessions.length,
+    retainedSessionCount: liveActivitySessions.size,
+    durationMs: Date.now() - cycleStartedAt,
+    completedAt: new Date().toISOString()
+  });
 }
 
 function startLiveActivityPushLoop() {
@@ -734,26 +782,6 @@ function unwrapTrainServiceAlerts(rawResponse) {
   }
 
   return [];
-}
-
-function normalizeSearchText(value) {
-  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function filterBusStops(stops, search) {
-  const normalizedSearch = normalizeSearchText(search);
-
-  if (!normalizedSearch) {
-    return stops;
-  }
-
-  const tokens = normalizedSearch.split(' ').filter(Boolean);
-
-  return stops.filter((stop) => {
-    const searchableText = normalizeSearchText(`${stop.Description} ${stop.RoadName} ${stop.BusStopCode}`);
-
-    return tokens.every((token) => searchableText.includes(token));
-  });
 }
 
 async function fetchBusStops() {
@@ -880,42 +908,66 @@ function startBusRoutesCacheWarmers() {
 
 app.get('/health', (req, res) => {
   res.json({
-    status: 'ok'
+    status: 'ok',
+    liveActivityPush: {
+      intervalMs: liveActivityPushIntervalMs,
+      activeSessionCount: liveActivitySessions.size,
+      ...apnsConfigStatus()
+    }
   });
 });
 
-app.post('/api/live-activity-sessions', async (req, res) => {
+app.get('/api/live-activity-sessions', (req, res) => {
   if (!isAuthorizedLiveActivityRequest(req)) {
     return res.status(401).json({
       error: 'Unauthorized live activity session request.'
     });
   }
 
-  const activityId = String(req.body.activityId || '').trim();
-  const pushToken = String(req.body.pushToken || '').trim();
-  const busStopCode = String(req.body.busStopCode || '').trim();
-  const serviceNo = normalizeServiceNo(req.body.serviceNo);
-  const busStopName = String(req.body.busStopName || '').trim();
-  const expiresAt = Number(req.body.expiresAt) || Date.now() + 30 * 60 * 1000;
+  return res.json({
+    count: liveActivitySessions.size,
+    sessions: Array.from(liveActivitySessions.values()).map((session) => ({
+      activityId: session.activityId,
+      busStopCode: session.busStopCode,
+      serviceNo: session.serviceNo,
+      apnsEnvironment: session.apnsEnvironment,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      expiresAt: session.expiresAt,
+      refreshInFlight: session.refreshInFlight,
+      pushTokenFingerprint: crypto.createHash('sha256').update(session.pushToken).digest('hex').slice(0, 12)
+    }))
+  });
+});
+
+function registerLiveActivitySession(body = {}) {
+  const activityId = String(body.activityId || '').trim();
+  const pushToken = String(body.pushToken || '').trim();
+  const busStopCode = String(body.busStopCode || '').trim();
+  const serviceNo = normalizeServiceNo(body.serviceNo);
+  const busStopName = String(body.busStopName || '').trim();
+  const expiresAt = Number(body.expiresAt) || Date.now() + 30 * 60 * 1000;
+  const sessionApnsEnvironment = normalizeApnsEnvironment(body.apnsEnvironment || apnsEnvironment);
 
   if (!activityId || !pushToken || !/^\d{5}$/.test(busStopCode) || !/^[A-Z0-9]+$/.test(serviceNo)) {
-    return res.status(400).json({
-      error: 'Please provide activityId, pushToken, busStopCode, and serviceNo.'
-    });
+    return { error: 'Please provide activityId, pushToken, busStopCode, and serviceNo.' };
   }
 
-  const session = {
+  const existingSession = liveActivitySessions.get(activityId);
+  const tokenChanged = Boolean(existingSession && existingSession.pushToken !== pushToken);
+  const session = Object.assign(existingSession || {}, {
     activityId,
     pushToken,
     busStopCode,
     serviceNo,
     busStopName,
+    apnsEnvironment: sessionApnsEnvironment,
     expiresAt,
-    createdAt: Date.now(),
+    createdAt: existingSession ? existingSession.createdAt : Date.now(),
     updatedAt: Date.now(),
     active: true,
-    refreshInFlight: false
-  };
+    refreshInFlight: existingSession ? existingSession.refreshInFlight : false
+  });
 
   liveActivitySessions.set(activityId, session);
   console.log('[LiveActivity Push] Session registered.', {
@@ -924,13 +976,18 @@ app.post('/api/live-activity-sessions', async (req, res) => {
     busStopCode,
     expiresAt,
     pushTokenLength: pushToken.length,
+    pushTokenFingerprint: crypto.createHash('sha256').update(pushToken).digest('hex').slice(0, 12),
+    tokenChanged,
+    registrationType: existingSession ? 'updated' : 'created',
+    apnsEnvironment: sessionApnsEnvironment,
     ...apnsConfigStatus()
   });
   console.log('[LiveActivity Push] Push token received.', {
     activityId,
     serviceNo,
     busStopCode,
-    pushTokenLength: pushToken.length
+    pushTokenLength: pushToken.length,
+    tokenChanged
   });
 
   refreshLiveActivitySession(session, 'registered').catch((error) => {
@@ -942,8 +999,24 @@ app.post('/api/live-activity-sessions', async (req, res) => {
     });
   });
 
+  return { session, status: 'registered' };
+}
+
+app.post('/api/live-activity-sessions', async (req, res) => {
+  if (!isAuthorizedLiveActivityRequest(req)) {
+    return res.status(401).json({
+      error: 'Unauthorized live activity session request.'
+    });
+  }
+
+  const result = registerLiveActivitySession(req.body);
+
+  if (result.error) {
+    return res.status(400).json({ error: result.error });
+  }
+
   return res.status(202).json({
-    status: 'registered'
+    status: result.status
   });
 });
 
@@ -1156,8 +1229,25 @@ app.get('/api/train-service-alerts', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`LTA bus proxy listening on port ${PORT}`);
-  startBusRoutesCacheWarmers();
-  startLiveActivityPushLoop();
-});
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`LTA bus proxy listening on port ${PORT}`);
+    startBusRoutesCacheWarmers();
+    startLiveActivityPushLoop();
+  });
+}
+
+module.exports = {
+  activityKitContentState,
+  apnsHost,
+  apnsPayloadForUpdate,
+  apnsTopic,
+  app,
+  buildLiveActivityContentState,
+  liveActivityPushIntervalMs,
+  liveActivitySessions,
+  registerLiveActivitySession,
+  refreshAllLiveActivitySessions,
+  refreshLiveActivitySession,
+  sendApnsLiveActivityPush
+};
