@@ -6,6 +6,9 @@ struct BusLiveActivityAttributes: ActivityAttributes {
         var arrivalStatus: String
         var nextArrivalTiming: String
         var thirdArrivalTiming: String
+        var arrivalVisitNumber: Int?
+        var nextArrivalVisitNumber: Int?
+        var thirdArrivalVisitNumber: Int?
         var busType: String
         var wheelchairAccessible: Bool
         var seatAvailability: String

@@ -4,6 +4,7 @@ import { Capacitor, PluginListenerHandle } from '@capacitor/core';
 import { IonContent, IonRouterOutlet } from '@ionic/angular';
 import { Router } from '@angular/router';
 import * as L from 'leaflet';
+import { Subscription } from 'rxjs';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { SelectedBusStopService } from '../services/selected-bus-stop.service';
@@ -61,6 +62,7 @@ interface NearbyLoadOptions {
 export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(IonContent) private readonly content?: IonContent;
   @ViewChild('nearbyMap') private readonly nearbyMapElement?: ElementRef<HTMLElement>;
+  @ViewChild('nearbyMapCard') private readonly nearbyMapCardElement?: ElementRef<HTMLElement>;
 
   nearbyStops: NearbyBusStop[] = [];
   selectedNearbyStop?: NearbyBusStop;
@@ -73,11 +75,18 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   isUsingFallbackLocation = false;
   locationAccessDeferred = false;
   nearbyError = '';
+  isMapExpanded = false;
+  isMapOverlayActive = false;
+  isExpandedStopCardVisible = false;
+  isRecenteringMap = false;
   private readonly singaporeCenter = { latitude: 1.3521, longitude: 103.8198 };
   private readonly lastLocationStorageKey = 'nearbyStopsLastLocation';
   private readonly favouritesStorageKey = 'favouriteBusStops';
   private readonly lastLocationMaxAgeMs = 1000 * 60 * 60 * 12;
   private readonly resumeQuickLocationMaxAgeMs = 30 * 1000;
+  private readonly mapStopsLimit = 40;
+  private readonly mapStopsDebounceMs = 220;
+  private readonly nearbyStopsCandidateLimit = 50;
   private readonly quickLocationOptions = {
     enableHighAccuracy: false,
     maximumAge: 0,
@@ -92,6 +101,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   private map?: L.Map;
   private userMarker?: L.Marker;
   private stopMarkers = new Map<string, L.Marker>();
+  private visibleMapStops = new Map<string, NearbyBusStop>();
   private selectedStopPopup?: L.Popup;
   private favouritePopTimer?: ReturnType<typeof setTimeout>;
   private nearbyLoadRequestId = 0;
@@ -104,6 +114,14 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
   private resumeLocationGeneration = 0;
   private lastNavTapAt = 0;
   private lastNavRoute = '';
+  private mapTransitionTimer?: ReturnType<typeof setTimeout>;
+  private mapStopsDebounceTimer?: ReturnType<typeof setTimeout>;
+  private mapStopsRequestId = 0;
+  private mapStopsRequest?: Subscription;
+  private mapMoveWasUserInitiated = false;
+  private suppressMapStopsRefresh = false;
+  private suppressMapStopsRefreshTimer?: ReturnType<typeof setTimeout>;
+  private recenterFeedbackTimer?: ReturnType<typeof setTimeout>;
 
   readonly navItems: NavItem[] = [
     { label: 'Home', icon: 'home-outline', route: '/tabs/tab1' },
@@ -156,6 +174,21 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     void this.appStateListener?.remove();
     this.map?.remove();
     this.stopMarkers.clear();
+    this.visibleMapStops.clear();
+    this.mapStopsRequestId++;
+    this.mapStopsRequest?.unsubscribe();
+    if (this.mapStopsDebounceTimer) {
+      clearTimeout(this.mapStopsDebounceTimer);
+    }
+    if (this.suppressMapStopsRefreshTimer) {
+      clearTimeout(this.suppressMapStopsRefreshTimer);
+    }
+    if (this.recenterFeedbackTimer) {
+      clearTimeout(this.recenterFeedbackTimer);
+    }
+    if (this.mapTransitionTimer) {
+      clearTimeout(this.mapTransitionTimer);
+    }
     if (this.favouritePopTimer) {
       clearTimeout(this.favouritePopTimer);
     }
@@ -199,7 +232,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       didResolveFreshLocation = true;
       console.info(`[Nearby] bus stops API start request=${requestId}`);
       const stops = await this.withTimeout(
-        this.ltaBusStopsService.getBusStops().toPromise(),
+        this.ltaBusStopsService.getBusStopsNear(
+          location.latitude,
+          location.longitude,
+          this.nearbyStopsCandidateLimit
+        ).toPromise(),
         10000,
         'nearby-bus-stops-timeout'
       ) || [];
@@ -253,6 +290,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   async refreshNearbyStops(event: Event): Promise<void> {
     const refresher = event.target as HTMLIonRefresherElement;
+    if (this.isMapExpanded) {
+      await refresher.complete();
+      return;
+    }
+
     let shouldShowFeedback = false;
     this.isPullToRefreshActive = true;
     this.didUseVisibleStopsRefreshFallback = false;
@@ -398,11 +440,9 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
     this.saveFavouriteBusStops();
 
+    void this.refreshFeedbackService.mediumImpact();
     if (becameFavourite) {
-      void this.refreshFeedbackService.favouriteSaved();
       void this.reviewService.requestAutomaticReviewIfEligible();
-    } else {
-      void this.refreshFeedbackService.lightImpact();
     }
 
     this.recentlyToggledFavouriteCode = stop.BusStopCode;
@@ -420,14 +460,85 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }, 460);
   }
 
-  selectNearbyStop(stop: NearbyBusStop): void {
+  selectNearbyStop(stop: NearbyBusStop, fromMap = false): void {
+    if (fromMap) {
+      void this.refreshFeedbackService.lightImpact();
+    }
+
+    if (
+      fromMap
+      && this.isExpandedStopCardVisible
+      && this.selectedNearbyStop?.BusStopCode === stop.BusStopCode
+    ) {
+      this.isExpandedStopCardVisible = false;
+      return;
+    }
+
     this.selectedNearbyStop = stop;
     this.updateStopMarkerStyles();
-    this.openSelectedStopCallout(stop);
-    this.map?.setView([Number(stop.Latitude), Number(stop.Longitude)], Math.max(this.map.getZoom(), 16), {
-      animate: true
-    });
-    this.scrollToPageTop();
+    if (this.isMapExpanded) {
+      this.isExpandedStopCardVisible = true;
+      this.map?.closePopup(this.selectedStopPopup);
+    } else {
+      this.isExpandedStopCardVisible = false;
+      this.openSelectedStopCallout(stop);
+    }
+    this.focusMapOnSelectedStop(stop);
+    if (!fromMap) {
+      this.scrollToPageTop();
+    }
+  }
+
+  expandMap(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (this.isMapOverlayActive || !this.nearbyMapCardElement) {
+      return;
+    }
+
+    void this.refreshFeedbackService.lightImpact();
+
+    const card = this.nearbyMapCardElement.nativeElement;
+    const bounds = card.getBoundingClientRect();
+    card.style.setProperty('--map-card-top', `${bounds.top}px`);
+    card.style.setProperty('--map-card-left', `${bounds.left}px`);
+    card.style.setProperty('--map-card-width', `${bounds.width}px`);
+    card.style.setProperty('--map-card-height', `${bounds.height}px`);
+    this.map?.closePopup(this.selectedStopPopup);
+    this.isMapOverlayActive = true;
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      this.isMapExpanded = true;
+      this.isExpandedStopCardVisible = Boolean(this.selectedNearbyStop);
+      this.resizeMapDuringTransition();
+    }));
+  }
+
+  collapseMap(event?: Event): void {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (!this.isMapExpanded) {
+      return;
+    }
+
+    void this.refreshFeedbackService.lightImpact();
+
+    this.isMapExpanded = false;
+    this.isExpandedStopCardVisible = false;
+    this.map?.closePopup(this.selectedStopPopup);
+    if (this.selectedNearbyStop) {
+      this.openSelectedStopCallout(this.selectedNearbyStop, false);
+    }
+    this.resizeMapDuringTransition();
+
+    if (this.mapTransitionTimer) {
+      clearTimeout(this.mapTransitionTimer);
+    }
+    this.mapTransitionTimer = setTimeout(() => {
+      this.isMapOverlayActive = false;
+      this.mapTransitionTimer = undefined;
+      this.map?.invalidateSize({ pan: false });
+    }, 440);
   }
 
   trackNearbyStop(index: number, stop: NearbyBusStop): string {
@@ -463,9 +574,27 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    void this.refreshFeedbackService.lightImpact();
+    this.isRecenteringMap = true;
+    if (this.recenterFeedbackTimer) {
+      clearTimeout(this.recenterFeedbackTimer);
+    }
+    this.recenterFeedbackTimer = setTimeout(() => {
+      this.isRecenteringMap = false;
+      this.recenterFeedbackTimer = undefined;
+    }, 460);
+
     this.clearSelectedStop();
-    this.map.setView([this.mapCenter.latitude, this.mapCenter.longitude], Math.max(this.map.getZoom(), 16), {
-      animate: true
+    this.runProgrammaticMapMove(() => this.map?.setView(
+      [this.mapCenter.latitude, this.mapCenter.longitude],
+      Math.max(this.map?.getZoom() || 16, 16),
+      { animate: true }
+    ));
+  }
+
+  private resizeMapDuringTransition(): void {
+    [30, 210, 450].forEach((delay) => {
+      setTimeout(() => this.map?.invalidateSize({ pan: false }), delay);
     });
   }
 
@@ -600,7 +729,11 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       this.applyRetrievedLocation(location);
 
       const stops = await this.withTimeout(
-        this.ltaBusStopsService.getBusStops().toPromise(),
+        this.ltaBusStopsService.getBusStopsNear(
+          location.latitude,
+          location.longitude,
+          this.nearbyStopsCandidateLimit
+        ).toPromise(),
         10000,
         'nearby-resume-bus-stops-timeout'
       ) || [];
@@ -692,7 +825,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     console.info('[Nearby] background geolocation start');
     const generation = this.resumeLocationGeneration;
     this.locationService.currentLocation(this.refinementLocationOptions)
-      .then((location) => {
+      .then(async (location) => {
         if (
           generation !== this.resumeLocationGeneration
           || !this.isActiveNearbyRequest(requestId)
@@ -713,6 +846,28 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
           return;
         }
 
+        let freshStops = stops;
+        try {
+          freshStops = await this.withTimeout(
+            this.ltaBusStopsService.getBusStopsNear(
+              freshLocation.latitude,
+              freshLocation.longitude,
+              this.nearbyStopsCandidateLimit
+            ).toPromise(),
+            10000,
+            'nearby-background-bus-stops-timeout'
+          ) || [];
+        } catch (error) {
+          console.warn('[Nearby] background bus stops refresh failed', error);
+        }
+
+        if (
+          generation !== this.resumeLocationGeneration
+          || !this.isActiveNearbyRequest(requestId)
+        ) {
+          return;
+        }
+
         this.ngZone.run(() => {
           if (this.retrievedResumeQuickLocation) {
             this.retrievedResumeQuickLocation = {
@@ -725,7 +880,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
           this.nearbyError = '';
           this.saveLastLocation(freshLocation);
           this.mapCenter = freshLocation;
-          this.renderNearbyStops(stops, freshLocation);
+          this.renderNearbyStops(freshStops, freshLocation);
         });
       })
       .catch((error) => {
@@ -833,6 +988,17 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     }).setView([this.singaporeCenter.latitude, this.singaporeCenter.longitude], 13);
 
     this.map.on('click', () => this.ngZone.run(() => this.clearSelectedStop()));
+    this.map.on('dragstart', () => {
+      this.suppressMapStopsRefresh = false;
+      this.mapMoveWasUserInitiated = true;
+    });
+    this.map.on('zoomstart', () => {
+      if (!this.suppressMapStopsRefresh) {
+        this.mapMoveWasUserInitiated = true;
+      }
+    });
+    this.map.on('moveend', () => this.handleSettledMapMovement());
+    this.map.on('zoomend', () => this.handleSettledMapMovement());
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -849,7 +1015,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    this.map.setView([latitude, longitude], 15);
+    this.runProgrammaticMapMove(() => this.map?.setView([latitude, longitude], 15));
 
     if (this.userMarker) {
       this.userMarker.setLatLng([latitude, longitude]);
@@ -859,27 +1025,193 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
       }).addTo(this.map);
     }
 
-    this.stopMarkers.forEach((marker) => marker.remove());
-    this.stopMarkers.clear();
-
-    this.nearbyStops.forEach((stop) => {
-      const marker = L.marker([Number(stop.Latitude), Number(stop.Longitude)], {
-        icon: this.stopIcon(false)
-      }).addTo(this.map as L.Map);
-
-      marker.on('click', (event) => {
-        L.DomEvent.stopPropagation(event);
-        this.ngZone.run(() => this.selectNearbyStop(stop));
-      });
-      this.stopMarkers.set(stop.BusStopCode, marker);
-    });
+    this.replaceMapMarkers(this.nearbyStops);
 
     const bounds = L.latLngBounds([[latitude, longitude] as [number, number]]);
     this.nearbyStops.forEach((stop) => bounds.extend([Number(stop.Latitude), Number(stop.Longitude)]));
 
     if (bounds.isValid()) {
-      this.map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+      this.runProgrammaticMapMove(() => this.map?.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 }));
     }
+  }
+
+  private handleSettledMapMovement(): void {
+    if (this.suppressMapStopsRefresh || !this.mapMoveWasUserInitiated) {
+      return;
+    }
+
+    this.mapMoveWasUserInitiated = false;
+    this.scheduleMapStopsRefresh();
+  }
+
+  private scheduleMapStopsRefresh(): void {
+    this.mapStopsRequestId++;
+    this.mapStopsRequest?.unsubscribe();
+    this.mapStopsRequest = undefined;
+    if (this.mapStopsDebounceTimer) {
+      clearTimeout(this.mapStopsDebounceTimer);
+    }
+
+    this.mapStopsDebounceTimer = setTimeout(() => {
+      this.mapStopsDebounceTimer = undefined;
+      this.refreshMapStopsAroundCenter();
+    }, this.mapStopsDebounceMs);
+  }
+
+  private refreshMapStopsAroundCenter(): void {
+    if (!this.map || this.isDestroyed) {
+      return;
+    }
+
+    const requestId = ++this.mapStopsRequestId;
+    const center = this.map.getCenter();
+
+    this.mapStopsRequest = this.ltaBusStopsService.getBusStopsNear(
+      center.lat,
+      center.lng,
+      this.mapStopsLimit
+    ).subscribe(
+      (stops) => {
+        if (requestId !== this.mapStopsRequestId || this.isDestroyed) {
+          return;
+        }
+
+        // Keep an independent nearest-stop cap on device if an older backend ignores the query.
+        const nearestStops = this.nearestMapStops(stops || [], center);
+        this.ngZone.run(() => this.replaceMapMarkers(nearestStops, center));
+      },
+      (error) => console.warn('[Nearby map] bus stops refresh failed', error)
+    );
+  }
+
+  private replaceMapMarkers(
+    stops: BusStop[],
+    distanceFrom: NearbyLocation | L.LatLng = this.mapCenter
+  ): void {
+    if (!this.map) {
+      return;
+    }
+
+    const nextStops = new Map<string, NearbyBusStop>();
+    stops.slice(0, this.mapStopsLimit).forEach((stop) => {
+      const latitude = Number(stop.Latitude);
+      const longitude = Number(stop.Longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return;
+      }
+
+      const distanceLatitude = 'latitude' in distanceFrom ? distanceFrom.latitude : distanceFrom.lat;
+      const distanceLongitude = 'longitude' in distanceFrom ? distanceFrom.longitude : distanceFrom.lng;
+      nextStops.set(stop.BusStopCode, {
+        ...stop,
+        distanceMeters: this.distanceMeters(
+          distanceLatitude,
+          distanceLongitude,
+          latitude,
+          longitude
+        )
+      });
+    });
+
+    this.stopMarkers.forEach((marker, busStopCode) => {
+      if (!nextStops.has(busStopCode)) {
+        marker.remove();
+        this.stopMarkers.delete(busStopCode);
+      }
+    });
+
+    this.visibleMapStops = nextStops;
+    nextStops.forEach((stop, busStopCode) => {
+      const existingMarker = this.stopMarkers.get(busStopCode);
+      if (existingMarker) {
+        existingMarker.setIcon(this.stopIcon(this.selectedNearbyStop?.BusStopCode === busStopCode));
+        return;
+      }
+
+      const marker = L.marker([Number(stop.Latitude), Number(stop.Longitude)], {
+        icon: this.stopIcon(this.selectedNearbyStop?.BusStopCode === busStopCode)
+      }).addTo(this.map as L.Map);
+      marker.on('click', (event) => {
+        L.DomEvent.stopPropagation(event);
+        const currentStop = this.visibleMapStops.get(busStopCode) || stop;
+        this.ngZone.run(() => this.selectNearbyStop(currentStop, true));
+      });
+      this.stopMarkers.set(busStopCode, marker);
+    });
+  }
+
+  private nearestMapStops(stops: BusStop[], center: L.LatLng): BusStop[] {
+    const nearest: Array<{ stop: BusStop; distanceMeters: number }> = [];
+
+    for (const stop of stops) {
+      const latitude = Number(stop.Latitude);
+      const longitude = Number(stop.Longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        continue;
+      }
+
+      const candidate = {
+        stop,
+        distanceMeters: this.distanceMeters(center.lat, center.lng, latitude, longitude)
+      };
+      const insertionIndex = nearest.findIndex(
+        (existing) => candidate.distanceMeters < existing.distanceMeters
+      );
+
+      if (insertionIndex === -1) {
+        if (nearest.length < this.mapStopsLimit) {
+          nearest.push(candidate);
+        }
+      } else {
+        nearest.splice(insertionIndex, 0, candidate);
+        if (nearest.length > this.mapStopsLimit) {
+          nearest.pop();
+        }
+      }
+    }
+
+    return nearest.map(({ stop }) => stop);
+  }
+
+  private runProgrammaticMapMove(move: () => unknown): void {
+    this.suppressMapStopsRefresh = true;
+    this.mapMoveWasUserInitiated = false;
+    if (this.suppressMapStopsRefreshTimer) {
+      clearTimeout(this.suppressMapStopsRefreshTimer);
+    }
+
+    move();
+    this.suppressMapStopsRefreshTimer = setTimeout(() => {
+      this.suppressMapStopsRefresh = false;
+      this.suppressMapStopsRefreshTimer = undefined;
+    }, 500);
+  }
+
+  private focusMapOnSelectedStop(stop: NearbyBusStop): void {
+    if (!this.map) {
+      return;
+    }
+
+    const targetZoom = Math.max(this.map.getZoom(), 16);
+    const mapHeight = this.map.getSize().y;
+    const preferredOffset = this.isMapExpanded
+      ? Math.min(56, mapHeight * 0.1)
+      : Math.min(36, mapHeight * 0.2);
+    const verticalOffset = Math.max(0, Math.min(preferredOffset, (mapHeight / 2) - 42));
+    const markerPoint = this.map.project(
+      [Number(stop.Latitude), Number(stop.Longitude)],
+      targetZoom
+    );
+    const cameraTarget = this.map.unproject(
+      markerPoint.subtract(L.point(0, verticalOffset)),
+      targetZoom
+    );
+
+    this.runProgrammaticMapMove(() => this.map?.setView(cameraTarget, targetZoom, {
+      animate: true,
+      duration: 0.38,
+      easeLinearity: 0.24
+    }));
   }
 
   private updateStopMarkerStyles(): void {
@@ -890,11 +1222,12 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
 
   private clearSelectedStop(): void {
     this.selectedNearbyStop = undefined;
+    this.isExpandedStopCardVisible = false;
     this.updateStopMarkerStyles();
     this.map?.closePopup(this.selectedStopPopup);
   }
 
-  private openSelectedStopCallout(stop: NearbyBusStop): void {
+  private openSelectedStopCallout(stop: NearbyBusStop, autoPan = false): void {
     if (!this.map) {
       return;
     }
@@ -914,7 +1247,7 @@ export class Tab2Page implements OnInit, AfterViewInit, OnDestroy {
     L.DomEvent.on(action, 'click', () => this.ngZone.run(() => this.viewBuses(stop)));
 
     this.selectedStopPopup = L.popup({
-      autoPan: true,
+      autoPan,
       autoPanPadding: [18, 18],
       className: 'nearby-map-popup',
       closeButton: false,

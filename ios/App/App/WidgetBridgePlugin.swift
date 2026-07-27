@@ -183,6 +183,9 @@ public class WidgetBridgePlugin: CAPPlugin, CAPBridgedPlugin {
                     "arrivalStatus": state.arrivalStatus,
                     "nextArrivalTiming": state.nextArrivalTiming,
                     "thirdArrivalTiming": state.thirdArrivalTiming,
+                    "arrivalVisitNumber": state.arrivalVisitNumber.map { $0 as Any } ?? NSNull(),
+                    "nextArrivalVisitNumber": state.nextArrivalVisitNumber.map { $0 as Any } ?? NSNull(),
+                    "thirdArrivalVisitNumber": state.thirdArrivalVisitNumber.map { $0 as Any } ?? NSNull(),
                     "busType": state.busType,
                     "wheelchairAccessible": state.wheelchairAccessible,
                     "seatAvailability": state.seatAvailability,
@@ -385,6 +388,9 @@ private struct BusLiveActivityPayload: Codable {
     let arrivalStatus: String
     let nextArrivalTiming: String
     let thirdArrivalTiming: String
+    let arrivalVisitNumber: Int?
+    let nextArrivalVisitNumber: Int?
+    let thirdArrivalVisitNumber: Int?
     let busType: String
     let wheelchairAccessible: Bool
     let seatAvailability: String
@@ -407,6 +413,9 @@ private struct BusLiveActivityPayload: Codable {
             arrivalStatus: arrivalStatus,
             nextArrivalTiming: nextArrivalTiming,
             thirdArrivalTiming: thirdArrivalTiming,
+            arrivalVisitNumber: arrivalVisitNumber,
+            nextArrivalVisitNumber: nextArrivalVisitNumber,
+            thirdArrivalVisitNumber: thirdArrivalVisitNumber,
             busType: busType,
             wheelchairAccessible: wheelchairAccessible,
             seatAvailability: seatAvailability,

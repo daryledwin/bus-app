@@ -50,6 +50,9 @@ export interface BusLiveActivityPayload {
   arrivalStatus: string;
   nextArrivalTiming: string;
   thirdArrivalTiming: string;
+  arrivalVisitNumber: number | null;
+  nextArrivalVisitNumber: number | null;
+  thirdArrivalVisitNumber: number | null;
   busType: string;
   wheelchairAccessible: boolean;
   seatAvailability: string;

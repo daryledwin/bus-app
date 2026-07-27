@@ -8,6 +8,8 @@ const fs = require('fs');
 const https = require('https');
 const http2 = require('http2');
 const { filterBusStops } = require('./bus-stop-search');
+const { nearestBusStops, parseNearbyBusStopQuery } = require('./bus-stop-nearby');
+const { filterBusRouteRecords, parseBusRouteQuery } = require('./bus-route-filter');
 
 const app = express();
 // Render provides PORT at runtime; local development falls back to 3000.
@@ -224,6 +226,15 @@ function normalizeServiceNo(serviceNo) {
   return String(serviceNo || '').trim().toUpperCase();
 }
 
+function normalizeVisitNumber(visitNumber) {
+  if (visitNumber === undefined || visitNumber === null || String(visitNumber).trim() === '') {
+    return null;
+  }
+
+  const normalized = Number(visitNumber);
+  return Number.isInteger(normalized) && normalized > 0 ? normalized : null;
+}
+
 function minutesAway(estimatedArrival) {
   if (!estimatedArrival) {
     return null;
@@ -295,13 +306,17 @@ function unixMsFromEstimatedArrival(estimatedArrival) {
 function buildLiveActivityContentState(service) {
   const nextBus = service.NextBus || {};
   const subsequentBus = service.NextBus2 || {};
+  const thirdBus = service.NextBus3 || {};
   const lastUpdatedAt = Date.now();
   const arrivalAt = unixMsFromEstimatedArrival(nextBus.EstimatedArrival);
 
   return {
     arrivalStatus: timingLabel(nextBus.EstimatedArrival),
     nextArrivalTiming: timingLabel(subsequentBus.EstimatedArrival),
-    thirdArrivalTiming: timingLabel((service.NextBus3 || {}).EstimatedArrival),
+    thirdArrivalTiming: timingLabel(thirdBus.EstimatedArrival),
+    arrivalVisitNumber: normalizeVisitNumber(nextBus.VisitNumber),
+    nextArrivalVisitNumber: normalizeVisitNumber(subsequentBus.VisitNumber),
+    thirdArrivalVisitNumber: normalizeVisitNumber(thirdBus.VisitNumber),
     busType: typeLabel(nextBus.Type),
     wheelchairAccessible: nextBus.Feature === 'WAB',
     seatAvailability: loadLabel(nextBus.Load),
@@ -424,6 +439,9 @@ function activityKitContentState(contentState) {
     arrivalStatus: contentState.arrivalStatus,
     nextArrivalTiming: contentState.nextArrivalTiming,
     thirdArrivalTiming: contentState.thirdArrivalTiming,
+    arrivalVisitNumber: contentState.arrivalVisitNumber,
+    nextArrivalVisitNumber: contentState.nextArrivalVisitNumber,
+    thirdArrivalVisitNumber: contentState.thirdArrivalVisitNumber,
     busType: contentState.busType,
     wheelchairAccessible: contentState.wheelchairAccessible,
     seatAvailability: contentState.seatAvailability,
@@ -627,9 +645,13 @@ async function refreshLiveActivitySession(session, reason) {
   }
 
   const contentState = buildLiveActivityContentState(service);
-  const estimatedArrivals = [service.NextBus, service.NextBus2, service.NextBus3]
-    .map((bus) => (bus || {}).EstimatedArrival || null);
-  const arrivalSignature = JSON.stringify(estimatedArrivals);
+  const arrivalSignatureValues = [service.NextBus, service.NextBus2, service.NextBus3]
+    .map((bus) => ({
+      estimatedArrival: (bus || {}).EstimatedArrival || null,
+      visitNumber: normalizeVisitNumber((bus || {}).VisitNumber)
+    }));
+  const estimatedArrivals = arrivalSignatureValues.map((arrival) => arrival.estimatedArrival);
+  const arrivalSignature = JSON.stringify(arrivalSignatureValues);
   const arrivalDataChanged = session.lastArrivalSignature !== arrivalSignature;
 
   console.log('[LiveActivity Push] Parsed arrival values.', {
@@ -645,7 +667,10 @@ async function refreshLiveActivitySession(session, reason) {
     arrivalDataChanged,
     arrivalStatus: contentState.arrivalStatus,
     nextArrivalTiming: contentState.nextArrivalTiming,
-    thirdArrivalTiming: contentState.thirdArrivalTiming
+    thirdArrivalTiming: contentState.thirdArrivalTiming,
+    arrivalVisitNumber: contentState.arrivalVisitNumber,
+    nextArrivalVisitNumber: contentState.nextArrivalVisitNumber,
+    thirdArrivalVisitNumber: contentState.thirdArrivalVisitNumber
   });
 
   if (!session.active || liveActivitySessions.get(session.activityId) !== session) {
@@ -1065,6 +1090,9 @@ app.delete('/api/live-activity-sessions/:activityId', async (req, res) => {
       arrivalStatus: 'Tracking ended',
       nextArrivalTiming: 'No Bus',
       thirdArrivalTiming: 'No Bus',
+      arrivalVisitNumber: null,
+      nextArrivalVisitNumber: null,
+      thirdArrivalVisitNumber: null,
       busType: 'Type unavailable',
       wheelchairAccessible: false,
       seatAvailability: 'Load unavailable',
@@ -1168,20 +1196,27 @@ app.get('/api/bus-stops', async (req, res) => {
 
   try {
     const stops = await fetchBusStops();
+    let nearbyQuery;
 
-    return res.json(filterBusStops(stops, req.query.search));
+    try {
+      nearbyQuery = parseNearbyBusStopQuery(req.query);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    return res.json(nearestBusStops(filterBusStops(stops, req.query.search), nearbyQuery));
   } catch (error) {
     return ltaFailure(res, error);
   }
 });
 
 app.get('/api/bus-routes', async (req, res) => {
-  const serviceNo = String(req.query.serviceNo || '').trim().toUpperCase();
+  let query;
 
-  if (!/^[A-Z0-9]+$/.test(serviceNo)) {
-    return res.status(400).json({
-      error: 'Please provide a valid bus service number.'
-    });
+  try {
+    query = parseBusRouteQuery(req.query);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
 
   if (!hasAccountKey(res)) {
@@ -1191,10 +1226,11 @@ app.get('/api/bus-routes', async (req, res) => {
   try {
     const lookupStartedAt = Date.now();
     const routes = await fetchBusRoutes();
-    const filteredRoutes = routes.filter((route) => String(route.ServiceNo || '').toUpperCase() === serviceNo);
+    const filteredRoutes = filterBusRouteRecords(routes, query);
+    const lookupLabel = query.serviceNo || `stop ${query.busStopCode}`;
 
     console.log(
-      `[BusRoutes cache] Lookup for ${serviceNo} returned ${filteredRoutes.length} records in ${Date.now() - lookupStartedAt}ms.`
+      `[BusRoutes cache] Lookup for ${lookupLabel} returned ${filteredRoutes.length} records in ${Date.now() - lookupStartedAt}ms.`
     );
 
     return res.json(filteredRoutes);

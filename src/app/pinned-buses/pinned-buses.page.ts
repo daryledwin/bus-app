@@ -1,10 +1,13 @@
 import { Component, HostListener, OnInit, Optional } from '@angular/core';
 import { IonRouterOutlet, NavController } from '@ionic/angular';
+import { LtaBusRoutesService } from '../services/lta-bus-routes.service';
 import { BusStop, LtaBusStopsService } from '../services/lta-bus-stops.service';
 import { LocationService } from '../services/location.service';
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { WidgetBridgeService } from '../services/widget-bridge.service';
 import { formatBusStopName as formatBusStopDisplayName } from '../utils/bus-stop-display';
+import { rankBusStopSearchResults } from '../utils/bus-stop-search';
+import { normalizeBusServiceNumber, uniqueSortedBusServiceNumbers } from '../utils/bus-service-number';
 
 type PinnedBusServicesByStop = Record<string, string[]>;
 type PinnedBusSortMode = 'recent' | 'distance' | 'name';
@@ -34,17 +37,32 @@ export class PinnedBusesPage implements OnInit {
   isReordering = false;
   isSortPopoverOpen = false;
   sortMode: PinnedBusSortMode = 'recent';
+  isAddBusSheetOpen = false;
+  addBusStep: 'stop' | 'service' = 'stop';
+  busStopQuery = '';
+  matchingBusStops: BusStop[] = [];
+  selectedBusStop?: BusStop;
+  availableServices: string[] = [];
+  isLoadingPickerStops = false;
+  pickerStopsError = '';
+  isLoadingStopServices = false;
+  stopServicesError = '';
+  hasNoStopServices = false;
 
   private readonly pinnedBusServicesStorageKey = 'pinnedBusServicesByStop';
   private readonly pinnedBusServicesUpdatedAtStorageKey = 'pinnedBusServicesUpdatedAtByStop';
   private readonly pinnedBusSortStorageKey = 'pinnedBusesSortMode';
   private readonly lastLocationStorageKey = 'nearbyStopsLastLocation';
+  private busStops: BusStop[] = [];
   private busStopsByCode = new Map<string, BusStop>();
+  private busStopsLoadFailed = false;
   private currentLocation?: { latitude: number; longitude: number };
   private reorderTimer?: ReturnType<typeof setTimeout>;
+  private serviceRequestId = 0;
 
   constructor(
     private readonly ltaBusStopsService: LtaBusStopsService,
+    private readonly ltaBusRoutesService: LtaBusRoutesService,
     private readonly locationService: LocationService,
     private readonly navController: NavController,
     private readonly refreshFeedbackService: RefreshFeedbackService,
@@ -76,6 +94,14 @@ export class PinnedBusesPage implements OnInit {
     return serviceNo;
   }
 
+  trackBusStop(index: number, stop: BusStop): string {
+    return stop.BusStopCode;
+  }
+
+  formatBusStopName(stop: BusStop): string {
+    return formatBusStopDisplayName(stop);
+  }
+
   @HostListener('document:click')
   closeSortPopoverFromOutside(): void {
     this.closeSortPopover();
@@ -90,6 +116,95 @@ export class PinnedBusesPage implements OnInit {
   closeSortPopover(event?: Event): void {
     event?.stopPropagation();
     this.isSortPopoverOpen = false;
+  }
+
+  async openAddBusSheet(): Promise<void> {
+    this.closeSortPopover();
+    this.resetAddBusFlow();
+    this.isAddBusSheetOpen = true;
+    await this.refreshFeedbackService.lightImpact();
+
+    if (!this.busStops.length) {
+      await this.loadPickerBusStops();
+    }
+  }
+
+  closeAddBusSheet(): void {
+    this.isAddBusSheetOpen = false;
+  }
+
+  addBusSheetDismissed(): void {
+    this.isAddBusSheetOpen = false;
+    this.resetAddBusFlow();
+  }
+
+  busStopSearchChanged(query: string): void {
+    this.busStopQuery = query;
+    this.updateMatchingBusStops();
+  }
+
+  clearBusStopSearch(): void {
+    this.busStopQuery = '';
+    this.matchingBusStops = [];
+  }
+
+  async retryBusStopLoading(): Promise<void> {
+    await this.loadPickerBusStops(true);
+  }
+
+  async selectBusStop(stop: BusStop): Promise<void> {
+    this.selectedBusStop = stop;
+    this.addBusStep = 'service';
+    this.availableServices = [];
+    this.stopServicesError = '';
+    this.hasNoStopServices = false;
+    await this.refreshFeedbackService.lightImpact();
+    await this.loadServicesForSelectedStop();
+  }
+
+  changeSelectedStop(): void {
+    this.serviceRequestId++;
+    this.selectedBusStop = undefined;
+    this.availableServices = [];
+    this.stopServicesError = '';
+    this.hasNoStopServices = false;
+    this.isLoadingStopServices = false;
+    this.addBusStep = 'stop';
+    this.updateMatchingBusStops();
+    void this.refreshFeedbackService.lightImpact();
+  }
+
+  async retryStopServices(): Promise<void> {
+    await this.loadServicesForSelectedStop();
+  }
+
+  async pinSelectedService(serviceNo: string): Promise<void> {
+    const stop = this.selectedBusStop;
+
+    if (!stop) {
+      return;
+    }
+
+    const normalizedServiceNo = normalizeBusServiceNumber(serviceNo);
+    const pinnedServices = this.loadPinnedServices();
+    const currentServices = pinnedServices[stop.BusStopCode] || [];
+    const stopName = stop.Description?.trim() || this.formatBusStopName(stop);
+
+    if (currentServices.includes(normalizedServiceNo)) {
+      this.closeAddBusSheet();
+      await this.refreshFeedbackService.info(
+        `Bus ${normalizedServiceNo} is already pinned at ${stopName}`
+      );
+      return;
+    }
+
+    pinnedServices[stop.BusStopCode] = [normalizedServiceNo, ...currentServices];
+    this.savePinnedServices(pinnedServices);
+    this.markPinnedBusStopUpdated(stop.BusStopCode, Date.now());
+    this.applySortedGroups(this.groupsFromPins(pinnedServices));
+    this.widgetBridgeService.syncWidgetData();
+    this.closeAddBusSheet();
+    await this.refreshFeedbackService.info(`Bus ${normalizedServiceNo} pinned at ${stopName}`);
   }
 
   async unpinService(group: PinnedBusStopGroup, serviceNo: string): Promise<void> {
@@ -129,12 +244,16 @@ export class PinnedBusesPage implements OnInit {
 
     try {
       const busStops = await this.ltaBusStopsService.getBusStops().toPromise() || [];
+      this.busStops = busStops;
+      this.busStopsLoadFailed = false;
       this.busStopsByCode = new Map(
         busStops
           .filter((stop) => stop?.BusStopCode)
           .map((stop) => [stop.BusStopCode, stop])
       );
     } catch {
+      this.busStops = [];
+      this.busStopsLoadFailed = true;
       this.busStopsByCode = new Map();
     } finally {
       this.applySortedGroups(this.groupsFromPins(this.loadPinnedServices()), false);
@@ -165,6 +284,86 @@ export class PinnedBusesPage implements OnInit {
         };
       })
       .sort((a, b) => this.comparePinnedGroups(a, b));
+  }
+
+  private resetAddBusFlow(): void {
+    this.serviceRequestId++;
+    this.addBusStep = 'stop';
+    this.busStopQuery = '';
+    this.matchingBusStops = [];
+    this.selectedBusStop = undefined;
+    this.availableServices = [];
+    this.pickerStopsError = '';
+    this.stopServicesError = '';
+    this.hasNoStopServices = false;
+    this.isLoadingPickerStops = false;
+    this.isLoadingStopServices = false;
+  }
+
+  private async loadPickerBusStops(forceRefresh = false): Promise<void> {
+    this.isLoadingPickerStops = true;
+    this.pickerStopsError = '';
+
+    try {
+      const stops = await this.ltaBusStopsService
+        .getBusStops(forceRefresh || this.busStopsLoadFailed)
+        .toPromise() || [];
+
+      this.busStops = stops;
+      this.busStopsLoadFailed = false;
+      this.busStopsByCode = new Map(
+        stops
+          .filter((stop) => stop?.BusStopCode)
+          .map((stop) => [stop.BusStopCode, stop])
+      );
+      this.updateMatchingBusStops();
+    } catch {
+      this.busStopsLoadFailed = true;
+      this.pickerStopsError = 'Bus stops couldn’t be loaded. Check your connection and try again.';
+    } finally {
+      this.isLoadingPickerStops = false;
+    }
+  }
+
+  private updateMatchingBusStops(): void {
+    const query = this.busStopQuery.trim();
+    this.matchingBusStops = query
+      ? rankBusStopSearchResults(this.busStops, query, 30)
+      : [];
+  }
+
+  private async loadServicesForSelectedStop(): Promise<void> {
+    const stop = this.selectedBusStop;
+
+    if (!stop) {
+      return;
+    }
+
+    const requestId = ++this.serviceRequestId;
+    this.isLoadingStopServices = true;
+    this.stopServicesError = '';
+    this.hasNoStopServices = false;
+    this.availableServices = [];
+
+    try {
+      const routes = await this.ltaBusRoutesService.getBusRoutesForStop(stop.BusStopCode).toPromise() || [];
+
+      if (requestId !== this.serviceRequestId || this.selectedBusStop?.BusStopCode !== stop.BusStopCode) {
+        return;
+      }
+
+      this.availableServices = uniqueSortedBusServiceNumbers(routes);
+      this.hasNoStopServices = !this.availableServices.length;
+    } catch {
+      if (requestId === this.serviceRequestId) {
+        this.hasNoStopServices = false;
+        this.stopServicesError = 'Bus services couldn’t be loaded. Check your connection and try again.';
+      }
+    } finally {
+      if (requestId === this.serviceRequestId) {
+        this.isLoadingStopServices = false;
+      }
+    }
   }
 
   private loadPinnedServices(): PinnedBusServicesByStop {

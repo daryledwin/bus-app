@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { NgModule } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { IonicModule } from '@ionic/angular';
 
 import { PinnedBusesPageRoutingModule } from './pinned-buses-routing.module';
@@ -8,6 +9,7 @@ import { PinnedBusesPage } from './pinned-buses.page';
 @NgModule({
   imports: [
     CommonModule,
+    FormsModule,
     IonicModule,
     PinnedBusesPageRoutingModule
   ],

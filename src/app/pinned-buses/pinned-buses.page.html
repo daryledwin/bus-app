@@ -9,36 +9,42 @@
         <p>Tools</p>
         <div class="pinned-title-row">
           <h1>Pinned Buses</h1>
-          <div class="favourite-sort-anchor pinned-sort-anchor" (click)="$event.stopPropagation()">
-            <button
-              type="button"
-              class="favourite-sort-button pinned-sort-button"
-              [class.active]="isSortPopoverOpen"
-              aria-label="Sort pinned buses"
-              (click)="openSortPopover($event)"
-            >
-              <ion-icon name="swap-vertical-outline" aria-hidden="true"></ion-icon>
-              <span>Sort</span>
+          <div class="pinned-header-actions">
+            <button type="button" class="pinned-add-button" (click)="openAddBusSheet()">
+              <ion-icon name="add-outline" aria-hidden="true"></ion-icon>
+              <span>Add Bus</span>
             </button>
-            <div
-              class="favourite-sort-popover pinned-sort-popover"
-              *ngIf="isSortPopoverOpen"
-              role="menu"
-              aria-label="Sort pinned buses"
-            >
-              <p>Sort By</p>
-              <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'recent'" (click)="selectSortMode('recent', $event)">
-                <span>Most Recent</span>
-                <ion-icon *ngIf="sortMode === 'recent'" name="checkmark-outline"></ion-icon>
+            <div class="favourite-sort-anchor pinned-sort-anchor" (click)="$event.stopPropagation()">
+              <button
+                type="button"
+                class="favourite-sort-button pinned-sort-button"
+                [class.active]="isSortPopoverOpen"
+                aria-label="Sort pinned buses"
+                (click)="openSortPopover($event)"
+              >
+                <ion-icon name="swap-vertical-outline" aria-hidden="true"></ion-icon>
+                <span>Sort</span>
               </button>
-              <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'distance'" (click)="selectSortMode('distance', $event)">
-                <span>Nearest First</span>
-                <ion-icon *ngIf="sortMode === 'distance'" name="checkmark-outline"></ion-icon>
-              </button>
-              <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'name'" (click)="selectSortMode('name', $event)">
-                <span>Stop Name</span>
-                <ion-icon *ngIf="sortMode === 'name'" name="checkmark-outline"></ion-icon>
-              </button>
+              <div
+                class="favourite-sort-popover pinned-sort-popover"
+                *ngIf="isSortPopoverOpen"
+                role="menu"
+                aria-label="Sort pinned buses"
+              >
+                <p>Sort By</p>
+                <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'recent'" (click)="selectSortMode('recent', $event)">
+                  <span>Most Recent</span>
+                  <ion-icon *ngIf="sortMode === 'recent'" name="checkmark-outline"></ion-icon>
+                </button>
+                <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'distance'" (click)="selectSortMode('distance', $event)">
+                  <span>Nearest First</span>
+                  <ion-icon *ngIf="sortMode === 'distance'" name="checkmark-outline"></ion-icon>
+                </button>
+                <button type="button" role="menuitemradio" [attr.aria-checked]="sortMode === 'name'" (click)="selectSortMode('name', $event)">
+                  <span>Stop Name</span>
+                  <ion-icon *ngIf="sortMode === 'name'" name="checkmark-outline"></ion-icon>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -52,9 +58,15 @@
     </section>
 
     <section class="pinned-empty-state" *ngIf="!isLoading && !pinnedGroups.length">
-      <ion-icon name="pin-outline" aria-hidden="true"></ion-icon>
+      <span class="pinned-empty-state__icon">
+        <ion-icon name="pin-outline" aria-hidden="true"></ion-icon>
+      </span>
       <h2>No pinned buses yet</h2>
-      <p>Pin your usual buses from Live Bus Arrival and they will appear here.</p>
+      <p>Save a bus stop and service now, even when the bus is not operating.</p>
+      <button type="button" class="pinned-empty-state__button" (click)="openAddBusSheet()">
+        <ion-icon name="add-outline" aria-hidden="true"></ion-icon>
+        <span>Add Bus</span>
+      </button>
     </section>
 
     <section
@@ -87,3 +99,131 @@
     </section>
   </main>
 </ion-content>
+
+<ion-modal
+  class="add-pinned-bus-modal"
+  [isOpen]="isAddBusSheetOpen"
+  (didDismiss)="addBusSheetDismissed()"
+>
+  <ng-template>
+    <section class="add-bus-sheet" aria-labelledby="add-pinned-bus-title">
+      <div class="add-bus-sheet__handle" aria-hidden="true"></div>
+
+      <header class="add-bus-sheet__header">
+        <div>
+          <p>Step {{ addBusStep === 'stop' ? '1' : '2' }} of 2</p>
+          <h2 id="add-pinned-bus-title">Add Pinned Bus</h2>
+        </div>
+        <button type="button" class="add-bus-sheet__cancel" (click)="closeAddBusSheet()">Cancel</button>
+      </header>
+
+      <div class="add-bus-sheet__body" *ngIf="addBusStep === 'stop'">
+        <div class="add-bus-step-heading">
+          <h3>Choose bus stop</h3>
+          <p>Search by stop name, code, or road.</p>
+        </div>
+
+        <label class="add-bus-search" for="pinned-bus-stop-search">
+          <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+          <input
+            id="pinned-bus-stop-search"
+            name="pinnedBusStopSearch"
+            type="search"
+            inputmode="search"
+            enterkeyhint="search"
+            autocomplete="off"
+            placeholder="Search bus stops"
+            [ngModel]="busStopQuery"
+            (ngModelChange)="busStopSearchChanged($event)"
+          />
+          <button
+            type="button"
+            *ngIf="busStopQuery"
+            aria-label="Clear bus stop search"
+            (click)="clearBusStopSearch()"
+          >
+            <ion-icon name="close-circle" aria-hidden="true"></ion-icon>
+          </button>
+        </label>
+
+        <div class="add-bus-sheet__status" *ngIf="isLoadingPickerStops" aria-live="polite">
+          <ion-spinner name="crescent"></ion-spinner>
+          <p>Loading bus stops…</p>
+        </div>
+
+        <div class="add-bus-sheet__status add-bus-sheet__status--error" *ngIf="!isLoadingPickerStops && pickerStopsError" aria-live="polite">
+          <ion-icon name="cloud-offline-outline" aria-hidden="true"></ion-icon>
+          <p>{{ pickerStopsError }}</p>
+          <button type="button" (click)="retryBusStopLoading()">Try Again</button>
+        </div>
+
+        <div class="add-bus-sheet__prompt" *ngIf="!isLoadingPickerStops && !pickerStopsError && !busStopQuery">
+          <ion-icon name="bus-outline" aria-hidden="true"></ion-icon>
+          <p>Start typing to find a bus stop.</p>
+        </div>
+
+        <div class="add-bus-sheet__prompt" *ngIf="!isLoadingPickerStops && !pickerStopsError && busStopQuery && !matchingBusStops.length">
+          <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+          <p>No bus stops match “{{ busStopQuery }}”.</p>
+        </div>
+
+        <div class="add-bus-stop-list" *ngIf="!isLoadingPickerStops && matchingBusStops.length" role="list">
+          <button
+            type="button"
+            *ngFor="let stop of matchingBusStops; trackBy: trackBusStop"
+            (click)="selectBusStop(stop)"
+          >
+            <span>
+              <strong>{{ formatBusStopName(stop) }}</strong>
+              <small>{{ stop.RoadName }}</small>
+            </span>
+            <span class="add-bus-stop-list__code">{{ stop.BusStopCode }}</span>
+            <ion-icon name="chevron-forward-outline" aria-hidden="true"></ion-icon>
+          </button>
+        </div>
+      </div>
+
+      <div class="add-bus-sheet__body" *ngIf="addBusStep === 'service' && selectedBusStop as stop">
+        <div class="add-bus-step-heading">
+          <h3>Choose bus service</h3>
+          <p>Select a service to pin it at this stop.</p>
+        </div>
+
+        <div class="add-bus-selected-stop">
+          <span>
+            <strong>{{ formatBusStopName(stop) }}</strong>
+            <small>{{ stop.RoadName }} · {{ stop.BusStopCode }}</small>
+          </span>
+          <button type="button" (click)="changeSelectedStop()">Change</button>
+        </div>
+
+        <div class="add-bus-sheet__status" *ngIf="isLoadingStopServices" aria-live="polite">
+          <ion-spinner name="crescent"></ion-spinner>
+          <p>Loading services for this stop…</p>
+        </div>
+
+        <div class="add-bus-sheet__status add-bus-sheet__status--error" *ngIf="!isLoadingStopServices && stopServicesError" aria-live="polite">
+          <ion-icon name="alert-circle-outline" aria-hidden="true"></ion-icon>
+          <p>{{ stopServicesError }}</p>
+          <button type="button" (click)="retryStopServices()">Try Again</button>
+        </div>
+
+        <div class="add-bus-sheet__prompt" *ngIf="!isLoadingStopServices && !stopServicesError && hasNoStopServices" aria-live="polite">
+          <ion-icon name="bus-outline" aria-hidden="true"></ion-icon>
+          <p>No bus services are listed for this stop.</p>
+        </div>
+
+        <div class="add-bus-service-grid" *ngIf="!isLoadingStopServices && availableServices.length" aria-label="Bus services at selected stop">
+          <button
+            type="button"
+            *ngFor="let serviceNo of availableServices; trackBy: trackService"
+            [attr.aria-label]="'Pin bus ' + serviceNo"
+            (click)="pinSelectedService(serviceNo)"
+          >
+            {{ serviceNo }}
+          </button>
+        </div>
+      </div>
+    </section>
+  </ng-template>
+</ion-modal>

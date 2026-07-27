@@ -27,6 +27,10 @@ interface LtaBusResponseItem {
   OriginCode?: string;
   DestinationCode?: string;
   EstimatedArrival?: string;
+  VisitNumber?: string | number;
+  Latitude?: string | number;
+  Longitude?: string | number;
+  Monitored?: string | number;
   Load?: string;
   Feature?: string;
   Type?: string;
@@ -36,6 +40,10 @@ export interface BusArrivalEstimate {
   originCode: string | null;
   destinationCode: string | null;
   estimatedArrival: string | null;
+  visitNumber: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  monitored: number | null;
   minutesAway: number | null;
   timing: string;
   load: string;
@@ -318,12 +326,33 @@ export class LtaBusService implements OnDestroy {
       originCode: bus.OriginCode || null,
       destinationCode: bus.DestinationCode || null,
       estimatedArrival,
+      visitNumber: this.normalizeVisitNumber(bus.VisitNumber),
+      latitude: this.normalizeNumber(bus.Latitude),
+      longitude: this.normalizeNumber(bus.Longitude),
+      monitored: this.normalizeNumber(bus.Monitored),
       minutesAway,
       timing: this.timingLabel(minutesAway),
       load: this.loadLabel(bus.Load),
       wheelchairAccessible: bus.Feature === 'WAB',
       type: this.typeLabel(bus.Type)
     };
+  }
+
+  private normalizeVisitNumber(value?: string | number): number | null {
+    const normalized = this.normalizeNumber(value);
+
+    return normalized !== null && Number.isInteger(normalized) && normalized > 0
+      ? normalized
+      : null;
+  }
+
+  private normalizeNumber(value?: string | number): number | null {
+    if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
+      return null;
+    }
+
+    const normalized = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(normalized) ? normalized : null;
   }
 
   private minutesAway(estimatedArrival: string | null): number | null {

@@ -155,6 +155,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     arrivalStatus: '',
     nextArrivalTiming: '',
     thirdArrivalTiming: '',
+    arrivalVisitNumber: null,
+    nextArrivalVisitNumber: null,
+    thirdArrivalVisitNumber: null,
     busType: '',
     wheelchairAccessible: false,
     seatAvailability: '',
@@ -218,12 +221,13 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.routeQuerySubscription = this.activatedRoute.queryParamMap.subscribe((params) => {
       const busStopCode = params.get('busStopCode')?.trim();
       const busStopName = params.get('busStopName')?.trim() || '';
+      const source = params.get('source')?.trim() || '';
 
       if (!busStopCode) {
         return;
       }
 
-      this.openBusStopFromDeepLink(busStopCode, busStopName);
+      this.openBusStopFromDeepLink(busStopCode, busStopName, source);
     });
     this.liveActivityTrackingSubscription = this.liveActivityTrackingService.trackingState$.subscribe((state) => {
       this.liveTrackingState = state;
@@ -421,6 +425,8 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   clearSearch(): void {
+    void this.refreshFeedbackService.lightImpact();
+
     if (this.searchTimer) {
       clearTimeout(this.searchTimer);
       this.searchTimer = undefined;
@@ -618,7 +624,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
         completeRefresh();
 
         if (!this.arrivalError) {
-          void this.refreshFeedbackService.success('Bus arrivals refreshed');
+          this.confirmArrivalsRefreshed();
         }
       },
       {
@@ -718,7 +724,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     this.normalArrivalCorrelationId = '';
   }
 
-  private openBusStopFromDeepLink(busStopCode: string, busStopName: string): void {
+  private openBusStopFromDeepLink(busStopCode: string, busStopName: string, source: string): void {
     const knownStop = this.busStopLookup.get(busStopCode)
       || this.recentBusStops.find((stop) => stop.BusStopCode === busStopCode);
     const favouriteStop = this.favouriteBusStops.find((stop) => stop.BusStopCode === busStopCode);
@@ -739,11 +745,20 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       ? { ...resolvedStop, Description: busStopName }
       : resolvedStop;
 
+    if (source === 'live-activity') {
+      this.liveBusServices = [];
+      this.resetRouteState();
+    }
+
     if (this.searchedBusStopCode.trim() === busStopCode) {
       this.selectedBusStop = stop;
       this.searchTerm = `${stop.Description} (${busStopCode})`;
       this.busStopResults = [];
-      this.searchArrivals(busStopCode, undefined, {
+      this.searchArrivals(busStopCode, () => {
+        if (!this.arrivalError) {
+          this.confirmArrivalsRefreshed();
+        }
+      }, {
         forceRefresh: true,
         preserveRouteState: true,
         preserveScrollPosition: true,
@@ -753,9 +768,12 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.selectBusStop(stop, {
-      forceRefresh: true,
-      confirmLoadedHaptic: false
+      forceRefresh: true
     });
+  }
+
+  private confirmArrivalsRefreshed(): void {
+    void this.refreshFeedbackService.success('Bus arrivals refreshed');
   }
 
   trackBusStop(index: number, stop: BusStop): string {
@@ -1117,6 +1135,7 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleLiveService(service: BusServiceArrival): void {
+    void this.refreshFeedbackService.lightImpact();
     this.expandedLiveServiceNo = this.expandedLiveServiceNo === service.serviceNo ? '' : service.serviceNo;
     this.deferRoutePrefetchAfterCardAnimation();
   }
@@ -2094,6 +2113,9 @@ export class Tab1Page implements OnInit, AfterViewInit, OnDestroy {
       arrivalStatus: service.nextBus.timing,
       nextArrivalTiming: service.subsequentBus.timing,
       thirdArrivalTiming: service.thirdBus.timing,
+      arrivalVisitNumber: service.nextBus.visitNumber,
+      nextArrivalVisitNumber: service.subsequentBus.visitNumber,
+      thirdArrivalVisitNumber: service.thirdBus.visitNumber,
       busType: service.nextBus.type,
       wheelchairAccessible: service.nextBus.wheelchairAccessible,
       seatAvailability: service.nextBus.load,

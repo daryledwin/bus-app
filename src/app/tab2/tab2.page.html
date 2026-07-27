@@ -1,7 +1,13 @@
-<ion-content [fullscreen]="true" class="nearby-page" [class.programmatic-scroll]="isProgrammaticScroll">
+<ion-content
+  [fullscreen]="true"
+  class="nearby-page"
+  [class.programmatic-scroll]="isProgrammaticScroll"
+  [scrollY]="!isMapExpanded"
+>
   <ion-refresher
     class="nearby-refresher"
     slot="fixed"
+    [disabled]="isMapExpanded"
     pullFactor="0.55"
     pullMin="74"
     pullMax="126"
@@ -21,17 +27,77 @@
       </div>
     </header>
 
-    <section class="nearby-map-card pop-in" aria-label="Nearby bus stops map">
+    <button
+      type="button"
+      class="nearby-map-backdrop"
+      [class.visible]="isMapExpanded"
+      *ngIf="isMapOverlayActive"
+      aria-label="Collapse expanded map"
+      (click)="collapseMap($event)"
+    ></button>
+
+    <section
+      #nearbyMapCard
+      class="nearby-map-card pop-in"
+      [class.map-overlay-active]="isMapOverlayActive"
+      [class.expanded]="isMapExpanded"
+      [class.has-stop-card]="isExpandedStopCardVisible"
+      [attr.aria-label]="isMapExpanded ? 'Expanded nearby bus stops map' : 'Nearby bus stops map'"
+    >
       <div #nearbyMap class="nearby-map"></div>
       <button
         type="button"
+        class="nearby-map-expand-button"
+        *ngIf="!isMapExpanded"
+        aria-label="Expand nearby stops map"
+        (click)="expandMap($event)"
+      >
+        <ion-icon name="expand-outline"></ion-icon>
+      </button>
+      <button
+        type="button"
+        class="nearby-map-collapse-button"
+        *ngIf="isMapExpanded"
+        aria-label="Collapse nearby stops map"
+        (click)="collapseMap($event)"
+      >
+        <ion-icon name="contract-outline"></ion-icon>
+      </button>
+      <button
+        type="button"
         class="nearby-locate-button"
+        [class.recentering]="isRecenteringMap"
         aria-label="Recenter map on your location"
         [disabled]="!hasUserLocation || isLoadingLocation"
-        (click)="recenterOnUserLocation()"
+        (click)="recenterOnUserLocation(); $event.stopPropagation()"
       >
         <ion-icon name="locate-outline"></ion-icon>
       </button>
+
+      <article
+        class="nearby-expanded-stop-card"
+        *ngIf="isExpandedStopCardVisible && selectedNearbyStop as stop"
+        aria-live="polite"
+        (click)="$event.stopPropagation()"
+      >
+        <button
+          type="button"
+          class="nearby-expanded-stop-card__favourite"
+          [class.active]="isFavouriteStop(stop)"
+          [attr.aria-label]="isFavouriteStop(stop) ? 'Remove favourite stop' : 'Save favourite stop'"
+          (click)="toggleFavouriteStop(stop)"
+        >
+          <ion-icon [name]="isFavouriteStop(stop) ? 'heart' : 'heart-outline'"></ion-icon>
+        </button>
+        <div class="nearby-expanded-stop-card__copy">
+          <h2>{{ formatBusStopName(stop) }}</h2>
+          <p>{{ stop.RoadName }} · {{ stop.BusStopCode }}</p>
+          <span>{{ distanceLabel(stop.distanceMeters) }}</span>
+        </div>
+        <button type="button" class="nearby-expanded-stop-card__action" (click)="viewBuses(stop)">
+          View buses
+        </button>
+      </article>
     </section>
 
     <section class="nearby-state fade-in-delayed" *ngIf="isLoadingLocation && !nearbyStops.length" aria-live="polite">

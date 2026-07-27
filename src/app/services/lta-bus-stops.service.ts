@@ -44,6 +44,17 @@ export class LtaBusStopsService {
     return this.busStopsRequest;
   }
 
+  getBusStopsNear(latitude: number, longitude: number, limit = 40): Observable<BusStop[]> {
+    const params = new HttpParams()
+      .set('latitude', String(latitude))
+      .set('longitude', String(longitude))
+      .set('limit', String(limit));
+
+    return this.http.get<BusStopsResponse>(this.endpoint, { params }).pipe(
+      map((response) => this.unwrapBusStops(response))
+    );
+  }
+
   searchBusStops(query: string): Observable<BusStop[]> {
     const params = new HttpParams().set('search', query.trim());
 

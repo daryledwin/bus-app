@@ -5,18 +5,45 @@
 :root {
   color-scheme: light;
   --ion-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
-  --ion-background-color: #e6f6ff;
-  --ion-background-color-rgb: 230, 246, 255;
+  /* Option B: Apple Settings-inspired neutral light surfaces. */
+  --app-page-background: #f5f5f2;
+  --app-surface: #ffffff;
+  --app-surface-rgb: 255, 255, 255;
+  --app-primary: #1977c9;
+  --app-primary-strong: #1479bd;
+  --app-primary-rgb: 25, 119, 201;
+  --app-primary-border: #cfe6f6;
+  --app-primary-border-rgb: 207, 230, 246;
+  --app-primary-surface: #eaf4ff;
+  --app-arrival-card-surface: #fcfcfd;
+  --app-arrival-card-border: rgba(25, 119, 201, 0.1);
+  --app-arrival-divider: rgba(60, 60, 67, 0.08);
+  --app-arrival-next-surface: #eaf8ef;
+  --app-arrival-next-border: rgba(22, 122, 69, 0.10);
+  --app-arrival-next-text: #167a45;
+  --app-arrival-subsequent-surface: #fff6dc;
+  --app-arrival-subsequent-border: rgba(118, 87, 0, 0.10);
+  --app-arrival-subsequent-text: #765700;
+  --app-arrival-third-surface: #fff0e7;
+  --app-arrival-third-border: rgba(154, 69, 20, 0.10);
+  --app-arrival-third-text: #9a4514;
+  --app-arrival-icon-surface: #edf4fa;
+  --app-arrival-icon-text: #426f91;
+  --app-arrival-accent: var(--app-primary);
+  --app-arrival-primary-action: var(--app-primary);
+  --app-arrival-primary-action-text: #ffffff;
+  --ion-background-color: #f5f5f2;
+  --ion-background-color-rgb: 245, 245, 242;
   --ion-text-color: #152f4d;
   --ion-text-color-rgb: 21, 47, 77;
 
   /** primary **/
-  --ion-color-primary: #687d65;
-  --ion-color-primary-rgb: 104, 125, 101;
-  --ion-color-primary-contrast: #fff8ea;
-  --ion-color-primary-contrast-rgb: 255, 248, 234;
-  --ion-color-primary-shade: #5c6e59;
-  --ion-color-primary-tint: #778a74;
+  --ion-color-primary: var(--app-primary);
+  --ion-color-primary-rgb: var(--app-primary-rgb);
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: var(--app-primary-strong);
+  --ion-color-primary-tint: #3585cf;
 
   /** secondary **/
   --ion-color-secondary: #a8b99e;
@@ -81,4 +108,25 @@
   --ion-color-light-contrast-rgb: 69, 59, 49;
   --ion-color-light-shade: #e0dad2;
   --ion-color-light-tint: #fff9f1;
+}
+
+html.ion-palette-dark,
+body.dark {
+  --app-arrival-card-surface: #1c2833;
+  --app-arrival-card-border: rgba(121, 194, 244, 0.2);
+  --app-arrival-divider: rgba(235, 245, 252, 0.12);
+  --app-arrival-next-surface: #17382a;
+  --app-arrival-next-border: rgba(118, 212, 156, 0.14);
+  --app-arrival-next-text: #76d49c;
+  --app-arrival-subsequent-surface: #3a3018;
+  --app-arrival-subsequent-border: rgba(241, 199, 91, 0.14);
+  --app-arrival-subsequent-text: #f1c75b;
+  --app-arrival-third-surface: #3b281f;
+  --app-arrival-third-border: rgba(255, 173, 120, 0.14);
+  --app-arrival-third-text: #ffad78;
+  --app-arrival-icon-surface: #223747;
+  --app-arrival-icon-text: #8dc7ee;
+  --app-arrival-accent: #79c2f4;
+  --app-arrival-primary-action: #1472b8;
+  --app-arrival-primary-action-text: #ffffff;
 }

@@ -43,15 +43,24 @@ struct WidgetBus: Codable, Identifiable {
     let load: String
     let wheelchairAccessible: Bool
     let type: String
+    let visitNumber: Int?
 
     var id: String { serviceNo }
 
-    init(serviceNo: String, timing: String, load: String, wheelchairAccessible: Bool, type: String) {
+    init(
+        serviceNo: String,
+        timing: String,
+        load: String,
+        wheelchairAccessible: Bool,
+        type: String,
+        visitNumber: Int? = nil
+    ) {
         self.serviceNo = serviceNo
         self.timing = timing
         self.load = load
         self.wheelchairAccessible = wheelchairAccessible
         self.type = type
+        self.visitNumber = visitNumber
     }
 
     enum CodingKeys: String, CodingKey {
@@ -60,6 +69,7 @@ struct WidgetBus: Codable, Identifiable {
         case load
         case wheelchairAccessible
         case type
+        case visitNumber
     }
 
     init(from decoder: Decoder) throws {
@@ -70,6 +80,7 @@ struct WidgetBus: Codable, Identifiable {
         load = (try? container.decode(String.self, forKey: .load)) ?? "Load unavailable"
         wheelchairAccessible = (try? container.decode(Bool.self, forKey: .wheelchairAccessible)) ?? false
         type = (try? container.decode(String.self, forKey: .type)) ?? "Type unavailable"
+        visitNumber = try? container.decodeIfPresent(Int.self, forKey: .visitNumber)
     }
 }
 
@@ -101,12 +112,34 @@ struct LtaBus: Decodable {
     let load: String?
     let feature: String?
     let type: String?
+    let visitNumber: Int?
 
     enum CodingKeys: String, CodingKey {
         case estimatedArrival = "EstimatedArrival"
         case load = "Load"
         case feature = "Feature"
         case type = "Type"
+        case visitNumber = "VisitNumber"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        estimatedArrival = try container.decodeIfPresent(String.self, forKey: .estimatedArrival)
+        load = try container.decodeIfPresent(String.self, forKey: .load)
+        feature = try container.decodeIfPresent(String.self, forKey: .feature)
+        type = try container.decodeIfPresent(String.self, forKey: .type)
+
+        if let numericVisitNumber = try? container.decode(Int.self, forKey: .visitNumber),
+           numericVisitNumber > 0 {
+            visitNumber = numericVisitNumber
+        } else if let stringVisitNumber = try? container.decode(String.self, forKey: .visitNumber),
+                  let numericVisitNumber = Int(stringVisitNumber.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  numericVisitNumber > 0 {
+            visitNumber = numericVisitNumber
+        } else {
+            visitNumber = nil
+        }
     }
 }
 
@@ -147,13 +180,32 @@ struct WidgetStopQuery: EntityQuery {
 
 struct BusWidgetConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "MyBus Widget"
-    static var description = IntentDescription("Choose which favourite bus stop this widget displays.")
+    static var description = IntentDescription("Choose a favourite stop, or use the nearest saved stop when location is available.")
 
-    @Parameter(title: "Favourite Stop")
+    @Parameter(
+        title: "Favourite Stop",
+        description: "Used as the fallback stop when Use Nearest Favourite is on."
+    )
     var favouriteStop: WidgetStopEntity?
 
-    @Parameter(title: "Use Nearest Favourite", default: false)
+    @Parameter(
+        title: "Use Nearest Favourite",
+        description: "The nearest saved stop will be used. The selected favourite stop is used only when location is unavailable.",
+        default: false
+    )
     var useNearestFavourite: Bool
+
+    static var parameterSummary: some ParameterSummary {
+        When(\.$useNearestFavourite, .equalTo, true) {
+            Summary("Use the nearest saved stop") {
+                \.$useNearestFavourite
+            }
+        } otherwise: {
+            Summary("Use \(\.$favouriteStop)") {
+                \.$useNearestFavourite
+            }
+        }
+    }
 }
 
 struct BusWidgetEntry: TimelineEntry {
@@ -232,6 +284,15 @@ enum WidgetStore {
         )
     }
 
+    static func lastSuccessfulRefresh(for busStopCode: String) -> Date? {
+        guard let defaults,
+              defaults.object(forKey: lastSuccessfulRefreshKey(busStopCode)) != nil else {
+            return nil
+        }
+
+        return Date(timeIntervalSince1970: defaults.double(forKey: lastSuccessfulRefreshKey(busStopCode)))
+    }
+
     static func saveCachedArrivals(_ buses: [WidgetBus], for busStopCode: String, updatedAt: Date = Date()) {
         guard let defaults,
               let data = try? JSONEncoder().encode(CachedArrivals(buses: buses, updatedAt: updatedAt.timeIntervalSince1970)) else {
@@ -263,11 +324,14 @@ enum WidgetStore {
                     timing: arrivalText(from: $0.nextBus.estimatedArrival),
                     load: loadText(from: $0.nextBus.load),
                     wheelchairAccessible: $0.nextBus.feature == "WAB",
-                    type: typeText(from: $0.nextBus.type)
+                    type: typeText(from: $0.nextBus.type),
+                    visitNumber: $0.nextBus.visitNumber
                 )
             }, for: busStopCode)
             let updatedAt = Date()
             saveCachedArrivals(buses, for: busStopCode, updatedAt: updatedAt)
+            defaults?.set(updatedAt.timeIntervalSince1970, forKey: lastSuccessfulRefreshKey(busStopCode))
+            defaults?.synchronize()
             return CachedArrivals(buses: buses, updatedAt: updatedAt.timeIntervalSince1970)
         } catch {
             return cachedArrivals(for: busStopCode)
@@ -312,6 +376,10 @@ enum WidgetStore {
 
     private static func cachedArrivalsKey(_ busStopCode: String) -> String {
         "widgetCachedArrivals_\(busStopCode)"
+    }
+
+    private static func lastSuccessfulRefreshKey(_ busStopCode: String) -> String {
+        "homeScreenWidgetLastSuccessfulRefreshAt_\(busStopCode)"
     }
 
     private static func pinnedServices(for busStopCode: String) -> [String] {
@@ -409,35 +477,13 @@ struct BusWidgetProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: BusWidgetConfigurationIntent, in context: Context) async -> BusWidgetEntry {
-        await entry(for: configuration)
+        await entry(for: configuration, fetchRemote: false)
     }
 
     func timeline(for configuration: BusWidgetConfigurationIntent, in context: Context) async -> Timeline<BusWidgetEntry> {
         let currentEntry = await entry(for: configuration, fetchRemote: true, date: Date())
-        let entries = timelineEntries(from: currentEntry)
-        let refreshDate = Calendar.current.date(byAdding: .minute, value: 12, to: Date()) ?? Date().addingTimeInterval(720)
-        return Timeline(entries: entries, policy: .after(refreshDate))
-    }
-
-    private func timelineEntries(from entry: BusWidgetEntry) -> [BusWidgetEntry] {
-        guard entry.lastUpdatedAt != nil else {
-            return [entry]
-        }
-
-        let now = Date()
-        let offsets: [TimeInterval] = [0, 10, 30, 60, 120, 300, 600]
-
-        return offsets.map { offset in
-            BusWidgetEntry(
-                date: now.addingTimeInterval(offset),
-                stop: entry.stop,
-                buses: entry.buses,
-                lastUpdatedAt: entry.lastUpdatedAt,
-                message: entry.message,
-                isPlaceholder: entry.isPlaceholder,
-                pageIndex: entry.pageIndex
-            )
-        }
+        let refreshDate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date().addingTimeInterval(300)
+        return Timeline(entries: [currentEntry], policy: .after(refreshDate))
     }
 
     private func entry(for configuration: BusWidgetConfigurationIntent, fetchRemote: Bool = true, date: Date = Date()) async -> BusWidgetEntry {
@@ -465,7 +511,7 @@ struct BusWidgetProvider: AppIntentTimelineProvider {
             date: date,
             stop: stop,
             buses: buses,
-            lastUpdatedAt: cached.map { Date(timeIntervalSince1970: $0.updatedAt) },
+            lastUpdatedAt: WidgetStore.lastSuccessfulRefresh(for: stop.busStopCode),
             message: "",
             isPlaceholder: false,
             pageIndex: pageIndex
@@ -588,7 +634,7 @@ struct BusWidgetView: View {
                 .minimumScaleFactor(0.78)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(alignment: .center, spacing: 6) {
+            HStack(alignment: .center, spacing: 3) {
                 if let lastUpdatedAt = entry.lastUpdatedAt {
                     smallUpdatedStatus(from: lastUpdatedAt)
                 } else if entry.stop == nil {
@@ -597,9 +643,10 @@ struct BusWidgetView: View {
                         .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
                 }
 
-                Spacer(minLength: 2)
+                Spacer(minLength: 0)
 
                 refreshControl
+                    .fixedSize()
             }
 
             if entry.stop != nil {
@@ -657,7 +704,7 @@ struct BusWidgetView: View {
     }
 
     private var refreshLabel: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: family == .systemSmall ? 3 : 4) {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: family == .systemSmall ? 8 : 10, weight: .heavy))
             Text("LIVE")
@@ -665,31 +712,29 @@ struct BusWidgetView: View {
         }
         .foregroundColor(Color(red: 0.10, green: 0.47, blue: 0.79))
         .padding(.vertical, family == .systemSmall ? 3 : 4)
-        .padding(.horizontal, family == .systemSmall ? 6 : 7)
+        .padding(.horizontal, family == .systemSmall ? 4 : 7)
         .background(Color.white.opacity(0.72))
         .clipShape(Capsule())
     }
 
     private func updatedStatus(from date: Date) -> some View {
-        TimelineView(.periodic(from: date, by: 1)) { timeline in
-            Text(updatedSecondsText(from: date, now: timeline.date))
-                .font(.system(size: family == .systemMedium ? 9 : 8, weight: .bold, design: .rounded))
-                .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
-                .lineLimit(1)
-                .minimumScaleFactor(0.76)
-                .monospacedDigit()
-        }
+        Text("Updated \(date, style: .relative) ago")
+            .font(.system(size: family == .systemMedium ? 9 : 8, weight: .bold, design: .rounded))
+            .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
+            .lineLimit(1)
+            .minimumScaleFactor(0.76)
+            .monospacedDigit()
     }
 
     private func smallUpdatedStatus(from date: Date) -> some View {
-        TimelineView(.periodic(from: date, by: 1)) { timeline in
-            Text(updatedSecondsText(from: date, now: timeline.date))
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .monospacedDigit()
-        }
+        Text("Updated \(date, style: .relative) ago")
+            .font(.system(size: 8, weight: .bold, design: .rounded))
+            .foregroundColor(Color(red: 0.39, green: 0.49, blue: 0.57))
+            .lineLimit(2)
+            .minimumScaleFactor(0.85)
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
+            .monospacedDigit()
     }
 
     private var busList: some View {
@@ -1490,17 +1535,6 @@ private func compactLiveActivityArrival(_ arrivalStatus: String) -> String {
     default:
         return arrivalStatus.replacingOccurrences(of: " min", with: "m")
     }
-}
-
-private func updatedSecondsText(from date: Date, now: Date = Date()) -> String {
-    let elapsedSeconds = max(0, Int(now.timeIntervalSince(date)))
-
-    if elapsedSeconds < 60 {
-        return elapsedSeconds == 1 ? "Updated 1 sec" : "Updated \(elapsedSeconds) secs"
-    }
-
-    let elapsedMinutes = elapsedSeconds / 60
-    return elapsedMinutes == 1 ? "Updated 1 min" : "Updated \(elapsedMinutes) mins"
 }
 
 private extension View {

@@ -383,16 +383,31 @@
 
                 <div class="timing-row timing-row--compact">
                   <div class="timing-card timing-card--next">
-                    <span>Next</span>
-                    <strong>{{ service.nextBus.timing }}</strong>
+                    <span class="timing-card__top-row">
+                      <span class="timing-card__label">Next</span>
+                      <small class="timing-card__loop-label" *ngIf="service.nextBus.visitNumber === 2">Loop 2</small>
+                    </span>
+                    <strong class="timing-card__eta-stack">
+                      <span class="timing-card__eta">{{ service.nextBus.timing }}</span>
+                    </strong>
                   </div>
                   <div class="timing-card timing-card--subsequent">
-                    <span>Subsequent</span>
-                    <strong>{{ service.subsequentBus.timing }}</strong>
+                    <span class="timing-card__top-row">
+                      <span class="timing-card__label">Subsequent</span>
+                      <small class="timing-card__loop-label" *ngIf="service.subsequentBus.visitNumber === 2">Loop 2</small>
+                    </span>
+                    <strong class="timing-card__eta-stack">
+                      <span class="timing-card__eta">{{ service.subsequentBus.timing }}</span>
+                    </strong>
                   </div>
                   <div class="timing-card timing-card--third">
-                    <span>Third</span>
-                    <strong>{{ service.thirdBus.timing }}</strong>
+                    <span class="timing-card__top-row">
+                      <span class="timing-card__label">Third</span>
+                      <small class="timing-card__loop-label" *ngIf="service.thirdBus.visitNumber === 2">Loop 2</small>
+                    </span>
+                    <strong class="timing-card__eta-stack">
+                      <span class="timing-card__eta">{{ service.thirdBus.timing }}</span>
+                    </strong>
                   </div>
                 </div>
 

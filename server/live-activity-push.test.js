@@ -18,6 +18,7 @@ const ltaRequests = [];
 let ltaCallCount = 0;
 let freezeLtaArrivals = false;
 let frozenArrival = 0;
+let visitNumbers = ['1', '2', '1'];
 
 http2.connect = (host) => {
   const client = new EventEmitter();
@@ -57,12 +58,19 @@ axios.get = async (url, options) => {
         ServiceNo: options.params.BusStopCode === '11111' ? '10' : '20',
         NextBus: {
           EstimatedArrival: new Date(baseArrival).toISOString(),
+          VisitNumber: visitNumbers[0],
           Type: 'DD',
           Feature: 'WAB',
           Load: 'SEA'
         },
-        NextBus2: { EstimatedArrival: new Date(baseArrival + 5 * 60 * 1000).toISOString() },
-        NextBus3: { EstimatedArrival: new Date(baseArrival + 10 * 60 * 1000).toISOString() }
+        NextBus2: {
+          EstimatedArrival: new Date(baseArrival + 5 * 60 * 1000).toISOString(),
+          VisitNumber: visitNumbers[1]
+        },
+        NextBus3: {
+          EstimatedArrival: new Date(baseArrival + 10 * 60 * 1000).toISOString(),
+          VisitNumber: visitNumbers[2]
+        }
       }]
     }
   };
@@ -100,6 +108,7 @@ test.beforeEach(() => {
   ltaCallCount = 0;
   freezeLtaArrivals = false;
   frozenArrival = 0;
+  visitNumbers = ['1', '2', '1'];
 });
 
 test('one session fetches fresh LTA data and sends a complete ActivityKit update', async () => {
@@ -122,13 +131,19 @@ test('one session fetches fresh LTA data and sends a complete ActivityKit update
   assert.deepEqual(Object.keys(aps['content-state']).sort(), [
     'arrivalAt',
     'arrivalStatus',
+    'arrivalVisitNumber',
     'busType',
     'lastUpdatedAt',
     'nextArrivalTiming',
+    'nextArrivalVisitNumber',
     'seatAvailability',
     'thirdArrivalTiming',
+    'thirdArrivalVisitNumber',
     'wheelchairAccessible'
   ]);
+  assert.equal(aps['content-state'].arrivalVisitNumber, 1);
+  assert.equal(aps['content-state'].nextArrivalVisitNumber, 2);
+  assert.equal(aps['content-state'].thirdArrivalVisitNumber, 1);
   assert.equal(liveActivitySessions.size, 1);
   assert.equal(liveActivitySessions.get('activity-one').refreshInFlight, false);
 });
@@ -185,4 +200,20 @@ test('unchanged arrival labels do not suppress the next APNs refresh', async () 
   assert.equal(ltaRequests.length, 2);
   assert.equal(apnsRequests.length, 2);
   assert.ok(apnsRequests[1].payload.aps.timestamp >= apnsRequests[0].payload.aps.timestamp);
+});
+
+test('a VisitNumber-only change updates the arrival change signature', async () => {
+  freezeLtaArrivals = true;
+  frozenArrival = Date.now() + 8 * 60 * 1000;
+  liveActivitySessions.set('activity-visit-change', session('activity-visit-change', '11111', '10', 'development'));
+
+  await refreshAllLiveActivitySessions('first-visit');
+  const firstSignature = liveActivitySessions.get('activity-visit-change').lastArrivalSignature;
+
+  visitNumbers = ['2', '2', '1'];
+  await refreshAllLiveActivitySessions('second-visit');
+  const secondSignature = liveActivitySessions.get('activity-visit-change').lastArrivalSignature;
+
+  assert.notEqual(secondSignature, firstSignature);
+  assert.equal(liveActivitySessions.get('activity-visit-change').lastContentState.arrivalVisitNumber, 2);
 });

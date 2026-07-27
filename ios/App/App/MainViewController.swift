@@ -4,7 +4,7 @@ import UIKit
 class MainViewController: CAPBridgeViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.902, green: 0.965, blue: 1, alpha: 1)
+        view.backgroundColor = UIColor(red: 0.961, green: 0.961, blue: 0.949, alpha: 1)
         webView?.isOpaque = false
         webView?.backgroundColor = .clear
         webView?.scrollView.backgroundColor = .clear

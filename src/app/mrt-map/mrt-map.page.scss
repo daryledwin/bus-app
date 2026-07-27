@@ -1,14 +1,13 @@
 :host {
   --routes-ink: #10243a;
   --routes-muted: rgba(60, 60, 67, 0.56);
-  --routes-line: rgba(60, 60, 67, 0.09);
+  --routes-line: rgba(var(--app-primary-border-rgb), 0.58);
   color: var(--routes-ink);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
 }
 
 ion-content.routes-page {
-  --background:
-    linear-gradient(180deg, #eef8ff 0%, #f7fbfe 46%, #fbfaf8 100%);
+  --background: var(--app-page-background);
 }
 
 .routes-shell {
@@ -22,9 +21,9 @@ ion-content.routes-page {
 .routes-back-button {
   align-items: center;
   background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(60, 60, 67, 0.055);
+  border: 1px solid rgba(var(--app-primary-border-rgb), 0.58);
   border-radius: 999px;
-  color: #1977c9;
+  color: var(--app-primary);
   display: grid;
   height: 38px;
   place-items: center;
@@ -77,8 +76,8 @@ ion-content.routes-page {
 .route-search-card,
 .route-result-card,
 .routes-empty-state {
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(60, 60, 67, 0.055);
+  background: rgba(var(--app-surface-rgb), 0.84);
+  border: 1px solid rgba(var(--app-primary-border-rgb), 0.58);
   border-radius: 22px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
@@ -100,8 +99,8 @@ ion-content.routes-page {
 
 .route-search-bar {
   align-items: center;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(151, 176, 194, 0.16);
+  background: rgba(var(--app-surface-rgb), 0.86);
+  border: 1px solid rgba(var(--app-primary-border-rgb), 0.16);
   border-radius: 999px;
   display: grid;
   gap: 9px;
@@ -216,8 +215,8 @@ ion-content.routes-page {
 }
 
 .route-suggestions {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(60, 60, 67, 0.055);
+  background: rgba(var(--app-surface-rgb), 0.86);
+  border: 1px solid rgba(var(--app-primary-border-rgb), 0.58);
   border-radius: 18px;
   display: grid;
   margin-top: 4px;
@@ -241,7 +240,7 @@ ion-content.routes-page {
 }
 
 .route-suggestions button:active {
-  background: rgba(60, 60, 67, 0.055);
+  background: rgba(var(--app-primary-border-rgb), 0.58);
 }
 
 .route-suggestions button + button::before {
@@ -303,10 +302,10 @@ ion-content.routes-page {
 }
 
 .route-recent-services__row button {
-  background: rgba(234, 244, 255, 0.88);
-  border: 1px solid rgba(25, 119, 201, 0.08);
+  background: var(--app-primary-surface);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.08);
   border-radius: 999px;
-  color: #1977c9;
+  color: var(--app-primary);
   flex: 0 0 auto;
   font-size: 13px;
   font-weight: 720;
@@ -332,15 +331,15 @@ ion-content.routes-page {
 }
 
 .routes-empty-state > ion-icon {
-  background: rgba(25, 119, 201, 0.1);
+  background: rgba(var(--app-primary-rgb), 0.1);
   border-radius: 10px;
-  color: #1977c9;
+  color: var(--app-primary);
   font-size: 18px;
   padding: 8px;
 }
 
 .routes-loading-state ion-spinner {
-  color: #1977c9;
+  color: var(--app-primary);
   height: 20px;
   justify-self: center;
   width: 20px;
@@ -366,8 +365,8 @@ ion-content.routes-page {
 
 .mrt-status-card,
 .mrt-map-card {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(60, 60, 67, 0.06);
+  background: rgba(var(--app-surface-rgb), 0.86);
+  border: 1px solid rgba(var(--app-primary-border-rgb), 0.58);
   border-radius: 22px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 14px 32px rgba(52, 98, 132, 0.06);
 }
@@ -537,7 +536,7 @@ ion-content.routes-page {
 .mrt-status-card__eyebrow,
 .mrt-status-card__title,
 .mrt-status-card__subtitle {
-  background: rgba(151, 176, 194, 0.16);
+  background: rgba(var(--app-primary-border-rgb), 0.16);
   border-radius: 999px;
   display: block;
 }
@@ -581,10 +580,10 @@ ion-content.routes-page {
 .mrt-map-card__header a,
 .mrt-map-card__header button {
   align-items: center;
-  background: rgba(234, 244, 255, 0.9);
-  border: 1px solid rgba(25, 119, 201, 0.08);
+  background: var(--app-primary-surface);
+  border: 1px solid rgba(var(--app-primary-rgb), 0.08);
   border-radius: 999px;
-  color: #1977c9;
+  color: var(--app-primary);
   display: grid;
   flex: 0 0 auto;
   height: 34px;
@@ -603,8 +602,8 @@ ion-content.routes-page {
 }
 
 .mrt-map-viewer {
-  background: #f8fbfd;
-  border: 1px solid rgba(151, 176, 194, 0.16);
+  background: var(--app-primary-surface);
+  border: 1px solid rgba(var(--app-primary-border-rgb), 0.16);
   border-radius: 18px;
   height: min(68vh, 720px);
   min-height: 420px;
@@ -627,14 +626,14 @@ ion-content.routes-page {
 }
 
 :host ::ng-deep ion-modal.mrt-map-modal {
-  --background: #f8fbfd;
+  --background: var(--app-primary-surface);
   --height: 100%;
   --width: 100%;
   --border-radius: 0;
 }
 
 .mrt-map-fullscreen {
-  background: #f8fbfd;
+  background: var(--app-primary-surface);
   height: 100%;
   overflow: hidden;
   position: relative;
@@ -644,10 +643,10 @@ ion-content.routes-page {
 .mrt-map-fullscreen__close {
   align-items: center;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(60, 60, 67, 0.08);
+  border: 1px solid rgba(var(--app-primary-border-rgb), 0.58);
   border-radius: 999px;
   box-shadow: 0 12px 30px rgba(16, 36, 58, 0.12);
-  color: #1977c9;
+  color: var(--app-primary);
   display: grid;
   height: 42px;
   left: max(16px, env(safe-area-inset-left));
@@ -664,7 +663,7 @@ ion-content.routes-page {
 }
 
 .mrt-map-fullscreen__close:active {
-  background: rgba(234, 244, 255, 0.94);
+  background: var(--app-primary-surface);
   transform: scale(0.97);
 }
 
@@ -758,9 +757,9 @@ ion-content.routes-page {
 
 .service-badge {
   align-items: center;
-  background: #eaf4ff;
+  background: var(--app-primary-surface);
   border-radius: 12px;
-  color: #1977c9;
+  color: var(--app-primary);
   display: grid;
   font-size: 17px;
   font-weight: 780;
@@ -809,7 +808,7 @@ ion-content.routes-page {
 }
 
 .direction-tabs {
-  background: rgba(60, 60, 67, 0.06);
+  background: rgba(var(--app-primary-border-rgb), 0.58);
   border-radius: 999px;
   display: grid;
   gap: 3px;
@@ -829,7 +828,7 @@ ion-content.routes-page {
 
 .direction-tabs button.active {
   background: rgba(255, 255, 255, 0.9);
-  color: #1977c9;
+  color: var(--app-primary);
   box-shadow: 0 2px 8px rgba(20, 30, 44, 0.06);
 }
 
@@ -874,7 +873,7 @@ ion-content.routes-page {
 }
 
 .route-progress__stop.current-stop .route-progress__dot {
-  background: #1977c9;
+  background: var(--app-primary);
   box-shadow: 0 0 0 4px rgba(25, 119, 201, 0.12);
 }
 

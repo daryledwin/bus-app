@@ -15,6 +15,9 @@ export interface LiveActivityTrackingState {
   arrivalStatus: string;
   nextArrivalTiming: string;
   thirdArrivalTiming: string;
+  arrivalVisitNumber: number | null;
+  nextArrivalVisitNumber: number | null;
+  thirdArrivalVisitNumber: number | null;
   busType: string;
   wheelchairAccessible: boolean;
   seatAvailability: string;
@@ -49,6 +52,9 @@ const inactiveTrackingState: LiveActivityTrackingState = {
   arrivalStatus: '',
   nextArrivalTiming: '',
   thirdArrivalTiming: '',
+  arrivalVisitNumber: null,
+  nextArrivalVisitNumber: null,
+  thirdArrivalVisitNumber: null,
   busType: '',
   wheelchairAccessible: false,
   seatAvailability: '',
@@ -116,7 +122,11 @@ export class LiveActivityTrackingService {
   private appStateListener?: { remove: () => Promise<void> };
   private pushTokenListener?: PluginListenerHandle;
   private activeActivityId = '';
+  private startRequestSequence = 0;
+  private latestStartRequestSequence = 0;
+  private startOperation: Promise<void> = Promise.resolve();
   private readonly pendingPushTokens = new Map<string, string>();
+  private readonly pendingSessionRegistrations = new Map<string, Promise<boolean>>();
   private readonly trackedActivities = new Map<string, BusLiveActivityRestoreActivity>();
 
   readonly trackingState$ = this.trackingStateSubject.asObservable();
@@ -161,8 +171,77 @@ export class LiveActivityTrackingService {
     ));
   }
 
-  async start(payload: BusLiveActivityPayload): Promise<boolean> {
+  start(payload: BusLiveActivityPayload): Promise<boolean> {
     if (!Capacitor.isNativePlatform()) {
+      return Promise.resolve(false);
+    }
+
+    const requestSequence = ++this.startRequestSequence;
+    this.latestStartRequestSequence = requestSequence;
+    const operation = this.startOperation.then(
+      () => this.startSingleActivity(payload, requestSequence),
+      () => this.startSingleActivity(payload, requestSequence)
+    );
+    this.startOperation = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  private async startSingleActivity(payload: BusLiveActivityPayload, requestSequence: number): Promise<boolean> {
+    if (requestSequence !== this.latestStartRequestSequence) {
+      console.debug('[LiveTrack] superseded start skipped before handoff', {
+        serviceNo: payload.serviceNo,
+        busStopCode: payload.busStopCode,
+        requestSequence,
+        latestRequestSequence: this.latestStartRequestSequence
+      });
+      return false;
+    }
+
+    const matchingActivity = Array.from(this.trackedActivities.values()).find((activity) => (
+      activity.busStopCode.trim() === payload.busStopCode.trim()
+      && activity.serviceNo.trim().toUpperCase() === payload.serviceNo.trim().toUpperCase()
+    ));
+
+    if (matchingActivity && this.trackedActivities.size === 1) {
+      this.activeActivityId = matchingActivity.activityId;
+      this.setStateFromPayload(matchingActivity);
+      console.debug('[LiveTrack] duplicate start ignored for currently tracked bus', {
+        activityId: matchingActivity.activityId,
+        serviceNo: payload.serviceNo,
+        busStopCode: payload.busStopCode
+      });
+      return true;
+    }
+
+    const existingActivityIds = Array.from(new Set([
+      ...this.trackedActivities.keys(),
+      ...(this.activeActivityId ? [this.activeActivityId] : [])
+    ]));
+
+    for (const activityId of existingActivityIds) {
+      const pendingRegistration = this.pendingSessionRegistrations.get(activityId);
+      if (pendingRegistration) {
+        await pendingRegistration;
+      }
+      const stopped = await this.clearNativeActivity(true, activityId);
+
+      if (!stopped) {
+        console.warn('[LiveTrack] replacement start aborted because the existing activity did not stop cleanly', {
+          activityId,
+          requestedServiceNo: payload.serviceNo,
+          requestedBusStopCode: payload.busStopCode
+        });
+        return false;
+      }
+    }
+
+    if (requestSequence !== this.latestStartRequestSequence) {
+      console.debug('[LiveTrack] superseded start skipped after existing activity stopped', {
+        serviceNo: payload.serviceNo,
+        busStopCode: payload.busStopCode,
+        requestSequence,
+        latestRequestSequence: this.latestStartRequestSequence
+      });
       return false;
     }
 
@@ -175,6 +254,7 @@ export class LiveActivityTrackingService {
     }
 
     this.activeActivityId = startResult?.activityId || '';
+    this.trackedActivities.clear();
     this.trackedActivities.set(this.activeActivityId, {
       ...payload,
       activityId: this.activeActivityId,
@@ -195,13 +275,13 @@ export class LiveActivityTrackingService {
 
     if (startResult.pushToken) {
       console.debug('[LiveTrack] push token received');
-      void this.registerPushUpdateSession(startResult.activityId, startResult.pushToken, payload, startResult.apnsEnvironment);
+      void this.queuePushUpdateSessionRegistration(startResult.activityId, startResult.pushToken, payload, startResult.apnsEnvironment);
     } else if (startResult.pushEnabled) {
       const pendingPushToken = this.pendingPushTokens.get(startResult.activityId);
 
       if (pendingPushToken) {
         this.pendingPushTokens.delete(startResult.activityId);
-        void this.registerPushUpdateSession(startResult.activityId, pendingPushToken, payload, startResult.apnsEnvironment);
+        void this.queuePushUpdateSessionRegistration(startResult.activityId, pendingPushToken, payload, startResult.apnsEnvironment);
       } else {
         console.debug('[LiveTrack] push token pending', {
           activityId: startResult.activityId
@@ -307,6 +387,9 @@ export class LiveActivityTrackingService {
       arrivalStatus: payload.arrivalStatus,
       nextArrivalTiming: payload.nextArrivalTiming,
       thirdArrivalTiming: payload.thirdArrivalTiming,
+      arrivalVisitNumber: payload.arrivalVisitNumber,
+      nextArrivalVisitNumber: payload.nextArrivalVisitNumber,
+      thirdArrivalVisitNumber: payload.thirdArrivalVisitNumber,
       busType: payload.busType,
       wheelchairAccessible: payload.wheelchairAccessible,
       seatAvailability: payload.seatAvailability,
@@ -319,7 +402,7 @@ export class LiveActivityTrackingService {
 
   }
 
-  private async clearNativeActivity(endNative: boolean, activityId = this.activeActivityId): Promise<void> {
+  private async clearNativeActivity(endNative: boolean, activityId = this.activeActivityId): Promise<boolean> {
     this.clearTimer();
     this.stopPoller('tracking cleared');
     this.trackedActivities.delete(activityId);
@@ -335,14 +418,16 @@ export class LiveActivityTrackingService {
     const backendDeleted = await this.endPushUpdateSession(activityId);
 
     if (!endNative || !Capacitor.isNativePlatform()) {
-      return;
+      return backendDeleted;
     }
 
     try {
       await this.widgetBridgeService.endBusLiveActivity(activityId);
       console.debug('[LiveTrack] stop action completed', { activityId, backendDeleted, nativeEnded: true });
+      return backendDeleted;
     } catch (error) {
       console.warn('[LiveTrack] stop action native end failed', { activityId, backendDeleted, error });
+      return false;
     }
   }
 
@@ -454,7 +539,7 @@ export class LiveActivityTrackingService {
       });
       trackedActivity.pushToken = pushToken;
       trackedActivity.apnsEnvironment = event.apnsEnvironment || trackedActivity.apnsEnvironment;
-      void this.registerPushUpdateSession(
+      void this.queuePushUpdateSessionRegistration(
         activityId,
         pushToken,
         trackedActivity,
@@ -748,6 +833,9 @@ export class LiveActivityTrackingService {
       arrivalStatus: service.nextBus.timing,
       nextArrivalTiming: service.subsequentBus.timing,
       thirdArrivalTiming: service.thirdBus.timing,
+      arrivalVisitNumber: service.nextBus.visitNumber,
+      nextArrivalVisitNumber: service.subsequentBus.visitNumber,
+      thirdArrivalVisitNumber: service.thirdBus.visitNumber,
       busType: service.nextBus.type,
       wheelchairAccessible: service.nextBus.wheelchairAccessible,
       seatAvailability: service.nextBus.load,
@@ -766,6 +854,9 @@ export class LiveActivityTrackingService {
       arrivalStatus: state.arrivalStatus,
       nextArrivalTiming: state.nextArrivalTiming,
       thirdArrivalTiming: state.thirdArrivalTiming,
+      arrivalVisitNumber: state.arrivalVisitNumber,
+      nextArrivalVisitNumber: state.nextArrivalVisitNumber,
+      thirdArrivalVisitNumber: state.thirdArrivalVisitNumber,
       busType: state.busType,
       wheelchairAccessible: state.wheelchairAccessible,
       seatAvailability: state.seatAvailability,
@@ -836,6 +927,31 @@ export class LiveActivityTrackingService {
     return false;
   }
 
+  private queuePushUpdateSessionRegistration(
+    activityId: string | undefined,
+    pushToken: string | undefined,
+    payload: BusLiveActivityPayload,
+    apnsEnvironment?: 'development' | 'production'
+  ): Promise<boolean> {
+    const previousRegistration = activityId
+      ? this.pendingSessionRegistrations.get(activityId)
+      : undefined;
+    const registration = (previousRegistration || Promise.resolve(true))
+      .then(() => this.registerPushUpdateSession(activityId, pushToken, payload, apnsEnvironment));
+
+    if (activityId) {
+      this.pendingSessionRegistrations.set(activityId, registration);
+      const clearPendingRegistration = () => {
+        if (this.pendingSessionRegistrations.get(activityId) === registration) {
+          this.pendingSessionRegistrations.delete(activityId);
+        }
+      };
+      void registration.then(clearPendingRegistration, clearPendingRegistration);
+    }
+
+    return registration;
+  }
+
   private async endPushUpdateSession(activityId: string): Promise<boolean> {
     if (!activityId) {
       return true;
@@ -900,7 +1016,7 @@ export class LiveActivityTrackingService {
 
       const reconciliationResults = await Promise.all(activities.map(async (activity) => (
         activity.pushToken
-          ? this.registerPushUpdateSession(
+          ? this.queuePushUpdateSessionRegistration(
             activity.activityId,
             activity.pushToken,
             activity,

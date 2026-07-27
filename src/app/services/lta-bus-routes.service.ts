@@ -34,6 +34,7 @@ export interface BusRoute {
 export class LtaBusRoutesService {
   private readonly endpoint = `${environment.apiBaseUrl}/api/bus-routes`;
   private readonly routeRequests = new Map<string, Observable<BusRoute[]>>();
+  private readonly stopRouteRequests = new Map<string, Observable<BusRoute[]>>();
 
   constructor(private readonly http: HttpClient) {}
 
@@ -65,6 +66,36 @@ export class LtaBusRoutesService {
     }
 
     return this.routeRequests.get(cleanedServiceNo) as Observable<BusRoute[]>;
+  }
+
+  getBusRoutesForStop(busStopCode: string): Observable<BusRoute[]> {
+    const cleanedBusStopCode = busStopCode.trim();
+
+    if (!this.stopRouteRequests.has(cleanedBusStopCode)) {
+      const params = new HttpParams().set('busStopCode', cleanedBusStopCode);
+      const request = this.http.get<BusRoutesResponse>(this.endpoint, { params }).pipe(
+        timeout(30000),
+        retryWhen((errors) => errors.pipe(
+          mergeMap((error, retryIndex) => {
+            if (retryIndex >= 1 || !this.isTransientError(error)) {
+              return throwError(error);
+            }
+
+            return timer(1800);
+          })
+        )),
+        map((response) => this.unwrapBusRoutes(response)),
+        catchError((error) => {
+          this.stopRouteRequests.delete(cleanedBusStopCode);
+          return throwError(error);
+        }),
+        shareReplay(1)
+      );
+
+      this.stopRouteRequests.set(cleanedBusStopCode, request);
+    }
+
+    return this.stopRouteRequests.get(cleanedBusStopCode) as Observable<BusRoute[]>;
   }
 
   private unwrapBusRoutes(response: BusRoutesResponse): BusRoute[] {
