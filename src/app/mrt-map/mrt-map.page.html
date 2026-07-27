@@ -97,18 +97,24 @@
       <div
         #mrtMapViewer
         class="mrt-map-viewer"
-        (touchstart)="onMrtMapTouchStart($event)"
-        (touchmove)="onMrtMapTouchMove($event)"
-        (touchend)="onMrtMapTouchEnd($event)"
-        (touchcancel)="onMrtMapTouchEnd($event)"
       >
-        <img
-          #mrtMapImage
-          [src]="mrtMapImageUrl"
-          [style.transform]="mrtMapTransform"
-          alt="Singapore MRT and LRT network map"
-        />
+        <canvas
+          #mrtMapCanvas
+          class="mrt-map-canvas"
+          role="img"
+          aria-label="Singapore MRT and LRT network map"
+        ></canvas>
       </div>
+      <img
+        #mrtMapSourceImage
+        class="mrt-map-source-image"
+        [src]="mrtMapImageUrl"
+        decoding="async"
+        draggable="false"
+        aria-hidden="true"
+        alt=""
+        (load)="onMrtMapSourceLoad()"
+      />
     </section>
   </main>
 </ion-content>
@@ -116,6 +122,7 @@
 <ion-modal
   class="mrt-map-modal"
   [isOpen]="isMrtMapFullscreenOpen"
+  (didPresent)="onMrtMapFullscreenDidPresent()"
   (didDismiss)="closeMrtMapFullscreen()"
 >
   <ng-template>
@@ -132,18 +139,13 @@
       <div
         #mrtMapFullscreenViewer
         class="mrt-map-fullscreen__viewer"
-        (touchstart)="onMrtMapFullscreenTouchStart($event)"
-        (touchmove)="onMrtMapFullscreenTouchMove($event)"
-        (touchend)="onMrtMapFullscreenTouchEnd($event)"
-        (touchcancel)="onMrtMapFullscreenTouchCancel()"
-        (dblclick)="toggleMrtMapFullscreenZoom($event)"
       >
-        <img
-          #mrtMapFullscreenImage
-          [src]="mrtMapImageUrl"
-          [style.transform]="mrtMapFullscreenTransform"
-          alt="Singapore MRT and LRT network map"
-        />
+        <canvas
+          #mrtMapFullscreenCanvas
+          class="mrt-map-canvas"
+          role="img"
+          aria-label="Singapore MRT and LRT network map"
+        ></canvas>
       </div>
     </div>
   </ng-template>

@@ -1,14 +1,56 @@
-import { Component, ElementRef, OnInit, Optional, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  Optional,
+  ViewChild
+} from '@angular/core';
 import { IonRouterOutlet, NavController } from '@ionic/angular';
 
 import { RefreshFeedbackService } from '../services/refresh-feedback.service';
 import { LtaTrainServiceAlertsService, TrainServiceAlert } from '../services/lta-train-service-alerts.service';
 
 interface MapPinchAnchor {
-  baseOffsetX: number;
-  baseOffsetY: number;
   contentX: number;
   contentY: number;
+}
+
+interface MapViewportMetrics {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  contentWidth: number;
+  contentHeight: number;
+  baseOffsetX: number;
+  baseOffsetY: number;
+  maximumScale: number;
+}
+
+interface MapGestureState {
+  scale: number;
+  panX: number;
+  panY: number;
+  renderedScale: number;
+  renderedPanX: number;
+  renderedPanY: number;
+  pinchStartDistance: number;
+  pinchStartScale: number;
+  pinchAnchor?: MapPinchAnchor;
+  panStartX: number;
+  panStartY: number;
+  touchStartX: number;
+  touchStartY: number;
+  touchMoved: boolean;
+  lastTapAt: number;
+  lastTapX: number;
+  lastTapY: number;
+  frameId?: number;
+  settleFrameId?: number;
+  metrics?: MapViewportMetrics;
 }
 
 @Component({
@@ -16,45 +58,30 @@ interface MapPinchAnchor {
   templateUrl: 'mrt-map.page.html',
   styleUrls: ['mrt-map.page.scss']
 })
-export class MrtMapPage implements OnInit {
+export class MrtMapPage implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('mrtMapViewer') private readonly mrtMapViewer?: ElementRef<HTMLElement>;
-  @ViewChild('mrtMapImage') private readonly mrtMapImage?: ElementRef<HTMLImageElement>;
+  @ViewChild('mrtMapCanvas') private readonly mrtMapCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('mrtMapSourceImage') private readonly mrtMapSourceImage?: ElementRef<HTMLImageElement>;
   @ViewChild('mrtMapFullscreenViewer') private readonly mrtMapFullscreenViewer?: ElementRef<HTMLElement>;
-  @ViewChild('mrtMapFullscreenImage') private readonly mrtMapFullscreenImage?: ElementRef<HTMLImageElement>;
+  @ViewChild('mrtMapFullscreenCanvas') private readonly mrtMapFullscreenCanvas?: ElementRef<HTMLCanvasElement>;
 
   isLoadingMrtStatus = false;
   mrtStatusError = '';
   mrtAlerts: TrainServiceAlert[] = [];
-  mrtMapScale = 1;
-  mrtMapPanX = 0;
-  mrtMapPanY = 0;
   isMrtMapFullscreenOpen = false;
-  mrtMapFullscreenScale = 1;
-  mrtMapFullscreenPanX = 0;
-  mrtMapFullscreenPanY = 0;
   readonly mrtMapImageUrl = 'assets/images/mrt-map-2026.png';
-  private pinchStartDistance = 0;
-  private pinchStartScale = 1;
-  private pinchAnchor?: MapPinchAnchor;
-  private panStartX = 0;
-  private panStartY = 0;
-  private touchStartX = 0;
-  private touchStartY = 0;
-  private mapBaseOffsetX = 0;
-  private mapBaseOffsetY = 0;
-  private fullscreenPinchStartDistance = 0;
-  private fullscreenPinchStartScale = 1;
-  private fullscreenPinchAnchor?: MapPinchAnchor;
-  private fullscreenPanStartX = 0;
-  private fullscreenPanStartY = 0;
-  private fullscreenTouchStartX = 0;
-  private fullscreenTouchStartY = 0;
-  private fullscreenBaseOffsetX = 0;
-  private fullscreenBaseOffsetY = 0;
-  private fullscreenTouchMoved = false;
-  private fullscreenLastTapAt = 0;
-  private fullscreenLastTapX = 0;
-  private fullscreenLastTapY = 0;
+  private readonly mrtMapNaturalWidth = 8189;
+  private readonly mrtMapNaturalHeight = 8192;
+  private readonly maximumCanvasDimension = 6144;
+  private isMrtMapSourceReady = false;
+  private readonly inlineGesture = this.createGestureState();
+  private readonly fullscreenGesture = this.createGestureState();
+  private inlineGestureCleanup?: () => void;
+  private fullscreenGestureCleanup?: () => void;
+  private inlineMapResizeObserver?: ResizeObserver;
+  private initialMapRenderFrameId?: number;
+  private hasInlineMapEnteredView = false;
+  private hasRenderedInitialInlineMap = false;
   private readonly mrtLineColors: Record<string, string> = {
     NSL: '#D42E2E',
     EWL: '#009645',
@@ -71,6 +98,7 @@ export class MrtMapPage implements OnInit {
     private readonly navController: NavController,
     private readonly refreshFeedbackService: RefreshFeedbackService,
     private readonly trainServiceAlertsService: LtaTrainServiceAlertsService,
+    private readonly ngZone: NgZone,
     @Optional() private readonly routerOutlet?: IonRouterOutlet
   ) {}
 
@@ -79,10 +107,37 @@ export class MrtMapPage implements OnInit {
     void this.loadMrtStatus().catch(() => undefined);
   }
 
+  ngAfterViewInit(): void {
+    this.installInlineGestureHandlers();
+    this.observeInlineMapSize();
+
+    if (this.mrtMapSourceImage?.nativeElement.complete) {
+      this.onMrtMapSourceLoad();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.inlineGestureCleanup?.();
+    this.fullscreenGestureCleanup?.();
+    this.cancelGestureFrame(this.inlineGesture);
+    this.cancelGestureFrame(this.fullscreenGesture);
+    this.inlineMapResizeObserver?.disconnect();
+
+    if (this.initialMapRenderFrameId !== undefined) {
+      cancelAnimationFrame(this.initialMapRenderFrameId);
+      this.initialMapRenderFrameId = undefined;
+    }
+  }
+
   ionViewWillEnter(): void {
     if (this.routerOutlet) {
       this.routerOutlet.swipeGesture = true;
     }
+  }
+
+  ionViewDidEnter(): void {
+    this.hasInlineMapEnteredView = true;
+    this.scheduleInitialInlineMapRender();
   }
 
   get majorMrtAlerts(): TrainServiceAlert[] {
@@ -91,14 +146,6 @@ export class MrtMapPage implements OnInit {
 
   get hasMrtDisruption(): boolean {
     return this.majorMrtAlerts.length > 0;
-  }
-
-  get mrtMapTransform(): string {
-    return `translate(${this.mrtMapPanX}px, ${this.mrtMapPanY}px) scale(${this.mrtMapScale})`;
-  }
-
-  get mrtMapFullscreenTransform(): string {
-    return `translate(${this.mrtMapFullscreenPanX}px, ${this.mrtMapFullscreenPanY}px) scale(${this.mrtMapFullscreenScale})`;
   }
 
   goBack(): void {
@@ -111,13 +158,49 @@ export class MrtMapPage implements OnInit {
   }
 
   openMrtMapFullscreen(): void {
-    this.resetMrtMapFullscreenZoom();
+    this.resetGesture(this.fullscreenGesture, this.mrtMapFullscreenCanvas?.nativeElement);
     this.isMrtMapFullscreenOpen = true;
   }
 
   closeMrtMapFullscreen(): void {
     this.isMrtMapFullscreenOpen = false;
-    this.resetMrtMapFullscreenZoom();
+    this.fullscreenGestureCleanup?.();
+    this.fullscreenGestureCleanup = undefined;
+    this.resetGesture(this.fullscreenGesture, this.mrtMapFullscreenCanvas?.nativeElement);
+  }
+
+  onMrtMapFullscreenDidPresent(): void {
+    this.installFullscreenGestureHandlers();
+  }
+
+  onMrtMapSourceLoad(): void {
+    const sourceImage = this.mrtMapSourceImage?.nativeElement;
+
+    if (!sourceImage) {
+      return;
+    }
+
+    console.log({
+      src: sourceImage.currentSrc || sourceImage.src,
+      naturalWidth: sourceImage.naturalWidth,
+      naturalHeight: sourceImage.naturalHeight,
+      width: sourceImage.width,
+      height: sourceImage.height,
+      devicePixelRatio: this.devicePixelRatio()
+    });
+
+    this.isMrtMapSourceReady = sourceImage.naturalWidth === this.mrtMapNaturalWidth
+      && sourceImage.naturalHeight === this.mrtMapNaturalHeight;
+
+    if (!this.isMrtMapSourceReady) {
+      console.error(
+        `[MRT] Expected the full-resolution ${this.mrtMapNaturalWidth}×${this.mrtMapNaturalHeight} map asset, `
+        + `but loaded ${sourceImage.naturalWidth}×${sourceImage.naturalHeight}.`
+      );
+      return;
+    }
+
+    this.scheduleInitialInlineMapRender();
   }
 
   mrtUpdatedLabel(alerts = this.majorMrtAlerts.length ? this.majorMrtAlerts : this.mrtAlerts): string {
@@ -200,215 +283,6 @@ export class MrtMapPage implements OnInit {
     }
   }
 
-  onMrtMapTouchStart(event: TouchEvent): void {
-    if (event.touches.length === 2) {
-      this.pinchStartDistance = this.touchDistance(event.touches[0], event.touches[1]);
-      this.pinchStartScale = this.mrtMapScale;
-      this.pinchAnchor = this.createPinchAnchor(
-        this.mrtMapViewer?.nativeElement,
-        this.mrtMapImage?.nativeElement,
-        this.mrtMapPanX,
-        this.mrtMapPanY,
-        this.mrtMapScale,
-        event.touches[0],
-        event.touches[1]
-      );
-
-      if (this.pinchAnchor) {
-        this.mapBaseOffsetX = this.pinchAnchor.baseOffsetX;
-        this.mapBaseOffsetY = this.pinchAnchor.baseOffsetY;
-      }
-      return;
-    }
-
-    if (event.touches.length === 1 && this.mrtMapScale > 1) {
-      this.captureMapBaseOffset();
-      this.touchStartX = event.touches[0].clientX;
-      this.touchStartY = event.touches[0].clientY;
-      this.panStartX = this.mrtMapPanX;
-      this.panStartY = this.mrtMapPanY;
-    }
-  }
-
-  onMrtMapTouchMove(event: TouchEvent): void {
-    if (event.touches.length === 2 && this.pinchStartDistance > 0) {
-      event.preventDefault();
-      const distance = this.touchDistance(event.touches[0], event.touches[1]);
-      const maximumScale = this.maximumNativeMapScale(
-        this.mrtMapViewer?.nativeElement,
-        this.mrtMapImage?.nativeElement,
-        this.mrtMapScale,
-        3
-      );
-      const nextScale = this.clamp(this.pinchStartScale * (distance / this.pinchStartDistance), 1, maximumScale);
-      const midpoint = this.touchMidpoint(event.touches[0], event.touches[1]);
-      const viewer = this.mrtMapViewer?.nativeElement;
-
-      if (viewer && this.pinchAnchor) {
-        const rect = viewer.getBoundingClientRect();
-        this.mrtMapPanX = midpoint.x - rect.left - this.pinchAnchor.baseOffsetX - this.pinchAnchor.contentX * nextScale;
-        this.mrtMapPanY = midpoint.y - rect.top - this.pinchAnchor.baseOffsetY - this.pinchAnchor.contentY * nextScale;
-      }
-
-      this.mrtMapScale = nextScale;
-      this.clampMapPan(this.mapBaseOffsetX, this.mapBaseOffsetY);
-      return;
-    }
-
-    if (event.touches.length === 1 && this.mrtMapScale > 1) {
-      event.preventDefault();
-      this.mrtMapPanX = this.panStartX + event.touches[0].clientX - this.touchStartX;
-      this.mrtMapPanY = this.panStartY + event.touches[0].clientY - this.touchStartY;
-      this.clampMapPan(this.mapBaseOffsetX, this.mapBaseOffsetY);
-    }
-  }
-
-  onMrtMapTouchEnd(event: TouchEvent): void {
-    this.pinchStartDistance = 0;
-    this.pinchAnchor = undefined;
-
-    if (this.mrtMapScale <= 1.02) {
-      this.mrtMapScale = 1;
-      this.mrtMapPanX = 0;
-      this.mrtMapPanY = 0;
-      return;
-    }
-
-    this.clampMapPan(this.mapBaseOffsetX, this.mapBaseOffsetY);
-
-    if (event.touches.length === 1) {
-      this.touchStartX = event.touches[0].clientX;
-      this.touchStartY = event.touches[0].clientY;
-      this.panStartX = this.mrtMapPanX;
-      this.panStartY = this.mrtMapPanY;
-    }
-  }
-
-  onMrtMapFullscreenTouchStart(event: TouchEvent): void {
-    this.fullscreenTouchMoved = false;
-
-    if (event.touches.length === 2) {
-      this.fullscreenPinchStartDistance = this.touchDistance(event.touches[0], event.touches[1]);
-      this.fullscreenPinchStartScale = this.mrtMapFullscreenScale;
-      this.fullscreenPinchAnchor = this.createPinchAnchor(
-        this.mrtMapFullscreenViewer?.nativeElement,
-        this.mrtMapFullscreenImage?.nativeElement,
-        this.mrtMapFullscreenPanX,
-        this.mrtMapFullscreenPanY,
-        this.mrtMapFullscreenScale,
-        event.touches[0],
-        event.touches[1]
-      );
-
-      if (this.fullscreenPinchAnchor) {
-        this.fullscreenBaseOffsetX = this.fullscreenPinchAnchor.baseOffsetX;
-        this.fullscreenBaseOffsetY = this.fullscreenPinchAnchor.baseOffsetY;
-      }
-      return;
-    }
-
-    if (event.touches.length === 1) {
-      this.captureFullscreenBaseOffset();
-      this.fullscreenTouchStartX = event.touches[0].clientX;
-      this.fullscreenTouchStartY = event.touches[0].clientY;
-      this.fullscreenPanStartX = this.mrtMapFullscreenPanX;
-      this.fullscreenPanStartY = this.mrtMapFullscreenPanY;
-    }
-  }
-
-  onMrtMapFullscreenTouchMove(event: TouchEvent): void {
-    if (event.touches.length === 2 && this.fullscreenPinchStartDistance > 0) {
-      event.preventDefault();
-      this.fullscreenTouchMoved = true;
-      const distance = this.touchDistance(event.touches[0], event.touches[1]);
-      const maximumScale = this.maximumNativeMapScale(
-        this.mrtMapFullscreenViewer?.nativeElement,
-        this.mrtMapFullscreenImage?.nativeElement,
-        this.mrtMapFullscreenScale,
-        4
-      );
-      const nextScale = this.clamp(
-        this.fullscreenPinchStartScale * (distance / this.fullscreenPinchStartDistance),
-        1,
-        maximumScale
-      );
-      const midpoint = this.touchMidpoint(event.touches[0], event.touches[1]);
-      const viewer = this.mrtMapFullscreenViewer?.nativeElement;
-
-      if (viewer && this.fullscreenPinchAnchor) {
-        const rect = viewer.getBoundingClientRect();
-        this.mrtMapFullscreenPanX = midpoint.x - rect.left - this.fullscreenPinchAnchor.baseOffsetX
-          - this.fullscreenPinchAnchor.contentX * nextScale;
-        this.mrtMapFullscreenPanY = midpoint.y - rect.top - this.fullscreenPinchAnchor.baseOffsetY
-          - this.fullscreenPinchAnchor.contentY * nextScale;
-      }
-
-      this.mrtMapFullscreenScale = nextScale;
-      this.clampFullscreenMapPan(this.fullscreenBaseOffsetX, this.fullscreenBaseOffsetY);
-      return;
-    }
-
-    if (event.touches.length === 1 && this.mrtMapFullscreenScale > 1) {
-      event.preventDefault();
-      const deltaX = event.touches[0].clientX - this.fullscreenTouchStartX;
-      const deltaY = event.touches[0].clientY - this.fullscreenTouchStartY;
-      this.fullscreenTouchMoved = Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4;
-      this.mrtMapFullscreenPanX = this.fullscreenPanStartX + deltaX;
-      this.mrtMapFullscreenPanY = this.fullscreenPanStartY + deltaY;
-      this.clampFullscreenMapPan(this.fullscreenBaseOffsetX, this.fullscreenBaseOffsetY);
-    }
-  }
-
-  onMrtMapFullscreenTouchEnd(event: TouchEvent): void {
-    const endedTouch = event.changedTouches.item(0);
-
-    this.fullscreenPinchStartDistance = 0;
-    this.fullscreenPinchAnchor = undefined;
-
-    if (this.mrtMapFullscreenScale <= 1.02) {
-      this.resetMrtMapFullscreenZoom();
-    } else {
-      this.clampFullscreenMapPan(this.fullscreenBaseOffsetX, this.fullscreenBaseOffsetY);
-    }
-
-    if (event.touches.length === 1) {
-      this.fullscreenTouchStartX = event.touches[0].clientX;
-      this.fullscreenTouchStartY = event.touches[0].clientY;
-      this.fullscreenPanStartX = this.mrtMapFullscreenPanX;
-      this.fullscreenPanStartY = this.mrtMapFullscreenPanY;
-      return;
-    }
-
-    if (!endedTouch || this.fullscreenTouchMoved || event.touches.length) {
-      return;
-    }
-
-    const now = Date.now();
-    const isDoubleTap = now - this.fullscreenLastTapAt < 280
-      && Math.abs(endedTouch.clientX - this.fullscreenLastTapX) < 36
-      && Math.abs(endedTouch.clientY - this.fullscreenLastTapY) < 36;
-
-    this.fullscreenLastTapAt = now;
-    this.fullscreenLastTapX = endedTouch.clientX;
-    this.fullscreenLastTapY = endedTouch.clientY;
-
-    if (isDoubleTap) {
-      event.preventDefault();
-      this.toggleMrtMapFullscreenZoomAt(endedTouch.clientX, endedTouch.clientY);
-      this.fullscreenLastTapAt = 0;
-    }
-  }
-
-  onMrtMapFullscreenTouchCancel(): void {
-    this.fullscreenPinchStartDistance = 0;
-    this.fullscreenPinchAnchor = undefined;
-    this.fullscreenTouchMoved = false;
-  }
-
-  toggleMrtMapFullscreenZoom(event: MouseEvent): void {
-    this.toggleMrtMapFullscreenZoomAt(event.clientX, event.clientY);
-  }
-
   private async loadMrtStatus(options: { force?: boolean } = {}): Promise<void> {
     if (this.isLoadingMrtStatus && !options.force) {
       return;
@@ -445,160 +319,361 @@ export class MrtMapPage implements OnInit {
     };
   }
 
-  private createPinchAnchor(
-    viewer: HTMLElement | undefined,
-    image: HTMLImageElement | undefined,
-    panX: number,
-    panY: number,
-    scale: number,
-    firstTouch: Touch,
-    secondTouch: Touch
-  ): MapPinchAnchor | undefined {
-    if (!viewer || !image) {
-      return undefined;
-    }
-
-    const viewerRect = viewer.getBoundingClientRect();
-    const imageRect = image.getBoundingClientRect();
-    const midpoint = this.touchMidpoint(firstTouch, secondTouch);
-    const baseOffsetX = imageRect.left - viewerRect.left - panX;
-    const baseOffsetY = imageRect.top - viewerRect.top - panY;
-
+  private createGestureState(): MapGestureState {
     return {
-      baseOffsetX,
-      baseOffsetY,
-      contentX: (midpoint.x - viewerRect.left - baseOffsetX - panX) / scale,
-      contentY: (midpoint.y - viewerRect.top - baseOffsetY - panY) / scale
+      scale: 1,
+      panX: 0,
+      panY: 0,
+      renderedScale: 1,
+      renderedPanX: 0,
+      renderedPanY: 0,
+      pinchStartDistance: 0,
+      pinchStartScale: 1,
+      panStartX: 0,
+      panStartY: 0,
+      touchStartX: 0,
+      touchStartY: 0,
+      touchMoved: false,
+      lastTapAt: 0,
+      lastTapX: 0,
+      lastTapY: 0
     };
   }
 
-  private captureMapBaseOffset(): void {
+  private observeInlineMapSize(): void {
     const viewer = this.mrtMapViewer?.nativeElement;
-    const image = this.mrtMapImage?.nativeElement;
 
-    if (!viewer || !image) {
+    if (!viewer || typeof ResizeObserver === 'undefined') {
       return;
     }
 
-    const viewerRect = viewer.getBoundingClientRect();
-    const imageRect = image.getBoundingClientRect();
-    this.mapBaseOffsetX = imageRect.left - viewerRect.left - this.mrtMapPanX;
-    this.mapBaseOffsetY = imageRect.top - viewerRect.top - this.mrtMapPanY;
+    this.ngZone.runOutsideAngular(() => {
+      this.inlineMapResizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+
+        if (entry?.contentRect.width > 0 && entry.contentRect.height > 0) {
+          this.scheduleInitialInlineMapRender();
+        }
+      });
+      this.inlineMapResizeObserver.observe(viewer);
+    });
   }
 
-  private clampMapPan(baseOffsetX = this.mapBaseOffsetX, baseOffsetY = this.mapBaseOffsetY): void {
+  private scheduleInitialInlineMapRender(): void {
+    if (
+      this.hasRenderedInitialInlineMap
+      || !this.hasInlineMapEnteredView
+      || !this.isMrtMapSourceReady
+      || this.initialMapRenderFrameId !== undefined
+    ) {
+      return;
+    }
+
+    this.initialMapRenderFrameId = requestAnimationFrame(() => {
+      this.initialMapRenderFrameId = undefined;
+
+      if (this.tryRenderInitialInlineMap()) {
+        return;
+      }
+
+      this.scheduleInitialInlineMapRender();
+    });
+  }
+
+  private tryRenderInitialInlineMap(): boolean {
     const viewer = this.mrtMapViewer?.nativeElement;
-    const image = this.mrtMapImage?.nativeElement;
+    const canvas = this.mrtMapCanvas?.nativeElement;
 
-    if (!viewer || !image || this.mrtMapScale <= 1) {
-      this.mrtMapPanX = 0;
-      this.mrtMapPanY = 0;
+    if (
+      !viewer
+      || !canvas
+      || viewer.clientWidth <= 0
+      || viewer.clientHeight <= 0
+      || canvas.clientWidth <= 0
+      || canvas.clientHeight <= 0
+    ) {
+      return false;
+    }
+
+    this.inlineGesture.metrics = this.measureMap(viewer, 3);
+    this.resetGesture(this.inlineGesture, canvas);
+    canvas.style.visibility = 'visible';
+    this.hasRenderedInitialInlineMap = true;
+    this.inlineMapResizeObserver?.disconnect();
+    return true;
+  }
+
+  private installInlineGestureHandlers(): void {
+    const viewer = this.mrtMapViewer?.nativeElement;
+    const canvas = this.mrtMapCanvas?.nativeElement;
+
+    if (!viewer || !canvas || this.inlineGestureCleanup) {
       return;
     }
 
-    this.mrtMapPanX = this.clampMapAxis(
-      this.mrtMapPanX,
-      image.clientWidth * this.mrtMapScale,
-      viewer.clientWidth,
-      viewer.clientLeft,
-      baseOffsetX
-    );
-    this.mrtMapPanY = this.clampMapAxis(
-      this.mrtMapPanY,
-      image.clientHeight * this.mrtMapScale,
-      viewer.clientHeight,
-      viewer.clientTop,
-      baseOffsetY
-    );
+    this.inlineGesture.metrics = this.measureMap(viewer, 3);
+    this.inlineGestureCleanup = this.installGestureHandlers(viewer, canvas, this.inlineGesture, 3, false);
   }
 
-  private resetMrtMapFullscreenZoom(): void {
-    this.mrtMapFullscreenScale = 1;
-    this.mrtMapFullscreenPanX = 0;
-    this.mrtMapFullscreenPanY = 0;
-    this.fullscreenPinchStartDistance = 0;
-    this.fullscreenPinchAnchor = undefined;
-    this.fullscreenTouchMoved = false;
-    this.fullscreenLastTapAt = 0;
-  }
-
-  private toggleMrtMapFullscreenZoomAt(clientX: number, clientY: number): void {
+  private installFullscreenGestureHandlers(): void {
     const viewer = this.mrtMapFullscreenViewer?.nativeElement;
+    const canvas = this.mrtMapFullscreenCanvas?.nativeElement;
 
-    if (!viewer) {
+    if (!viewer || !canvas) {
       return;
     }
 
-    if (this.mrtMapFullscreenScale > 1.05) {
-      this.resetMrtMapFullscreenZoom();
-      return;
-    }
-
-    const rect = viewer.getBoundingClientRect();
-    const image = this.mrtMapFullscreenImage?.nativeElement;
-
-    if (!image) {
-      return;
-    }
-
-    const imageRect = image.getBoundingClientRect();
-    const baseOffsetX = imageRect.left - rect.left - this.mrtMapFullscreenPanX;
-    const baseOffsetY = imageRect.top - rect.top - this.mrtMapFullscreenPanY;
-    const tapX = (clientX - rect.left - baseOffsetX - this.mrtMapFullscreenPanX) / this.mrtMapFullscreenScale;
-    const tapY = (clientY - rect.top - baseOffsetY - this.mrtMapFullscreenPanY) / this.mrtMapFullscreenScale;
-    const nextScale = Math.min(
-      2.35,
-      this.maximumNativeMapScale(viewer, image, this.mrtMapFullscreenScale, 4)
-    );
-
-    this.fullscreenBaseOffsetX = baseOffsetX;
-    this.fullscreenBaseOffsetY = baseOffsetY;
-    this.mrtMapFullscreenScale = nextScale;
-    this.mrtMapFullscreenPanX = clientX - rect.left - baseOffsetX - tapX * nextScale;
-    this.mrtMapFullscreenPanY = clientY - rect.top - baseOffsetY - tapY * nextScale;
-    this.clampFullscreenMapPan(baseOffsetX, baseOffsetY);
+    this.fullscreenGestureCleanup?.();
+    this.fullscreenGesture.metrics = this.measureMap(viewer, 4);
+    this.resetGesture(this.fullscreenGesture, canvas);
+    this.fullscreenGestureCleanup = this.installGestureHandlers(viewer, canvas, this.fullscreenGesture, 4, true);
   }
 
-  private captureFullscreenBaseOffset(): void {
-    const viewer = this.mrtMapFullscreenViewer?.nativeElement;
-    const image = this.mrtMapFullscreenImage?.nativeElement;
+  private installGestureHandlers(
+    viewer: HTMLElement,
+    canvas: HTMLCanvasElement,
+    state: MapGestureState,
+    interactionLimit: number,
+    enableDoubleTap: boolean
+  ): () => void {
+    const start = (event: TouchEvent) => this.handleGestureStart(event, viewer, canvas, state, interactionLimit);
+    const move = (event: TouchEvent) => this.handleGestureMove(event, canvas, state);
+    const end = (event: TouchEvent) => {
+      this.handleGestureEnd(event, viewer, canvas, state, interactionLimit, enableDoubleTap);
+    };
+    const cancel = () => this.handleGestureCancel(canvas, state);
+    const doubleClick = (event: MouseEvent) => {
+      event.preventDefault();
+      this.prepareGestureCanvas(canvas, state);
+      this.toggleGestureZoomAt(event.clientX, event.clientY, viewer, canvas, state, interactionLimit);
+    };
 
-    if (!viewer || !image) {
-      return;
-    }
+    this.ngZone.runOutsideAngular(() => {
+      viewer.addEventListener('touchstart', start, { passive: true });
+      viewer.addEventListener('touchmove', move, { passive: false });
+      viewer.addEventListener('touchend', end, { passive: false });
+      viewer.addEventListener('touchcancel', cancel, { passive: true });
 
-    const viewerRect = viewer.getBoundingClientRect();
-    const imageRect = image.getBoundingClientRect();
-    this.fullscreenBaseOffsetX = imageRect.left - viewerRect.left - this.mrtMapFullscreenPanX;
-    this.fullscreenBaseOffsetY = imageRect.top - viewerRect.top - this.mrtMapFullscreenPanY;
+      if (enableDoubleTap) {
+        viewer.addEventListener('dblclick', doubleClick);
+      }
+    });
+
+    return () => {
+      viewer.removeEventListener('touchstart', start);
+      viewer.removeEventListener('touchmove', move);
+      viewer.removeEventListener('touchend', end);
+      viewer.removeEventListener('touchcancel', cancel);
+      viewer.removeEventListener('dblclick', doubleClick);
+    };
   }
 
-  private clampFullscreenMapPan(
-    baseOffsetX = this.fullscreenBaseOffsetX,
-    baseOffsetY = this.fullscreenBaseOffsetY
+  private handleGestureStart(
+    event: TouchEvent,
+    viewer: HTMLElement,
+    canvas: HTMLCanvasElement,
+    state: MapGestureState,
+    interactionLimit: number
   ): void {
-    const viewer = this.mrtMapFullscreenViewer?.nativeElement;
-    const image = this.mrtMapFullscreenImage?.nativeElement;
+    this.prepareGestureCanvas(canvas, state);
+    state.touchMoved = false;
+    state.metrics = this.measureMap(viewer, interactionLimit);
 
-    if (!viewer || !image || this.mrtMapFullscreenScale <= 1) {
-      this.mrtMapFullscreenPanX = 0;
-      this.mrtMapFullscreenPanY = 0;
+    if (event.touches.length === 2) {
+      const midpoint = this.touchMidpoint(event.touches[0], event.touches[1]);
+      const metrics = state.metrics;
+      state.pinchStartDistance = this.touchDistance(event.touches[0], event.touches[1]);
+      state.pinchStartScale = state.scale;
+      state.pinchAnchor = {
+        contentX: (midpoint.x - metrics.left - metrics.baseOffsetX - state.panX) / state.scale,
+        contentY: (midpoint.y - metrics.top - metrics.baseOffsetY - state.panY) / state.scale
+      };
       return;
     }
 
-    this.mrtMapFullscreenPanX = this.clampMapAxis(
-      this.mrtMapFullscreenPanX,
-      image.clientWidth * this.mrtMapFullscreenScale,
-      viewer.clientWidth,
-      viewer.clientLeft,
-      baseOffsetX
+    if (event.touches.length === 1) {
+      state.touchStartX = event.touches[0].clientX;
+      state.touchStartY = event.touches[0].clientY;
+      state.panStartX = state.panX;
+      state.panStartY = state.panY;
+    }
+  }
+
+  private handleGestureMove(event: TouchEvent, canvas: HTMLCanvasElement, state: MapGestureState): void {
+    const metrics = state.metrics;
+
+    if (!metrics) {
+      return;
+    }
+
+    if (event.touches.length === 2 && state.pinchStartDistance > 0 && state.pinchAnchor) {
+      event.preventDefault();
+      state.touchMoved = true;
+      const distance = this.touchDistance(event.touches[0], event.touches[1]);
+      const midpoint = this.touchMidpoint(event.touches[0], event.touches[1]);
+      state.scale = this.clamp(
+        state.pinchStartScale * (distance / state.pinchStartDistance),
+        1,
+        metrics.maximumScale
+      );
+      state.panX = midpoint.x - metrics.left - metrics.baseOffsetX - state.pinchAnchor.contentX * state.scale;
+      state.panY = midpoint.y - metrics.top - metrics.baseOffsetY - state.pinchAnchor.contentY * state.scale;
+      this.clampGesturePan(state);
+      this.scheduleGestureTransform(canvas, state);
+      return;
+    }
+
+    if (event.touches.length === 1 && state.scale > 1) {
+      event.preventDefault();
+      const deltaX = event.touches[0].clientX - state.touchStartX;
+      const deltaY = event.touches[0].clientY - state.touchStartY;
+      state.touchMoved = Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4;
+      state.panX = state.panStartX + deltaX;
+      state.panY = state.panStartY + deltaY;
+      this.clampGesturePan(state);
+      this.scheduleGestureTransform(canvas, state);
+    }
+  }
+
+  private handleGestureEnd(
+    event: TouchEvent,
+    viewer: HTMLElement,
+    canvas: HTMLCanvasElement,
+    state: MapGestureState,
+    interactionLimit: number,
+    enableDoubleTap: boolean
+  ): void {
+    const endedTouch = event.changedTouches.item(0);
+    state.pinchStartDistance = 0;
+    state.pinchAnchor = undefined;
+
+    if (state.scale <= 1.02) {
+      state.scale = 1;
+      state.panX = 0;
+      state.panY = 0;
+      this.scheduleGestureTransform(canvas, state);
+    } else {
+      this.clampGesturePan(state);
+      this.scheduleGestureTransform(canvas, state);
+    }
+
+    if (event.touches.length === 1) {
+      state.touchStartX = event.touches[0].clientX;
+      state.touchStartY = event.touches[0].clientY;
+      state.panStartX = state.panX;
+      state.panStartY = state.panY;
+      return;
+    }
+
+    this.settleMapCanvas(canvas, state);
+
+    if (!enableDoubleTap || !endedTouch || state.touchMoved || event.touches.length) {
+      return;
+    }
+
+    const now = Date.now();
+    const isDoubleTap = now - state.lastTapAt < 280
+      && Math.abs(endedTouch.clientX - state.lastTapX) < 36
+      && Math.abs(endedTouch.clientY - state.lastTapY) < 36;
+
+    state.lastTapAt = now;
+    state.lastTapX = endedTouch.clientX;
+    state.lastTapY = endedTouch.clientY;
+
+    if (isDoubleTap) {
+      event.preventDefault();
+      this.toggleGestureZoomAt(endedTouch.clientX, endedTouch.clientY, viewer, canvas, state, interactionLimit);
+      state.lastTapAt = 0;
+    }
+  }
+
+  private handleGestureCancel(canvas: HTMLCanvasElement, state: MapGestureState): void {
+    state.pinchStartDistance = 0;
+    state.pinchAnchor = undefined;
+    state.touchMoved = false;
+    this.settleMapCanvas(canvas, state);
+  }
+
+  private toggleGestureZoomAt(
+    clientX: number,
+    clientY: number,
+    viewer: HTMLElement,
+    canvas: HTMLCanvasElement,
+    state: MapGestureState,
+    interactionLimit: number
+  ): void {
+    if (state.scale > 1.05) {
+      this.resetGesture(state, canvas);
+      return;
+    }
+
+    state.metrics = this.measureMap(viewer, interactionLimit);
+    const metrics = state.metrics;
+    const tapX = (clientX - metrics.left - metrics.baseOffsetX - state.panX) / state.scale;
+    const tapY = (clientY - metrics.top - metrics.baseOffsetY - state.panY) / state.scale;
+    state.scale = Math.min(2.35, metrics.maximumScale);
+    state.panX = clientX - metrics.left - metrics.baseOffsetX - tapX * state.scale;
+    state.panY = clientY - metrics.top - metrics.baseOffsetY - tapY * state.scale;
+    this.clampGesturePan(state);
+    this.scheduleGestureTransform(canvas, state);
+    this.settleMapCanvas(canvas, state);
+  }
+
+  private measureMap(
+    viewer: HTMLElement,
+    interactionLimit: number
+  ): MapViewportMetrics {
+    const viewerRect = viewer.getBoundingClientRect();
+    const width = viewer.clientWidth;
+    const height = viewer.clientHeight;
+    const contentWidth = width;
+    const contentHeight = contentWidth * (this.mrtMapNaturalHeight / this.mrtMapNaturalWidth);
+    const left = viewerRect.left + viewer.clientLeft;
+    const top = viewerRect.top + viewer.clientTop;
+    const baseOffsetX = (width - contentWidth) / 2;
+    const baseOffsetY = (height - contentHeight) / 2;
+    const devicePixelRatio = this.devicePixelRatio();
+    const sourceImage = this.mrtMapSourceImage?.nativeElement;
+    const nativeWidthScale = sourceImage?.naturalWidth
+      ? sourceImage.naturalWidth / (Math.max(1, contentWidth) * devicePixelRatio)
+      : interactionLimit;
+    const nativeHeightScale = sourceImage?.naturalHeight
+      ? sourceImage.naturalHeight / (Math.max(1, contentHeight) * devicePixelRatio)
+      : interactionLimit;
+
+    return {
+      left,
+      top,
+      width,
+      height,
+      contentWidth,
+      contentHeight,
+      baseOffsetX,
+      baseOffsetY,
+      maximumScale: Math.max(1, Math.min(interactionLimit, nativeWidthScale, nativeHeightScale))
+    };
+  }
+
+  private clampGesturePan(state: MapGestureState): void {
+    const metrics = state.metrics;
+
+    if (!metrics || state.scale <= 1) {
+      state.panX = 0;
+      state.panY = 0;
+      return;
+    }
+
+    state.panX = this.clampMapAxis(
+      state.panX,
+      metrics.contentWidth * state.scale,
+      metrics.width,
+      metrics.baseOffsetX
     );
-    this.mrtMapFullscreenPanY = this.clampMapAxis(
-      this.mrtMapFullscreenPanY,
-      image.clientHeight * this.mrtMapFullscreenScale,
-      viewer.clientHeight,
-      viewer.clientTop,
-      baseOffsetY
+    state.panY = this.clampMapAxis(
+      state.panY,
+      metrics.contentHeight * state.scale,
+      metrics.height,
+      metrics.baseOffsetY
     );
   }
 
@@ -606,45 +681,186 @@ export class MrtMapPage implements OnInit {
     pan: number,
     scaledContentSize: number,
     viewportSize: number,
-    viewportStart: number,
     baseOffset: number
   ): number {
     if (scaledContentSize <= viewportSize) {
-      return this.alignToDevicePixel(viewportStart + (viewportSize - scaledContentSize) / 2 - baseOffset);
+      return this.alignToDevicePixel((viewportSize - scaledContentSize) / 2 - baseOffset);
     }
 
-    const minPan = viewportStart + viewportSize - baseOffset - scaledContentSize;
-    const maxPan = viewportStart - baseOffset;
+    const minPan = viewportSize - baseOffset - scaledContentSize;
+    const maxPan = -baseOffset;
     const clampedPan = this.clamp(pan, minPan, maxPan);
     const alignedPan = this.alignToDevicePixel(clampedPan);
 
     return alignedPan >= minPan && alignedPan <= maxPan ? alignedPan : clampedPan;
   }
 
-  private maximumNativeMapScale(
-    viewer: HTMLElement | undefined,
-    image: HTMLImageElement | undefined,
-    currentScale: number,
-    interactionLimit: number
-  ): number {
-    if (!viewer || !image || !image.naturalWidth || !image.naturalHeight) {
-      return interactionLimit;
+  private scheduleGestureTransform(canvas: HTMLCanvasElement, state: MapGestureState): void {
+    if (state.frameId !== undefined) {
+      return;
     }
 
-    const imageRect = image.getBoundingClientRect();
-    const safeCurrentScale = Math.max(1, currentScale);
-    const baseRenderedWidth = imageRect.width / safeCurrentScale;
-    const baseRenderedHeight = imageRect.height / safeCurrentScale;
+    state.frameId = requestAnimationFrame(() => {
+      state.frameId = undefined;
+      const metrics = state.metrics;
+
+      if (!metrics) {
+        return;
+      }
+
+      const relativeScale = state.scale / state.renderedScale;
+      const translateX = metrics.baseOffsetX + state.panX
+        - relativeScale * (metrics.baseOffsetX + state.renderedPanX);
+      const translateY = metrics.baseOffsetY + state.panY
+        - relativeScale * (metrics.baseOffsetY + state.renderedPanY);
+      canvas.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${relativeScale})`;
+    });
+  }
+
+  private resetGesture(state: MapGestureState, canvas?: HTMLCanvasElement): void {
+    state.scale = 1;
+    state.panX = 0;
+    state.panY = 0;
+    state.pinchStartDistance = 0;
+    state.pinchAnchor = undefined;
+    state.touchMoved = false;
+    state.lastTapAt = 0;
+
+    if (canvas) {
+      this.scheduleGestureTransform(canvas, state);
+      this.settleMapCanvas(canvas, state);
+    }
+  }
+
+  private prepareGestureCanvas(canvas: HTMLCanvasElement, state: MapGestureState): void {
+    if (state.settleFrameId !== undefined) {
+      cancelAnimationFrame(state.settleFrameId);
+      state.settleFrameId = undefined;
+    }
+
+    canvas.style.willChange = 'transform';
+  }
+
+  private settleMapCanvas(canvas: HTMLCanvasElement, state: MapGestureState): void {
+    if (state.frameId !== undefined) {
+      cancelAnimationFrame(state.frameId);
+      state.frameId = undefined;
+    }
+
+    this.renderMapCanvas(canvas, state);
+
+    if (state.settleFrameId !== undefined) {
+      cancelAnimationFrame(state.settleFrameId);
+    }
+
+    state.settleFrameId = requestAnimationFrame(() => {
+      state.settleFrameId = requestAnimationFrame(() => {
+        state.settleFrameId = undefined;
+        canvas.style.willChange = 'auto';
+      });
+    });
+  }
+
+  private renderMapCanvas(canvas: HTMLCanvasElement, state: MapGestureState): void {
+    const sourceImage = this.mrtMapSourceImage?.nativeElement;
+    const metrics = state.metrics;
+
+    if (!this.isMrtMapSourceReady || !sourceImage || !metrics) {
+      return;
+    }
+
+    const cssWidth = canvas.clientWidth;
+    const cssHeight = canvas.clientHeight;
+
+    if (!cssWidth || !cssHeight) {
+      return;
+    }
+
     const devicePixelRatio = this.devicePixelRatio();
+    const uncappedBackingWidth = Math.max(1, Math.round(cssWidth * devicePixelRatio));
+    const uncappedBackingHeight = Math.max(1, Math.round(cssHeight * devicePixelRatio));
+    const backingLimitScale = Math.min(
+      1,
+      this.maximumCanvasDimension / Math.max(uncappedBackingWidth, uncappedBackingHeight)
+    );
+    const backingWidth = Math.max(1, Math.round(uncappedBackingWidth * backingLimitScale));
+    const backingHeight = Math.max(1, Math.round(uncappedBackingHeight * backingLimitScale));
 
-    if (!baseRenderedWidth || !baseRenderedHeight) {
-      return interactionLimit;
+    if (canvas.width !== backingWidth || canvas.height !== backingHeight) {
+      canvas.width = backingWidth;
+      canvas.height = backingHeight;
     }
 
-    const nativeWidthScale = image.naturalWidth / (baseRenderedWidth * devicePixelRatio);
-    const nativeHeightScale = image.naturalHeight / (baseRenderedHeight * devicePixelRatio);
+    const context = canvas.getContext('2d', { alpha: false });
 
-    return Math.max(1, Math.min(interactionLimit, nativeWidthScale, nativeHeightScale));
+    if (!context) {
+      return;
+    }
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, backingWidth, backingHeight);
+
+    const mapLeft = metrics.baseOffsetX + state.panX;
+    const mapTop = metrics.baseOffsetY + state.panY;
+    const visibleContentLeft = this.clamp(-mapLeft / state.scale, 0, metrics.contentWidth);
+    const visibleContentTop = this.clamp(-mapTop / state.scale, 0, metrics.contentHeight);
+    const visibleContentRight = this.clamp(
+      (metrics.width - mapLeft) / state.scale,
+      0,
+      metrics.contentWidth
+    );
+    const visibleContentBottom = this.clamp(
+      (metrics.height - mapTop) / state.scale,
+      0,
+      metrics.contentHeight
+    );
+    const sourceX = visibleContentLeft / metrics.contentWidth * sourceImage.naturalWidth;
+    const sourceY = visibleContentTop / metrics.contentHeight * sourceImage.naturalHeight;
+    const sourceWidth = (visibleContentRight - visibleContentLeft)
+      / metrics.contentWidth * sourceImage.naturalWidth;
+    const sourceHeight = (visibleContentBottom - visibleContentTop)
+      / metrics.contentHeight * sourceImage.naturalHeight;
+    const backingScaleX = backingWidth / cssWidth;
+    const backingScaleY = backingHeight / cssHeight;
+    const destinationX = (mapLeft + visibleContentLeft * state.scale) * backingScaleX;
+    const destinationY = (mapTop + visibleContentTop * state.scale) * backingScaleY;
+    const destinationWidth = (visibleContentRight - visibleContentLeft)
+      * state.scale * backingScaleX;
+    const destinationHeight = (visibleContentBottom - visibleContentTop)
+      * state.scale * backingScaleY;
+
+    if (sourceWidth > 0 && sourceHeight > 0 && destinationWidth > 0 && destinationHeight > 0) {
+      context.drawImage(
+        sourceImage,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        destinationX,
+        destinationY,
+        destinationWidth,
+        destinationHeight
+      );
+    }
+
+    state.renderedScale = state.scale;
+    state.renderedPanX = state.panX;
+    state.renderedPanY = state.panY;
+    canvas.style.transform = 'translate3d(0, 0, 0) scale(1)';
+  }
+
+  private cancelGestureFrame(state: MapGestureState): void {
+    if (state.frameId !== undefined) {
+      cancelAnimationFrame(state.frameId);
+      state.frameId = undefined;
+    }
+
+    if (state.settleFrameId !== undefined) {
+      cancelAnimationFrame(state.settleFrameId);
+      state.settleFrameId = undefined;
+    }
   }
 
   private alignToDevicePixel(value: number): number {

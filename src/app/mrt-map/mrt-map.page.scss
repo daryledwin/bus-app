@@ -602,27 +602,35 @@ ion-content.routes-page {
 }
 
 .mrt-map-viewer {
+  aspect-ratio: 8189 / 8192;
   background: var(--app-primary-surface);
   border: 1px solid rgba(var(--app-primary-border-rgb), 0.16);
   border-radius: 18px;
-  height: min(68vh, 720px);
-  min-height: 420px;
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
+  contain: layout paint;
+  height: auto;
+  overflow: hidden;
   touch-action: none;
+  width: 100%;
 }
 
-.mrt-map-viewer img {
+.mrt-map-canvas {
   background: #fff;
   border: 0;
   display: block;
-  height: auto;
+  height: 100%;
   image-rendering: auto;
-  object-fit: contain;
+  transform: translate3d(0, 0, 0) scale(1);
   transform-origin: top left;
   user-select: none;
-  -webkit-user-drag: none;
   width: 100%;
+}
+
+.mrt-map-source-image {
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1px;
 }
 
 :host ::ng-deep ion-modal.mrt-map-modal {
@@ -670,22 +678,17 @@ ion-content.routes-page {
 .mrt-map-fullscreen__viewer {
   align-items: center;
   background: #fff;
+  contain: layout paint;
   display: flex;
   height: 100%;
   overflow: hidden;
+  position: relative;
   touch-action: none;
   width: 100%;
 }
 
-.mrt-map-fullscreen__viewer img {
-  display: block;
-  height: auto;
-  image-rendering: auto;
-  object-fit: contain;
-  transform-origin: top left;
-  user-select: none;
-  -webkit-user-drag: none;
-  width: 100%;
+.mrt-map-fullscreen__viewer .mrt-map-canvas {
+  flex: 0 0 100%;
 }
 
 @keyframes mrtSkeletonSheen {
